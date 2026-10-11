@@ -1,236 +1,209 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>CA Malayalee Meetup Bengaluru – Register</title>
+<meta name="robots" content="noindex,nofollow">
+<title>Organiser · Meetup 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-:root{--bg:#eef3ef;--card:#fff;--ink:#10231b;--mute:#52665c;--green:#0e5a43;--gold:#c9962b;--line:#cfdcd3;--err:#b3261e;--on:#fff;
-box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--on:#06150e}}
-:root[data-theme="dark"]{--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--on:#06150e}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*,*:before,*:after{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 "Bricolage Grotesque",system-ui,sans-serif}
+:root{--bg:#eef3ef;--card:#fff;--ink:#10231b;--mute:#52665c;--green:#0e5a43;--gold:#c9962b;--line:#cfdcd3;--err:#b3261e;--ok:#17803d;--warn:#a96b00;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}}
+:root[data-theme="dark"]{--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*:before,*:after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
 .kasavu{height:10px;background:repeating-linear-gradient(90deg,var(--gold) 0 18px,var(--bg) 18px 22px,var(--green) 22px 40px,var(--bg) 40px 44px)}
-main{max-width:640px;margin:0 auto;padding:20px 16px 56px}
-h1{font-size:2rem;line-height:1.1;font-weight:800;margin:18px 0 6px}
-h2{font-size:1.25rem;margin:0 0 12px}
-.sub{color:var(--mute);margin:0 0 20px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 14px}
-label,.lbl{display:block;font-weight:600;margin:12px 0 6px}
-input[type=text],input[type=tel],input[type=file]{width:100%;font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
-.opts{display:flex;gap:8px;flex-wrap:wrap}
-.opts label{margin:0;font-weight:400}
-.opts input{position:absolute;opacity:0;pointer-events:none}
-.opts span{display:inline-block;padding:10px 14px;border:1px solid var(--line);border-radius:999px;cursor:pointer;background:var(--bg)}
-.opts input:checked+span{background:var(--green);color:var(--on);border-color:var(--green)}
-.opts input:focus-visible+span,button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-button{font:inherit;font-weight:600;border-radius:10px;padding:13px 18px;border:1px solid var(--green);background:var(--green);color:var(--on);cursor:pointer}
-button.ghost{background:transparent;color:var(--green)}
-button:disabled{opacity:.5}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.row>button{flex:1 1 140px}
-.sw{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.sw input{width:48px;height:28px;accent-color:var(--green)}
-.err{color:var(--err);font-size:.92rem;margin:6px 0 0}
-.errbox{border-color:var(--err);color:var(--err)}
-table{width:100%;border-collapse:collapse;font-size:.95rem}td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
-.wrap{overflow-x:auto}
-.amt{font-size:2.6rem;font-weight:800;line-height:1}
-.qr{display:block;margin:14px auto;width:min(260px,100%);height:auto;border-radius:8px;border:6px solid #fff;background:#fff}
-.upi{display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap}
-.upi code{padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:var(--bg)}
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;z-index:9}
-.note{font-size:.9rem;color:var(--mute)}
+main{max-width:1100px;margin:0 auto;padding:16px 14px 60px}
+h1{font-size:1.6rem;margin:10px 0 4px;font-weight:800}h2{font-size:1.1rem;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 12px}
+.mute{color:var(--mute)}.err{color:var(--err)}
+input,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
+label{display:block;font-weight:600;margin:10px 0 4px}
+button{font:inherit;font-weight:600;border-radius:8px;padding:9px 13px;border:1px solid var(--green);background:var(--green);color:var(--on);cursor:pointer}
+button.ghost{background:transparent;color:var(--green)}button.bad{background:var(--err);border-color:var(--err);color:#fff}button.sm{padding:5px 9px;font-size:.85rem}
+button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}.tabs button.on{background:var(--green);color:var(--on);border-color:var(--green)}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat b{display:block;font-size:1.7rem;line-height:1.1}
+.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.charts .card{height:300px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}td.n{white-space:normal}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.8rem;font-weight:600;border:1px solid var(--line)}
+.p-paid{color:var(--ok);border-color:var(--ok)}.p-pending{color:var(--warn);border-color:var(--warn)}.p-rejected{color:var(--err);border-color:var(--err)}
+.flag{display:block;font-size:.82rem;color:var(--warn);white-space:normal;max-width:300px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto;z-index:9}
+.modal .box{background:var(--card);border-radius:12px;padding:14px;max-width:960px;width:100%}.modal img{max-width:100%;max-height:78vh;border-radius:8px;display:block;margin:6px auto}.two{display:flex;gap:10px;flex-wrap:wrap}.two>div{flex:1 1 300px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;z-index:10}
 </style></head>
-<body>
-<div class="kasavu"></div>
-<main id="app"></main>
+<body><div class="kasavu"></div><main id="app"></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js"></script>
 <script>
-/* ===== CONFIG: change these in one place ===== */
-const CONFIG={
-  eventName:"Malayalee CA Meetup Bengaluru",
-  eventLine:"Date, time and venue to be announced",   // PLACEHOLDER
-  upiId:"yourname@upi",                                // PLACEHOLDER - swap before launch
-  payeeName:"Mallu Articles Bengaluru",                // PLACEHOLDER
-  supabaseUrl:"https://jddrwajazpsdrqpwlncu.supabase.co",
-  supabaseKey:"sb_publishable_W3tJTLdbCOuwkUwkjLW1Iw_9m1zGHFT"   // publishable key: safe to be public
-};
-const PLACEHOLDER_UPI=CONFIG.upiId==="yourname@upi";
-let db=null;try{db=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}})}catch(_){}
+const CFG={url:"https://jddrwajazpsdrqpwlncu.supabase.co",key:"sb_publishable_W3tJTLdbCOuwkUwkjLW1Iw_9m1zGHFT"};
+const SIMILAR_BITS=50;               // images differing by <= this many of 1024 bits count as "possibly the same screenshot"
+const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true}});
+const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
+const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",review:false},msg:"",charts:[],scanning:false};
+function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
 
-function uuid(){if(crypto.randomUUID)return crypto.randomUUID();
-  return"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15;return(c==="x"?r:(r&3|8)).toString(16)})}
-function blank(){return{name:"",phone:"",loc:"",att:"",food:""}}
-const S={step:"loading",status:null,friends:false,n:1,people:[blank()],file:null,sid:uuid(),errs:[],payErr:"",busy:false,result:null};
-const $=s=>document.querySelector(s);
-const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const pad=n=>String(n).padStart(3,"0");
-const price=()=>S.status?S.status.price_per_head:0;
-const total=()=>S.n*price();
-const maxN=()=>S.status?S.status.max_group:1;
-const lastCode=()=>{try{return(JSON.parse(localStorage.getItem("mm_last")||"null")||{}).code||""}catch(_){return""}};
-function setN(n){S.n=n;while(S.people.length<n)S.people.push(blank());S.people.length=n}
-function opt(i,k,v,cur){return `<label><input type="radio" name="p${i}_${k}" data-i="${i}" data-k="${k}" value="${v}" ${cur===v?"checked":""}><span>${v}</span></label>`}
-function head(t,s){return `<h1>${t}</h1><p class="sub">${s}</p>`}
-function closeDate(){try{return new Date(S.status.deadline).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kolkata"})}catch(_){return""}}
-
+/* ---------- boot / auth ---------- */
+async function boot(){
+  const{data:{session}}=await db.auth.getSession();
+  if(!session){S.staff=null;return view()}
+  const{data,error}=await db.from("staff").select("name,role").eq("user_id",session.user.id).maybeSingle();
+  if(error||!data){S.staff=null;S.msg="This account is not set up as an organiser yet. Ask the admin to add it.";await db.auth.signOut();return view()}
+  S.staff=data;await load();view();
+}
 async function load(){
-  try{
-    if(!db)throw new Error("no client");
-    const{data,error}=await db.rpc("get_public_status");if(error)throw error;
-    S.status=data;
-    if(!data.accepting)S.step="closed";
-    else{if(S.step==="loading"||S.step==="closed"||S.step==="error")S.step="form";
-      if(S.n>maxN()){setN(maxN());S.friends=S.n>1}}
-  }catch(_){S.step="error"}
-  render();
+  const[b,t,sc,st]=await Promise.all([db.from("bookings").select("*").order("created_at"),db.from("tickets").select("*").order("ticket_no"),db.from("screenshot_scans").select("*"),db.from("settings").select("*").eq("id",1).single()]);
+  const e=b.error||t.error||sc.error||st.error;if(e){S.msg="Could not load data: "+e.message;return}
+  S.bookings=b.data;S.tickets=t.data;S.scans=sc.data;S.settings=st.data;
 }
-function render(){
+const bk=id=>S.bookings.find(b=>b.id===id)||{};
+const people=()=>S.tickets.map(t=>({...t,b:bk(t.booking_id)}));
+function flags(){
+  const f={},add=(id,m)=>(f[id]=f[id]||[]).push(m),code=id=>bk(id).booking_code;
+  const ids={};S.scans.forEach(s=>(s.txn_ids||[]).forEach(x=>(ids[x]=ids[x]||new Set()).add(s.booking_id)));
+  Object.entries(ids).forEach(([x,set])=>{if(set.size>1)[...set].forEach(b=>add(b,"Same transaction ID "+x+" also on "+[...set].filter(y=>y!==b).map(code).join(", ")))});
+  const sc=S.scans.filter(s=>s.image_hash);
+  for(let i=0;i<sc.length;i++)for(let j=i+1;j<sc.length;j++){const d=ham(sc[i].image_hash,sc[j].image_hash);
+    if(d<=SIMILAR_BITS){add(sc[i].booking_id,"Screenshot looks like "+code(sc[j].booking_id)+" ("+d+" bits apart)");add(sc[j].booking_id,"Screenshot looks like "+code(sc[i].booking_id)+" ("+d+" bits apart)")}}
+  S.scans.forEach(s=>{if(!s.read_ok&&bk(s.booking_id).status!=="rejected")add(s.booking_id,"Could not read a transaction ID")});
+  return f;
+}
+function ham(a,b){let d=0;const n=Math.min(a.length,b.length);for(let i=0;i<n;i++){let x=parseInt(a[i],16)^parseInt(b[i],16);while(x){d+=x&1;x>>=1}}return d}
+
+/* ---------- views ---------- */
+function view(){
+  S.charts.forEach(c=>c.destroy());S.charts=[];
   const a=$("#app");
-  a.innerHTML=({loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone})[S.step]();
-  if(S.step==="pay")drawQR($("#qr"),upiLink());
-  window.scrollTo(0,0);
+  if(!S.staff){a.innerHTML=`<h1>Organiser login</h1><p class="mute">Meetup registrations</p><div class="card" style="max-width:380px">
+    ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<label for="em">Email</label><input id="em" type="email" autocomplete="username" style="width:100%">
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" style="width:100%"><p><button id="login">Sign in</button></p></div>`;return}
+  if(S.staff.role!=="admin"){a.innerHTML=`<h1>Hello, ${esc(S.staff.name)}</h1><div class="card">This page is for admins. Gate accounts will use the scanner page.</div><button class="ghost" id="logout">Sign out</button>`;return}
+  const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],["scan","Scan screenshots"],["settings","Settings"]];
+  a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
+  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div><div id="v"></div>`;
+  ({overview:vOverview,bookings:vBookings,people:vPeople,scan:vScan,settings:vSettings})[S.tab]();
 }
-function vError(){return head("Couldn't load registration","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button></div>`}
-function vClosed(){
-  const r=S.status&&S.status.closed_reason;
-  const m={not_open:["Registrations haven't opened yet","Please check back soon."],deadline:["Registrations are closed","The registration deadline has passed."],full:["All spots are taken","Registrations are full. Please contact the organisers if you need help."]}[r]||["Registrations are closed",""];
-  return head(m[0],esc(CONFIG.eventName)+". "+m[1])+`<div class="row"><button class="ghost" id="retry">Check again</button></div>`;
+function vOverview(){
+  const P=people(),live=P.filter(p=>p.b.status!=="rejected"),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending");
+  const money=st=>S.bookings.filter(b=>b.status===st).reduce((s,b)=>s+b.amount_expected,0),here=P.filter(p=>p.checked_in_at).length;
+  const used=live.length,left=Math.max(S.settings.cap-used,0);
+  $("#v").innerHTML=`<div class="grid">
+   <div class="card stat"><span class="mute">People registered</span><b>${used}</b><span class="mute">of ${S.settings.cap} · ${left} left</span></div>
+   <div class="card stat"><span class="mute">Confirmed (Paid)</span><b>${paid.length}</b><span class="mute">${inr(money("paid"))}</span></div>
+   <div class="card stat"><span class="mute">Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span></div>
+   <div class="card stat"><span class="mute">Expected total</span><b>${inr(money("paid")+money("pending"))}</b><span class="mute">compare with your bank</span></div>
+   <div class="card stat"><span class="mute">Present at event</span><b>${here}</b><span class="mute">rejected: ${P.length-used}</span></div></div>
+   <div class="bar"><b>Count:</b><select id="mode"><option value="both" ${S.mode==="both"?"selected":""}>Confirmed + Pending</option><option value="paid" ${S.mode==="paid"?"selected":""}>Confirmed only</option></select>
+   <span class="mute">Use "Confirmed only" for final food and hall numbers.</span></div>
+   <div class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div><div class="card"><canvas id="c3"></canvas></div></div>`;
+  const set=S.mode==="paid"?paid:paid.concat(pend),cnt=(k,vals)=>vals.map(v=>set.filter(p=>p[k]===v).length);
+  const mk=(id,title,labels,data,colors)=>S.charts.push(new Chart($(id),{type:"doughnut",data:{labels:labels.map((l,i)=>l+" ("+data[i]+")"),datasets:[{data,backgroundColor:colors}]},options:{maintainAspectRatio:false,plugins:{title:{display:true,text:title+" · "+set.length+" people"},legend:{position:"bottom"}}}}));
+  mk("#c1","Food",["Veg","Non-veg"],cnt("food",["Veg","Non-veg"]),["#2e9e6b","#c9692b"]);
+  mk("#c2","Location",["In Bengaluru","Outside Bengaluru"],cnt("location",["In Bengaluru","Outside Bengaluru"]),["#2f6fd1","#8a56c9"]);
+  mk("#c3","Attendance",["Surely","Most probably"],cnt("attendance",["Surely","Most probably"]),["#17803d","#c9962b"]);
 }
-function vForm(){
-  const st=S.status;
-  let h=head(esc(CONFIG.eventName),esc(CONFIG.eventLine)+". Registration is ₹"+st.price_per_head+" per person"+(closeDate()?", open until "+closeDate():"")+".");
-  if(st.spots_left<=20)h+=`<div class="card"><b>Only ${st.spots_left} spot${st.spots_left===1?"":"s"} left</b></div>`;
-  if(lastCode())h+=`<div class="card note">You already made a booking from this device (Booking ID <b>${esc(lastCode())}</b>). Submitting again creates a new booking.</div>`;
-  if(S.errs.length)h+=`<div class="card errbox" role="alert"><b>Please fix:</b><ul>${S.errs.map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`;
-  if(maxN()>1){
-    h+=`<div class="card"><div class="sw"><div><b>Include friends</b><div class="note">Register up to ${maxN()} people in one booking</div></div><input type="checkbox" id="fr" ${S.friends?"checked":""} aria-label="Include friends"></div>`;
-    if(S.friends)h+=`<div class="lbl">How many people are you registering for?</div><div class="opts">`+
-      Array.from({length:maxN()-1},(_,j)=>j+2).map(n=>`<label><input type="radio" name="cnt" value="${n}" ${S.n===n?"checked":""}><span>${n}</span></label>`).join("")+`</div>`;
-    h+=`</div>`;
-  }
-  S.people.forEach((p,i)=>{
-    h+=`<div class="card"><h2>${S.n>1?"Person "+(i+1):"Your details"}</h2>
-    <label for="n${i}">Name</label><input type="text" id="n${i}" data-i="${i}" data-k="name" value="${esc(p.name)}" maxlength="80" autocomplete="${i?"off":"name"}">
-    <label for="t${i}">Phone number</label><input type="tel" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" maxlength="10" placeholder="10 digits" autocomplete="${i?"off":"tel-national"}">
-    <div class="lbl">Where are you currently?</div><div class="opts">${opt(i,"loc","In Bengaluru",p.loc)}${opt(i,"loc","Outside Bengaluru",p.loc)}</div>
-    <div class="lbl">Will you attend?</div><div class="opts">${opt(i,"att","Surely",p.att)}${opt(i,"att","Most probably",p.att)}</div>
-    <div class="lbl">Food preference</div><div class="opts">${opt(i,"food","Veg",p.food)}${opt(i,"food","Non-veg",p.food)}</div></div>`;
-  });
-  return h+`<div class="row"><button id="review">Review details</button></div>`;
+function filtBar(withPeople){
+  const f=S.f,o=(v,l)=>`<option value="${v}" ${f.pay===v?"selected":""}>${l}</option>`;
+  return `<div class="bar"><input id="q" placeholder="Search name, phone, booking ID" value="${esc(f.q)}" style="min-width:230px">
+  <select id="fpay">${o("","All payments")}${o("pending","Pending")}${o("paid","Paid")}${o("rejected","Rejected")}</select>
+  ${withPeople?`<select id="ffood"><option value="">Food: all</option><option ${f.food==="Veg"?"selected":""}>Veg</option><option ${f.food==="Non-veg"?"selected":""}>Non-veg</option></select>
+  <select id="floc"><option value="">Location: all</option><option ${f.loc==="In Bengaluru"?"selected":""}>In Bengaluru</option><option ${f.loc==="Outside Bengaluru"?"selected":""}>Outside Bengaluru</option></select>
+  <select id="fatt"><option value="">Attendance: all</option><option ${f.att==="Surely"?"selected":""}>Surely</option><option ${f.att==="Most probably"?"selected":""}>Most probably</option></select>
+  <button class="ghost" id="csv">Download Excel (CSV)</button>`:`<label style="margin:0"><input type="checkbox" id="frev" ${f.review?"checked":""}> Needs review only</label>`}</div>`;
 }
-function validate(){
-  const e=[];S.people.forEach((p,i)=>{const w=S.n>1?"Person "+(i+1)+": ":"";
-    if(!p.name.trim())e.push(w+"enter a name");
-    if(!/^\d{10}$/.test(p.phone))e.push(w+"phone must be exactly 10 digits");
-    if(!p.loc)e.push(w+"choose where you are currently");
-    if(!p.att)e.push(w+"choose Surely or Most probably");
-    if(!p.food)e.push(w+"choose Veg or Non-veg")});
-  return e;
+function vBookings(){$("#v").innerHTML=filtBar(false)+`<div class="card wrap" id="tbl"></div>`;tBookings()}
+function tBookings(){
+  const F=flags(),q=S.f.q.toLowerCase(),rows=S.bookings.filter(b=>{
+    const names=S.tickets.filter(t=>t.booking_id===b.id);
+    if(S.f.pay&&b.status!==S.f.pay)return false;if(S.f.review&&!(F[b.id]||[]).length)return false;
+    return !q||b.booking_code.toLowerCase().includes(q)||names.some(t=>t.name.toLowerCase().includes(q)||t.phone.includes(q))}).reverse();
+  $("#tbl").innerHTML=`<table><tr><th>Booking</th><th>People</th><th>Amount</th><th>Status</th><th>Review flags</th><th>Actions</th></tr>`+rows.map(b=>{
+    const ts=S.tickets.filter(t=>t.booking_id===b.id),fl=F[b.id]||[];
+    return `<tr><td><b>${esc(b.booking_code)}</b><div class="mute">${new Date(b.created_at).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></td>
+    <td class="n">${ts.map(t=>pad(t.ticket_no)+" "+esc(t.name)).join("<br>")}</td><td>${inr(b.amount_expected)}</td>
+    <td><span class="pill p-${b.status}">${b.status}</span></td><td>${fl.map(x=>`<span class="flag">⚑ ${esc(x)}</span>`).join("")||'<span class="mute">—</span>'}</td>
+    <td><button class="sm ghost" data-shot="${b.id}">Screenshot</button> ${b.status!=="paid"?`<button class="sm" data-st="paid" data-b="${b.id}">Paid</button>`:""}
+    ${b.status!=="rejected"?`<button class="sm bad" data-st="rejected" data-b="${b.id}">Reject</button>`:""} ${b.status!=="pending"?`<button class="sm ghost" data-st="pending" data-b="${b.id}">Pending</button>`:""}</td></tr>`}).join("")+`</table>${rows.length?"":'<p class="mute">Nothing to show.</p>'}`;
 }
-function vSummary(){
-  return head("Check your details","Make sure everything is right. Food and hall numbers are planned from this.")+
-  `<div class="card wrap"><table><tr><th></th><th>Name</th><th>Phone</th><th>Location</th><th>Attending</th><th>Food</th></tr>`+
-  S.people.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.name.trim())}</td><td>${p.phone}</td><td>${p.loc}</td><td>${p.att}</td><td>${p.food}</td></tr>`).join("")+
-  `</table></div><div class="card"><b>${S.n} × ₹${price()} = ₹${total()}</b> payable</div>
-  <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to payment</button></div>`;
+function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
+  return people().filter(p=>(!f.pay||p.b.status===f.pay)&&(!f.food||p.food===f.food)&&(!f.loc||p.location===f.loc)&&(!f.att||p.attendance===f.att)&&(!q||p.name.toLowerCase().includes(q)||p.phone.includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)))}
+function vPeople(){$("#v").innerHTML=filtBar(true)+`<div class="card wrap" id="tbl"></div>`;tPeople()}
+function tPeople(){const r=filteredPeople();
+  $("#tbl").innerHTML=`<p class="mute">${r.length} people shown</p><table><tr><th>No.</th><th>Name</th><th>Phone</th><th>Location</th><th>Attendance</th><th>Food</th><th>Booking</th><th>Payment</th><th>Present</th></tr>`+
+  r.map(p=>`<tr><td><b>${pad(p.ticket_no)}</b></td><td>${esc(p.name)}</td><td>${p.phone}</td><td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?"Present":"—"}</td></tr>`).join("")+`</table>`}
+function csv(){const r=filteredPeople(),h=["Sl. No.","Name","Phone","Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at"];
+  const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  const rows=r.map(p=>[p.ticket_no,p.name,p.phone,p.location,p.attendance,p.food,p.b.booking_code,p.b.status,p.b.amount_expected,p.checked_in_at?"Yes":"No",p.checked_in_at||""]);
+  const txt="\ufeff"+[h].concat(rows).map(x=>x.map(q).join(",")).join("\r\n"),a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));a.download="meetup-registrations.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+async function shots(items){
+  const m=document.createElement("div");m.className="modal";m.innerHTML=`<div class="box"><div class="bar"><b style="flex:1">Payment screenshot</b><button class="sm" id="mx">Close</button></div><div class="two" id="mi">Loading…</div></div>`;document.body.appendChild(m);
+  m.onclick=e=>{if(e.target===m||e.target.id==="mx")m.remove()};
+  const out=[];for(const it of items){const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(it.path,300);
+    out.push(`<div><b>${esc(it.label)}</b>${error?`<p class="err">Could not open (${esc(error.message)})</p>`:`<img src="${data.signedUrl}" alt="Payment screenshot ${esc(it.label)}">`}</div>`)}
+  $("#mi").innerHTML=out.join("");
 }
-function upiLink(){return `upi://pay?pa=${encodeURIComponent(CONFIG.upiId)}&pn=${encodeURIComponent(CONFIG.payeeName)}&am=${total().toFixed(2)}&cu=INR&tn=${encodeURIComponent("Meetup "+S.n+" reg")}`}
-function vPay(){
-  return head("Pay ₹"+total(),S.n+" registration"+(S.n>1?"s":"")+" × ₹"+price())+
-  (PLACEHOLDER_UPI?`<div class="card errbox" role="alert"><b>Test mode:</b> the UPI ID is still a placeholder. Do not pay.</div>`:"")+
-  (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
-  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div><canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${total()}"></canvas>
-  <div class="upi"><code id="uid">${esc(CONFIG.upiId)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
-  <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
-  <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
-  <div class="card"><label for="shot">Upload payment screenshot</label><input type="file" id="shot" accept="image/*">
-  <div class="note">${S.file?"Selected: "+esc(S.file.name):"Required. Images only."}</div><div class="err" id="ferr"></div></div>
-  <div class="row"><button class="ghost" id="back" ${S.busy?"disabled":""}>Back</button><button id="submit">Submit registration</button></div>`;
+function vScan(){
+  const un=S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)),bad=S.scans.filter(s=>!s.read_ok&&bk(s.booking_id).status!=="rejected");
+  $("#v").innerHTML=`<div class="card"><h2>Scan screenshots</h2><p>Reads each payment screenshot on <b>this computer</b> (nothing is sent to any outside service), finds the transaction ID, and flags bookings that share an ID or a near-identical image. Participants see nothing.</p>
+  <p><b>${un.length}</b> not scanned yet · <b>${bad.length}</b> could not be read · <b>${S.scans.length}</b> scanned in total</p>
+  <p><button id="scan" ${S.scanning?"disabled":""}>Scan ${un.length} new</button> <button class="ghost" id="rescan" ${S.scanning||!bad.length?"disabled":""}>Re-scan ${bad.length} unreadable</button></p>
+  <p id="prog" class="mute"></p><p class="mute">The first scan downloads the reading engine (a few MB). Keep this tab open while it runs. Results appear as flags under Bookings.</p></div>`;
 }
-function vDone(){
-  const r=S.result;
-  return head("Registration received","Save your Booking ID. You need it with your phone number to open your tickets later.")+
-  `<div class="card" style="text-align:center"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div>
-  <div class="row"><button class="ghost" id="copyid">Copy Booking ID</button></div></div>
-  <div class="card wrap"><table><tr><th>Ticket</th><th>Name</th><th>Food</th></tr>`+
-  r.tickets.map(t=>`<tr><td><b>${pad(t.ticket_no)}</b></td><td>${esc(t.name)}</td><td>${esc(t.food)}</td></tr>`).join("")+
-  `</table></div><div class="card">Amount to be verified: <b>₹${r.amount_expected}</b>. Your tickets show <b>Pending verification</b> until the organisers confirm your payment.
-  <p class="note">Ticket download is coming in the next stage of this build.</p></div>
-  <div class="row"><button class="ghost" id="again">Register another booking</button></div>`;
-}
-function drawQR(c,text){
-  const q=qrcode(0,"M");q.addData(text);q.make();const m=q.getModuleCount(),k=8,pad=4*k;
-  c.width=c.height=m*k+pad*2;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.fillStyle="#000";
-  for(let r=0;r<m;r++)for(let col=0;col<m;col++)if(q.isDark(r,col))x.fillRect(pad+col*k,pad+r*k,k,k);
-}
-function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
-const blobQR=()=>new Promise(r=>$("#qr").toBlob(r,"image/png"));
-async function download(){const b=await blobQR(),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="meetup-upi-"+total()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
-
-function compress(file){return new Promise(res=>{
-  const img=new Image(),u=URL.createObjectURL(file);
-  img.onload=()=>{try{const k=Math.min(1,2400/Math.max(img.width,img.height)),c=document.createElement("canvas");
-    c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height);
-    c.toBlob(b=>{URL.revokeObjectURL(u);res(b&&b.size?b:file)},"image/jpeg",.8)}catch(_){res(file)}};
-  img.onerror=()=>{URL.revokeObjectURL(u);res(file)};img.src=u})}
-
-async function submit(){
-  if(S.busy)return;
-  if(!S.file){$("#ferr").textContent="Upload your payment screenshot to continue.";return}
-  S.busy=true;S.payErr="";const btn=$("#submit");btn.disabled=true;btn.textContent="Submitting…";
+function loadScript(src){return new Promise((res,rej)=>{if(window.Tesseract)return res();const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("Could not load the reading engine. Check your internet."));document.head.appendChild(s)})}
+function extractIds(t){const ids=new Set();
+  (t.match(/\b\d{12}\b/g)||[]).forEach(x=>{if(!/^91[6-9]\d{9}$/.test(x))ids.add(x)});   // skip +91 phone numbers
+  (t.match(/\bT\d{16,24}\b/g)||[]).forEach(x=>ids.add(x));return [...ids]}
+async function dhash(blob){
+  const bmp=await createImageBitmap(blob),c=document.createElement("canvas");c.width=33;c.height=32;const x=c.getContext("2d");x.drawImage(bmp,0,0,33,32);
+  const d=x.getImageData(0,0,33,32).data,g=(i,j)=>{const k=(j*33+i)*4;return .299*d[k]+.587*d[k+1]+.114*d[k+2]};let bits="";
+  for(let j=0;j<32;j++)for(let i=0;i<32;i++)bits+=g(i,j)>g(i+1,j)?"1":"0";
+  let h="";for(let k=0;k<1024;k+=4)h+=parseInt(bits.slice(k,k+4),2).toString(16);return h}
+async function runScan(list){
+  if(S.scanning||!list.length)return;S.scanning=true;vScan();const prog=$("#prog");
   try{
-    const blob=await compress(S.file);
-    const ext={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"}[blob.type];
-    if(!ext)S.payErr="Please upload the screenshot as a JPG or PNG image.";
-    else{
-      const path=S.sid+"."+ext;
-      const up=await db.storage.from("payment-proofs").upload(path,blob,{contentType:blob.type,upsert:false});
-      if(up.error&&!/exist|duplicate|409/i.test((up.error.message||"")+(up.error.statusCode||"")))throw up.error;
-      const{data,error}=await db.rpc("submit_booking",{p_submission_id:S.sid,
-        p_people:S.people.map(p=>({name:p.name.trim(),phone:p.phone,loc:p.loc,att:p.att,food:p.food})),p_screenshot_path:path});
-      if(error)throw error;
-      S.result=data;S.step="done";
-      try{localStorage.setItem("mm_last",JSON.stringify({code:data.booking_code}))}catch(_){}
-    }
-  }catch(e){
-    const m=(e&&e.message)||String(e);
-    if(/NOT_ENOUGH_SPOTS|REGISTRATION_CLOSED/.test(m)){
-      S.busy=false;await load();
-      if(S.step==="form")S.errs=["Spots ran out while you were registering. Please reduce the number of people, or try again later."];
-      render();return}
-    else if(/INVALID_/.test(m)){S.step="form";S.errs=["Some details were not accepted ("+(m.match(/INVALID_\w+/)||[""])[0]+"). Please check each field."]}
-    else if(/SCREENSHOT_MISSING/.test(m))S.payErr="The screenshot did not upload. Please select it again and submit.";
-    else S.payErr="Could not reach the server. Check your internet and tap Submit again. Tapping again will not create a duplicate booking. (Technical detail: "+m.slice(0,140)+")"
-  }finally{S.busy=false}
-  render();
+    prog.textContent="Loading the reading engine…";await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+    const w=await Tesseract.createWorker("eng",1,{langPath:"https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int"});
+    let n=0;for(const b of list){n++;prog.textContent=`Scanning ${n} of ${list.length} (${b.booking_code})…`;
+      try{const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(b.screenshot_path,300);if(error)throw error;
+        const blob=await(await fetch(data.signedUrl)).blob(),text=(await w.recognize(blob)).data.text,ids=extractIds(text),hash=await dhash(blob);
+        const r=await db.rpc("save_scan",{p_booking:b.id,p_ids:ids,p_hash:hash,p_ok:ids.length>0});if(r.error)throw r.error}
+      catch(e){prog.textContent="Problem with "+b.booking_code+": "+e.message}}
+    await w.terminate();await load();prog.textContent="Done. Check the Bookings tab for flags."
+  }catch(e){prog.textContent=e.message}
+  S.scanning=false;const p=prog.textContent;vScan();$("#prog").textContent=p;
 }
+function istInput(iso){return new Date(new Date(iso).getTime()+5.5*3600e3).toISOString().slice(0,16)}
+function vSettings(){const s=S.settings;
+  $("#v").innerHTML=`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
+  <label><input type="checkbox" id="sopen" ${s.is_open?"checked":""}> Registration open</label>
+  <label for="scap">Cap (people)</label><input id="scap" type="number" min="0" value="${s.cap}">
+  <label for="sprice">Price per person (₹)</label><input id="sprice" type="number" min="1" value="${s.price_per_head}">
+  <label for="sdl">Deadline (India time)</label><input id="sdl" type="datetime-local" value="${istInput(s.deadline)}">
+  <p class="mute">The form closes at the deadline or when the cap is reached, whichever comes first. Changing the price affects new bookings only.</p>
+  <p><button id="ssave">Save settings</button></p></div>`}
 
-document.addEventListener("input",e=>{const t=e.target;
-  if(t.dataset.k==="phone")t.value=t.value.replace(/\D/g,"").slice(0,10);
-  if(t.dataset.k)S.people[+t.dataset.i][t.dataset.k]=t.value});
-document.addEventListener("change",e=>{const t=e.target;
-  if(t.id==="fr"){S.friends=t.checked;setN(t.checked?2:1);render()}
-  else if(t.name==="cnt"){setN(+t.value);render()}
-  else if(t.id==="shot"){const f=t.files[0];
-    if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){$("#ferr").textContent="Choose an image file (a screenshot or photo).";t.value="";S.file=null}else{S.file=f||null;S.payErr="";render()}}});
-document.addEventListener("click",async e=>{const id=e.target.id;
-  if(id==="retry"||id==="recheck"){S.step="loading";render();load()}
-  if(id==="review"){S.errs=validate();if(S.errs.length)render();else{S.step="summary";render()}}
-  if(id==="edit"){S.step="form";S.errs=[];render()}
-  if(id==="topay"){S.step="pay";S.payErr="";render()}
-  if(id==="back"&&!S.busy){S.step="summary";render()}
-  if(id==="copy"){try{await navigator.clipboard.writeText(CONFIG.upiId);toast("UPI ID copied")}catch(_){toast("Press and hold the UPI ID to copy")}}
-  if(id==="copyid"){try{await navigator.clipboard.writeText(S.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
-  if(id==="dl")download();
-  if(id==="share"){const b=await blobQR(),f=new File([b],"meetup-upi-"+total()+".png",{type:"image/png"});
-    if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Pay ₹"+total()})}catch(_){}}
-    else{await download();toast("Sharing isn't supported here, so the QR was downloaded")}}
-  if(id==="submit")submit();
-  if(id==="again"){S.sid=uuid();S.people=[blank()];S.n=1;S.friends=false;S.file=null;S.result=null;S.errs=[];S.step="loading";render();load()}
+/* ---------- events ---------- */
+document.addEventListener("click",async e=>{const t=e.target,id=t.id;
+  if(id==="login"){const{error}=await db.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});S.msg=error?"Wrong email or password.":"";return error?view():boot()}
+  if(id==="logout"){await db.auth.signOut();S.staff=null;S.msg="";return view()}
+  if(id==="refresh"){await load();view();return toast("Refreshed")}
+  if(t.dataset.tab){S.tab=t.dataset.tab;return view()}
+  if(id==="csv")return csv();
+  if(t.dataset.shot){const b=bk(t.dataset.shot),F=flags()[b.id]||[],items=[{path:b.screenshot_path,label:b.booking_code}];
+    S.scans.filter(s=>s.booking_id!==b.id).forEach(s=>{const o=bk(s.booking_id);if(F.some(x=>x.includes(o.booking_code)))items.push({path:o.screenshot_path,label:o.booking_code+" (flagged match)"})});return shots(items)}
+  if(t.dataset.st){const r=await db.rpc("set_booking_status",{p_booking:t.dataset.b,p_status:t.dataset.st});if(r.error)return toast("Failed: "+r.error.message);await load();view();return toast("Marked "+t.dataset.st)}
+  if(id==="scan")return runScan(S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
+  if(id==="rescan")return runScan(S.scans.filter(s=>!s.read_ok).map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
+  if(id==="ssave"){const r=await db.rpc("admin_update_settings",{p_cap:+$("#scap").value,p_price:+$("#sprice").value,p_deadline:new Date($("#sdl").value+":59+05:30").toISOString(),p_is_open:$("#sopen").checked});
+    if(r.error)return toast("Failed: "+r.error.message);await load();view();toast("Settings saved")}
 });
-render();load();
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.id==="mode"){S.mode=t.value;view()}
+  if(["fpay","ffood","floc","fatt","frev"].includes(t.id)){S.f.pay=$("#fpay")?.value??S.f.pay;if($("#ffood")){S.f.food=$("#ffood").value;S.f.loc=$("#floc").value;S.f.att=$("#fatt").value}if($("#frev"))S.f.review=$("#frev").checked;S.tab==="people"?tPeople():tBookings()}});
+document.addEventListener("input",e=>{if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});
+boot();
 </script></body></html>
