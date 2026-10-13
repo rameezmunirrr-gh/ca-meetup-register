@@ -154,7 +154,7 @@ function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
 function vPeople(){$("#v").innerHTML=filtBar(true)+`<div class="card wrap" id="tbl"></div>`;tPeople()}
 function tPeople(){const r=filteredPeople();
   $("#tbl").innerHTML=`<p class="mute">${r.length} people shown</p><table><tr><th>Ticket</th><th>Type</th><th>Name</th><th>Phone</th><th>Location</th><th>Attendance</th><th>Food</th><th>Booking</th><th>Payment</th><th>Present</th></tr>`+
-  r.map(p=>`<tr><td><b>${esc(tlabel(p))}</b></td><td>${p.kind==="coordinator"?"Coordinator"+(p.ticket_no!=null?`<div class="mute">guest ${esc("E26-"+pad(p.ticket_no))} cancelled</div>`:""):"Guest"}${p.b.status==="rejected"?"":`<div style="margin-top:4px">${p.kind==="coordinator"?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div>`}</td><td>${esc(p.name)}</td><td>${p.phone}</td><td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?"Present":"—"}</td></tr>`).join("")+`</table>`}
+  r.map(p=>`<tr><td><b>${esc(tlabel(p))}</b></td><td>${p.kind==="coordinator"?"Coordinator"+(p.ticket_no!=null?`<div class="mute">guest ${esc("E26-"+pad(p.ticket_no))} cancelled</div>`:""):"Guest"}${p.b.status==="rejected"?"":`<div style="margin-top:4px">${p.kind==="coordinator"?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div>`}</td><td>${esc(p.name)}</td><td>${p.phone}</td><td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?`Present <button class="sm ghost" data-undo="${p.id}">Undo</button>`:"—"}</td></tr>`).join("")+`</table>`}
 function csv(){const r=filteredPeople(),h=["Ticket No.","Type","Name","Phone","Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at"];
   const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
   const rows=r.map(p=>[tlabel(p),p.kind==="coordinator"?"Coordinator":"Guest",p.name,p.phone,p.location,p.attendance,p.food,p.b.booking_code,p.b.status,p.b.amount_expected,p.checked_in_at?"Yes":"No",p.checked_in_at||""]);
@@ -240,6 +240,12 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
   if(id==="logout"){await db.auth.signOut();S.staff=null;S.msg="";return view()}
   if(id==="refresh"){await load();view();return toast("Refreshed")}
   if(t.dataset.tab){S.tab=t.dataset.tab;return view()}
+    if(t.dataset.undo){
+    if(!confirm("Undo this check-in?"))return;
+    const r=await db.rpc("undo_checkin",{p_id:t.dataset.undo});
+    if(r.error)return toast("Failed: "+r.error.message);
+    await load();view();return toast("Check-in undone");
+  }
   if(id==="csv")return csv();
   if(t.dataset.shot){const b=bk(t.dataset.shot),F=flags()[b.id]||[],items=[{path:b.screenshot_path,label:b.booking_code}];
     S.scans.filter(s=>s.booking_id!==b.id).forEach(s=>{const o=bk(s.booking_id);if(F.some(x=>x.includes(o.booking_code)))items.push({path:o.screenshot_path,label:o.booking_code+" (flagged match)"})});return shots(items)}
