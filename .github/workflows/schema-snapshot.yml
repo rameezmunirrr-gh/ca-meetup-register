@@ -1,0 +1,87 @@
+name: Database Snapshot
+
+on:
+  schedule:
+    - cron: "30 20 * * *"   # every day at 2:00 AM India time
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Export database structure
+        env:
+          DB_URL: ${{ secrets.SNAPSHOT_DB_URL }}
+        run: |
+          cat > /tmp/snapshot.sql <<'SQL'
+          \echo === COLUMNS (table | position | column | type | not null | default) ===
+          select c.relname, a.attnum, a.attname, format_type(a.atttypid, a.atttypmod), a.attnotnull, pg_get_expr(d.adbin, d.adrelid)
+          from pg_attribute a
+          join pg_class c on c.oid = a.attrelid
+          left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+          where c.relnamespace = 'public'::regnamespace and c.relkind in ('r','v','p') and a.attnum > 0 and not a.attisdropped
+          order by c.relname, a.attnum;
+
+          \echo === CONSTRAINTS ===
+          select conrelid::regclass::text || ' | ' || conname || ' | ' || pg_get_constraintdef(oid)
+          from pg_constraint where connamespace = 'public'::regnamespace order by 1;
+
+          \echo === INDEXES ===
+          select tablename || ' | ' || indexdef from pg_indexes where schemaname = 'public' order by tablename, indexname;
+
+          \echo === VIEWS ===
+          select viewname || E'\n' || definition from pg_views where schemaname = 'public' order by viewname;
+
+          \echo === TABLE AND VIEW OPTIONS (for example security_invoker) ===
+          select relname || ' : ' || reloptions::text from pg_class
+          where relnamespace = 'public'::regnamespace and reloptions is not null order by relname;
+
+          \echo === ROW LEVEL SECURITY ON/OFF ===
+          select relname || ' : rls=' || relrowsecurity::text from pg_class
+          where relnamespace = 'public'::regnamespace and relkind in ('r','p') order by relname;
+
+          \echo === POLICIES (public tables and storage) ===
+          select schemaname || '.' || tablename || ' | ' || policyname || ' | ' || cmd || ' | ' || roles::text || ' | using: ' || coalesce(qual,'-') || ' | check: ' || coalesce(with_check,'-')
+          from pg_policies where schemaname in ('public','storage') order by schemaname, tablename, policyname;
+
+          \echo === FUNCTIONS (with who is allowed to run them) ===
+          select '--- ' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ') | execute rights: ' || coalesce(p.proacl::text, 'default (everyone)') || E'\n' || pg_get_functiondef(p.oid)
+          from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prokind = 'f' order by p.proname, pg_get_function_identity_arguments(p.oid);
+
+          \echo === TRIGGERS ===
+          select tgrelid::regclass::text || ' | ' || pg_get_triggerdef(t.oid) from pg_trigger t
+          where not tgisinternal and tgrelid in (select oid from pg_class where relnamespace = 'public'::regnamespace) order by 1;
+
+          \echo === EVENT TRIGGERS ===
+          select evtname || ' | ' || evtevent || ' | ' || evtfoid::regproc::text || ' | enabled=' || evtenabled::text from pg_event_trigger order by evtname;
+
+          \echo === TABLE AND VIEW PERMISSIONS ===
+          select relname || ' : ' || coalesce(relacl::text, 'default') from pg_class
+          where relnamespace = 'public'::regnamespace and relkind in ('r','v','p') order by relname;
+
+          \echo === STORAGE BUCKETS ===
+          select id || ' | public=' || public::text || ' | size_limit=' || coalesce(file_size_limit::text, 'none') || ' | types=' || coalesce(allowed_mime_types::text, 'any') from storage.buckets order by id;
+
+          \echo === END OF SNAPSHOT ===
+          SQL
+          psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -f /tmp/snapshot.sql > /tmp/out.txt
+          grep -q "=== END OF SNAPSHOT ===" /tmp/out.txt
+          mkdir -p sql
+          mv /tmp/out.txt sql/schema_snapshot.txt
+
+      - name: Save if something changed
+        run: |
+          if [ -n "$(git status --porcelain sql/schema_snapshot.txt)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add sql/schema_snapshot.txt
+            git commit -m "Update database snapshot"
+            git push
+          else
+            echo "No changes"
+          fi
