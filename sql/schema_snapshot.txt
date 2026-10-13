@@ -1,0 +1,509 @@
+=== COLUMNS (table | position | column | type | not null | default) ===
+bookings|1|id|uuid|t|gen_random_uuid()
+bookings|2|booking_code|text|t|
+bookings|3|submission_id|uuid|t|
+bookings|4|people_count|integer|t|
+bookings|5|amount_expected|integer|t|
+bookings|6|status|text|t|'pending'::text
+bookings|7|screenshot_path|text|t|
+bookings|8|reviewed_by|uuid|f|
+bookings|9|reviewed_at|timestamp with time zone|f|
+bookings|10|reviewed_via|text|f|
+bookings|11|created_at|timestamp with time zone|t|now()
+keepalive|1|id|integer|t|
+keepalive|2|note|text|f|
+report|1|sl_no|integer|f|
+report|2|name|text|f|
+report|3|phone|text|f|
+report|4|location|text|f|
+report|5|attendance|text|f|
+report|6|food|text|f|
+report|7|booking_code|text|f|
+report|8|payment_status|text|f|
+report|9|amount_expected|integer|f|
+report|10|people_count|integer|f|
+report|11|screenshot_path|text|f|
+report|12|present|boolean|f|
+report|13|checked_in_at|timestamp with time zone|f|
+report|14|created_at|timestamp with time zone|f|
+report|15|kind|text|f|
+report|16|coord_no|integer|f|
+report|17|ticket_label|text|f|
+screenshot_scans|1|booking_id|uuid|t|
+screenshot_scans|2|txn_ids|text[]|t|'{}'::text[]
+screenshot_scans|3|image_hash|text|f|
+screenshot_scans|4|read_ok|boolean|t|false
+screenshot_scans|5|scanned_by|uuid|f|
+screenshot_scans|6|scanned_at|timestamp with time zone|t|now()
+screenshot_scans|7|amounts|numeric[]|f|
+settings|1|id|integer|t|1
+settings|2|cap|integer|t|150
+settings|3|price_per_head|integer|t|250
+settings|4|max_group|integer|t|5
+settings|5|deadline|timestamp with time zone|t|'2026-10-31 18:29:59+00'::timestamp with time zone
+settings|6|is_open|boolean|t|false
+settings|7|next_ticket|integer|t|1
+settings|8|next_coord|integer|t|1
+staff|1|user_id|uuid|t|
+staff|2|name|text|t|
+staff|3|role|text|t|'admin'::text
+tickets|1|id|uuid|t|gen_random_uuid()
+tickets|2|ticket_no|integer|f|
+tickets|3|secret|text|t|
+tickets|4|booking_id|uuid|t|
+tickets|5|name|text|t|
+tickets|6|phone|text|t|
+tickets|7|location|text|t|
+tickets|8|attendance|text|t|
+tickets|9|food|text|t|
+tickets|10|checked_in_at|timestamp with time zone|f|
+tickets|11|checked_in_by|uuid|f|
+tickets|12|created_at|timestamp with time zone|t|now()
+tickets|13|reg_seq|bigint|t|
+tickets|14|kind|text|t|'guest'::text
+tickets|15|coord_no|integer|f|
+tickets|16|orig_secret|text|f|
+tickets|17|marked_by|uuid|f|
+tickets|18|marked_at|timestamp with time zone|f|
+=== CONSTRAINTS ===
+bookings | bookings_amount_expected_check | CHECK ((amount_expected > 0))
+bookings | bookings_booking_code_key | UNIQUE (booking_code)
+bookings | bookings_people_count_check | CHECK (((people_count >= 1) AND (people_count <= 5)))
+bookings | bookings_pkey | PRIMARY KEY (id)
+bookings | bookings_reviewed_by_fkey | FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
+bookings | bookings_reviewed_via_check | CHECK ((reviewed_via = ANY (ARRAY['admin'::text, 'gate'::text])))
+bookings | bookings_status_check | CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'rejected'::text])))
+bookings | bookings_submission_id_key | UNIQUE (submission_id)
+keepalive | keepalive_pkey | PRIMARY KEY (id)
+screenshot_scans | screenshot_scans_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
+screenshot_scans | screenshot_scans_pkey | PRIMARY KEY (booking_id)
+screenshot_scans | screenshot_scans_scanned_by_fkey | FOREIGN KEY (scanned_by) REFERENCES auth.users(id)
+settings | settings_cap_check | CHECK ((cap >= 0))
+settings | settings_id_check | CHECK ((id = 1))
+settings | settings_max_group_check | CHECK (((max_group >= 1) AND (max_group <= 5)))
+settings | settings_pkey | PRIMARY KEY (id)
+settings | settings_price_per_head_check | CHECK ((price_per_head > 0))
+staff | staff_pkey | PRIMARY KEY (user_id)
+staff | staff_role_check | CHECK ((role = ANY (ARRAY['admin'::text, 'gate'::text])))
+staff | staff_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+tickets | tickets_attendance_check | CHECK ((attendance = ANY (ARRAY['Surely'::text, 'Most probably'::text])))
+tickets | tickets_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id)
+tickets | tickets_checked_in_by_fkey | FOREIGN KEY (checked_in_by) REFERENCES auth.users(id)
+tickets | tickets_food_check | CHECK ((food = ANY (ARRAY['Veg'::text, 'Non-veg'::text])))
+tickets | tickets_kind_chk | CHECK ((((kind = 'guest'::text) AND (coord_no IS NULL)) OR ((kind = 'coordinator'::text) AND (coord_no IS NOT NULL))))
+tickets | tickets_location_check | CHECK ((location = ANY (ARRAY['In Bengaluru'::text, 'Outside Bengaluru'::text])))
+tickets | tickets_marked_by_fkey | FOREIGN KEY (marked_by) REFERENCES auth.users(id)
+tickets | tickets_phone_check | CHECK ((phone ~ '^[0-9]{10}$'::text))
+tickets | tickets_pkey | PRIMARY KEY (id)
+tickets | tickets_ticket_no_key | UNIQUE (ticket_no)
+=== INDEXES ===
+bookings | CREATE UNIQUE INDEX bookings_booking_code_key ON public.bookings USING btree (booking_code)
+bookings | CREATE UNIQUE INDEX bookings_pkey ON public.bookings USING btree (id)
+bookings | CREATE UNIQUE INDEX bookings_submission_id_key ON public.bookings USING btree (submission_id)
+keepalive | CREATE UNIQUE INDEX keepalive_pkey ON public.keepalive USING btree (id)
+screenshot_scans | CREATE UNIQUE INDEX screenshot_scans_pkey ON public.screenshot_scans USING btree (booking_id)
+settings | CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (id)
+staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
+tickets | CREATE INDEX tickets_booking_idx ON public.tickets USING btree (booking_id)
+tickets | CREATE UNIQUE INDEX tickets_coord_no_uq ON public.tickets USING btree (coord_no) WHERE (coord_no IS NOT NULL)
+tickets | CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)
+tickets | CREATE UNIQUE INDEX tickets_ticket_no_key ON public.tickets USING btree (ticket_no)
+=== VIEWS ===
+report
+ SELECT t.ticket_no AS sl_no,
+    t.name,
+    t.phone,
+    t.location,
+    t.attendance,
+    t.food,
+    b.booking_code,
+    b.status AS payment_status,
+    b.amount_expected,
+    b.people_count,
+    b.screenshot_path,
+    (t.checked_in_at IS NOT NULL) AS present,
+    t.checked_in_at,
+    t.created_at,
+    t.kind,
+    t.coord_no,
+    _ticket_label(t.kind, t.ticket_no, t.coord_no) AS ticket_label
+   FROM (tickets t
+     JOIN bookings b ON ((b.id = t.booking_id)))
+  ORDER BY t.kind, t.coord_no, t.ticket_no, t.reg_seq;
+=== TABLE AND VIEW OPTIONS (for example security_invoker) ===
+report : {security_invoker=true}
+=== ROW LEVEL SECURITY ON/OFF ===
+bookings : rls=true
+keepalive : rls=true
+screenshot_scans : rls=true
+settings : rls=true
+staff : rls=true
+tickets : rls=true
+=== POLICIES (public tables and storage) ===
+public.bookings | staff_read_bookings | SELECT | {authenticated} | using: is_staff() | check: -
+public.keepalive | anon can read keepalive | SELECT | {anon} | using: true | check: -
+public.screenshot_scans | staff_read_scans | SELECT | {authenticated} | using: is_staff() | check: -
+public.settings | staff_read_settings | SELECT | {authenticated} | using: is_staff() | check: -
+public.staff | staff_read_staff | SELECT | {authenticated} | using: ((user_id = auth.uid()) OR is_admin()) | check: -
+public.tickets | staff_read_tickets | SELECT | {authenticated} | using: is_staff() | check: -
+storage.objects | proofs_staff_read | SELECT | {authenticated} | using: ((bucket_id = 'payment-proofs'::text) AND is_staff()) | check: -
+storage.objects | proofs_upload | INSERT | {anon,authenticated} | using: - | check: (bucket_id = 'payment-proofs'::text)
+=== FUNCTIONS (with who is allowed to run them) ===
+--- _assign_numbers(p_booking uuid) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._assign_numbers(p_booking uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; r record;
+begin
+  select * into s from settings where id = 1 for update;
+  for r in select id from tickets where booking_id = p_booking and kind = 'guest' and ticket_no is null order by reg_seq loop
+    update tickets set ticket_no = s.next_ticket where id = r.id;
+    s.next_ticket := s.next_ticket + 1;
+  end loop;
+  update settings set next_ticket = s.next_ticket where id = 1;
+end $function$
+
+--- _booking_json(p_booking uuid) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._booking_json(p_booking uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+    'booking_code', b.booking_code, 'status', b.status,
+    'people_count', b.people_count, 'amount_expected', b.amount_expected,
+    'tickets', (select jsonb_agg(jsonb_build_object(
+        'ticket_no', t.ticket_no, 'kind', t.kind, 'coord_no', t.coord_no,
+        'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+        'secret', case when b.status = 'paid' then t.secret else null end,
+        'name', t.name, 'location', t.location, 'attendance', t.attendance, 'food', t.food)
+        order by t.reg_seq) from tickets t where t.booking_id = b.id))
+  from bookings b where b.id = p_booking $function$
+
+--- _ticket_label(p_kind text, p_ticket_no integer, p_coord_no integer) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public._ticket_label(p_kind text, p_ticket_no integer, p_coord_no integer)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case when p_kind = 'coordinator' then 'E26-' || lpad(p_coord_no::text, 3, '0') || 'C'
+              when p_ticket_no is null then null
+              else 'E26-' || lpad(p_ticket_no::text, 3, '0') end $function$
+
+--- admin_update_settings(p_cap integer, p_price integer, p_deadline timestamp with time zone, p_is_open boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_update_settings(p_cap integer DEFAULT NULL::integer, p_price integer DEFAULT NULL::integer, p_deadline timestamp with time zone DEFAULT NULL::timestamp with time zone, p_is_open boolean DEFAULT NULL::boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  update settings set cap = coalesce(p_cap, cap), price_per_head = coalesce(p_price, price_per_head),
+    deadline = coalesce(p_deadline, deadline), is_open = coalesce(p_is_open, is_open) where id = 1;
+end $function$
+
+--- admit_ticket(p_ticket_no integer, p_secret text, p_approve boolean, p_coord boolean, p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admit_ticket(p_ticket_no integer DEFAULT NULL::integer, p_secret text DEFAULT NULL::text, p_approve boolean DEFAULT false, p_coord boolean DEFAULT false, p_id uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare t tickets%rowtype; b bookings%rowtype; info jsonb; who text;
+begin
+  if not is_staff() then raise exception 'NOT_ALLOWED'; end if;
+  if p_approve then perform 1 from settings where id = 1 for update; end if;
+
+  if p_id is not null then
+    select * into t from tickets where id = p_id for update;
+  elsif p_coord then
+    select * into t from tickets where coord_no = p_ticket_no and kind = 'coordinator' for update;
+  else
+    select * into t from tickets where ticket_no = p_ticket_no for update;
+  end if;
+  if not found then return jsonb_build_object('result', 'invalid'); end if;
+
+  if p_id is null and t.kind = 'coordinator' and not p_coord then
+    return jsonb_build_object('result', 'cancelled', 'name', t.name,
+      'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+      'old_label', _ticket_label('guest', t.ticket_no, null));
+  end if;
+  if p_secret is not null and t.secret <> p_secret then
+    return jsonb_build_object('result', 'invalid'); end if;
+
+  select * into b from bookings where id = t.booking_id for update;
+
+  if b.status = 'pending' and p_approve then
+    update bookings set status = 'paid', reviewed_by = auth.uid(), reviewed_at = now(), reviewed_via = 'gate' where id = b.id;
+    perform _assign_numbers(b.id);
+    select * into t from tickets where id = t.id;
+    b.status := 'paid';
+  end if;
+
+  info := jsonb_build_object('id', t.id, 'ticket_no', t.ticket_no, 'kind', t.kind,
+    'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'name', t.name, 'food', t.food,
+    'booking_code', b.booking_code, 'people_count', b.people_count,
+    'amount_expected', b.amount_expected, 'screenshot_path', b.screenshot_path);
+
+  if b.status = 'rejected' then return info || jsonb_build_object('result', 'rejected'); end if;
+  if b.status = 'pending' then return info || jsonb_build_object('result', 'pending'); end if;
+  if t.checked_in_at is not null then
+    select name into who from staff where user_id = t.checked_in_by;
+    return info || jsonb_build_object('result', 'already_scanned', 'checked_in_at', t.checked_in_at, 'checked_in_by', who);
+  end if;
+  update tickets set checked_in_at = now(), checked_in_by = auth.uid() where id = t.id;
+  return info || jsonb_build_object('result', 'ok');
+end $function$
+
+--- get_public_status() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.get_public_status()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; used int; remaining int; reason text;
+begin
+  select * into s from settings where id = 1;
+  select count(*) into used from tickets t join bookings b on b.id = t.booking_id where b.status <> 'rejected';
+  remaining := greatest(s.cap - used, 0);
+  reason := case when not s.is_open then 'not_open' when now() > s.deadline then 'deadline'
+                 when remaining = 0 then 'full' else null end;
+  return jsonb_build_object('accepting', reason is null, 'closed_reason', reason,
+    'spots_left', remaining, 'price_per_head', s.price_per_head,
+    'max_group', greatest(least(s.max_group, remaining), 1), 'deadline', s.deadline);
+end $function$
+
+--- is_admin() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ select exists (select 1 from public.staff where user_id = auth.uid() and role = 'admin') $function$
+
+--- is_staff() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.is_staff()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$ select exists (select 1 from public.staff where user_id = auth.uid()) $function$
+
+--- lookup_booking(p_code text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.lookup_booking(p_code text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare b bookings%rowtype; c text;
+begin
+  c := replace(replace(replace(upper(coalesce(p_code, '')), 'O', '0'), ' ', ''), '-', '');
+  if length(c) <> 8 then return null; end if;
+  select * into b from bookings where booking_code = c;
+  if not found then return null; end if;
+  return _booking_json(b.id);
+end $function$
+
+--- rls_auto_enable() | execute rights: default (everyone)
+CREATE OR REPLACE FUNCTION public.rls_auto_enable()
+ RETURNS event_trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  cmd record;
+  tbl name;
+BEGIN
+  FOR cmd IN
+    SELECT *
+    FROM pg_event_trigger_ddl_commands()
+    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      AND object_type IN ('table','partitioned table')
+  LOOP
+     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN
+      BEGIN
+        SELECT c.relname INTO tbl FROM pg_catalog.pg_class c WHERE c.oid = cmd.objid;
+        EXECUTE format('alter table if exists %I.%I enable row level security', cmd.schema_name, tbl);
+        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
+      END;
+     ELSE
+        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;
+     END IF;
+  END LOOP;
+END;
+$function$
+
+--- save_scan(p_booking uuid, p_ids text[], p_hash text, p_ok boolean, p_amounts numeric[]) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.save_scan(p_booking uuid, p_ids text[], p_hash text, p_ok boolean, p_amounts numeric[] DEFAULT NULL::numeric[])
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_staff() then raise exception 'NOT_ALLOWED'; end if;
+  insert into screenshot_scans (booking_id, txn_ids, image_hash, read_ok, amounts, scanned_by, scanned_at)
+  values (p_booking, coalesce(p_ids, '{}'), p_hash, coalesce(p_ok, false), p_amounts, auth.uid(), now())
+  on conflict (booking_id) do update
+    set txn_ids = excluded.txn_ids, image_hash = excluded.image_hash, read_ok = excluded.read_ok,
+        amounts = excluded.amounts, scanned_by = excluded.scanned_by, scanned_at = now();
+end $function$
+
+--- set_booking_status(p_booking uuid, p_status text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.set_booking_status(p_booking uuid, p_status text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_status not in ('pending','paid','rejected') then raise exception 'INVALID_STATUS'; end if;
+  perform 1 from settings where id = 1 for update;
+  update bookings set status = p_status, reviewed_by = auth.uid(), reviewed_at = now(), reviewed_via = 'admin'
+  where id = p_booking;
+  if p_status = 'paid' then perform _assign_numbers(p_booking); end if;
+end $function$
+
+--- set_coordinator(p_ticket_id uuid, p_make boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.set_coordinator(p_ticket_id uuid, p_make boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; t tickets%rowtype; bs text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1 for update;
+  select * into t from tickets where id = p_ticket_id for update;
+  if not found then raise exception 'INVALID_TICKET'; end if;
+
+  if p_make and t.kind = 'guest' then
+    -- any guest number already given is cancelled (it stays on record, nothing is renumbered)
+    update tickets set kind = 'coordinator', coord_no = s.next_coord, orig_secret = t.secret,
+      secret = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+      marked_by = auth.uid(), marked_at = now() where id = t.id;
+    update settings set next_coord = next_coord + 1 where id = 1;
+  elsif not p_make and t.kind = 'coordinator' then
+    -- the coordinator number is retired (never reused); a guest number is restored or newly given
+    update tickets set kind = 'guest', coord_no = null, secret = coalesce(orig_secret, secret),
+      orig_secret = null, marked_by = null, marked_at = null where id = t.id;
+    select status into bs from bookings where id = t.booking_id;
+    if bs = 'paid' then perform _assign_numbers(t.booking_id); end if;
+  end if;
+
+  select * into t from tickets where id = t.id;
+  return jsonb_build_object('id', t.id, 'kind', t.kind, 'ticket_no', t.ticket_no,
+                            'label', _ticket_label(t.kind, t.ticket_no, t.coord_no));
+end $function$
+
+--- submit_booking(p_submission_id uuid, p_people jsonb, p_screenshot_path text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.submit_booking(p_submission_id uuid, p_people jsonb, p_screenshot_path text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text;
+begin
+  select * into b from bookings where submission_id = p_submission_id;
+  if found then return _booking_json(b.id); end if;
+
+  select * into s from settings where id = 1 for update;
+  select * into b from bookings where submission_id = p_submission_id;
+  if found then return _booking_json(b.id); end if;
+
+  if not s.is_open or now() > s.deadline then raise exception 'REGISTRATION_CLOSED'; end if;
+  if p_people is null or jsonb_typeof(p_people) <> 'array' then raise exception 'INVALID_DATA'; end if;
+  n := jsonb_array_length(p_people);
+  if n < 1 or n > s.max_group then raise exception 'INVALID_GROUP_SIZE'; end if;
+
+  select count(*) into used from tickets t join bookings bk on bk.id = t.booking_id where bk.status <> 'rejected';
+  if used + n > s.cap then raise exception 'NOT_ENOUGH_SPOTS'; end if;
+
+  for r in select value from jsonb_array_elements(p_people) loop
+    if length(trim(coalesce(r.value->>'name',''))) not between 1 and 80 then raise exception 'INVALID_NAME'; end if;
+    if coalesce(r.value->>'phone','') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+    if coalesce(r.value->>'loc','') not in ('In Bengaluru','Outside Bengaluru') then raise exception 'INVALID_LOCATION'; end if;
+    if coalesce(r.value->>'att','') not in ('Surely','Most probably') then raise exception 'INVALID_ATTENDANCE'; end if;
+    if coalesce(r.value->>'food','') not in ('Veg','Non-veg') then raise exception 'INVALID_FOOD'; end if;
+  end loop;
+
+  if p_screenshot_path is null or p_screenshot_path not like p_submission_id::text || '%'
+     or not exists (select 1 from storage.objects where bucket_id = 'payment-proofs' and name = p_screenshot_path)
+  then raise exception 'SCREENSHOT_MISSING'; end if;
+
+  loop
+    code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+    exit when not exists (select 1 from bookings where booking_code = code);
+  end loop;
+
+  insert into bookings (booking_code, submission_id, people_count, amount_expected, screenshot_path)
+  values (code, p_submission_id, n, n * s.price_per_head, p_screenshot_path) returning * into b;
+
+  insert into tickets (secret, booking_id, name, phone, location, attendance, food)
+  select substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), b.id,
+         trim(value->>'name'), value->>'phone', value->>'loc', value->>'att', value->>'food'
+  from jsonb_array_elements(p_people) with ordinality as e(value, ord) order by ord;
+
+  return _booking_json(b.id);
+end $function$
+
+--- undo_checkin(p_ticket_no integer, p_coord boolean, p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.undo_checkin(p_ticket_no integer DEFAULT NULL::integer, p_coord boolean DEFAULT false, p_id uuid DEFAULT NULL::uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+
+  if p_id is not null then
+    update tickets set checked_in_at = null, checked_in_by = null
+    where id = p_id;
+  elsif p_coord then
+    update tickets set checked_in_at = null, checked_in_by = null
+    where coord_no = p_ticket_no and kind = 'coordinator';
+  else
+    update tickets set checked_in_at = null, checked_in_by = null
+    where ticket_no = p_ticket_no;
+  end if;
+
+  get diagnostics n = row_count;
+  if n = 0 then raise exception 'INVALID_TICKET'; end if;
+end $function$
+
+=== TRIGGERS ===
+=== EVENT TRIGGERS ===
+ensure_rls | ddl_command_end | rls_auto_enable | enabled=O
+issue_graphql_placeholder | sql_drop | extensions.set_graphql_placeholder | enabled=O
+issue_pg_cron_access | ddl_command_end | extensions.grant_pg_cron_access | enabled=O
+issue_pg_graphql_access | ddl_command_end | extensions.grant_pg_graphql_access | enabled=O
+issue_pg_net_access | ddl_command_end | extensions.grant_pg_net_access | enabled=O
+pgrst_ddl_watch | ddl_command_end | extensions.pgrst_ddl_watch | enabled=O
+pgrst_drop_watch | sql_drop | extensions.pgrst_drop_watch | enabled=O
+=== TABLE AND VIEW PERMISSIONS ===
+bookings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+keepalive : {postgres=arwdDxtm/postgres,anon=rDxtm/postgres,authenticated=Dxtm/postgres,service_role=Dxtm/postgres}
+report : {postgres=arwdDxtm/postgres,anon=Dxtm/postgres,authenticated=rDxtm/postgres,service_role=Dxtm/postgres}
+screenshot_scans : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+settings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+staff : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+tickets : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+=== STORAGE BUCKETS ===
+=== END OF SNAPSHOT ===
