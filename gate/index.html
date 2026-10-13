@@ -123,7 +123,7 @@ function showResult(r){
   else if(r.result==="pending")show("a",`<div class="big">PAYMENT PENDING</div>${kind}${person(r)}<div class="sub">${inr(r.amount_expected)} expected</div>
     <button data-act="shot">View payment screenshot</button><div id="shotbox"></div><button data-act="approve">Approve and admit</button><button class="line" data-act="next">Don't admit</button>`,{res:r})
   else if(r.result==="rejected")show("r",`<div class="big">PAYMENT REJECTED</div>${person(r)}<div class="sub">Do not admit. Ask them to contact the organisers.</div><button data-act="next">OK</button>`)
-  else if(r.result==="cancelled")show("r",`<div class="big">TICKET CANCELLED</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.old_label||"This number")} is no longer valid.</div><div class="sub">Ask for their coordinator ticket:</div><div class="lab">${esc(r.label||"")}</div><button data-act="next">OK</button>`)
+  else if(r.result==="cancelled")show("r",`<div class="big">TICKET CANCELLED</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.old_label||"This number")} is no longer valid.</div><div class="sub">Ask for their current ticket:</div><div class="lab">${esc(r.label||"")}</div><button data-act="next">OK</button>`)
   else show("r",`<div class="big">INVALID TICKET</div><div class="sub">This ticket is not valid.</div><button data-act="next">OK</button>`);
   if(r.result==="ok"){clearTimeout(S.autoT);S.autoT=setTimeout(()=>{if(S.ov&&S.ov.auto)closeOv()},2600)}
 }
