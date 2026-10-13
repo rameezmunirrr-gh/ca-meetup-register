@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Gate · Ehsaas'26</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3ef;--card:#fff;--ink:#10231b;--mute:#52665c;--green:#0e5a43;--gold:#c9962b;--line:#cfdcd3;--err:#b3261e;--ok:#17803d;--warn:#a96b00;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}}
+:root[data-theme="dark"]{--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*:before,*:after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
+.kasavu{height:10px;background:repeating-linear-gradient(90deg,var(--gold) 0 18px,var(--bg) 18px 22px,var(--green) 22px 40px,var(--bg) 40px 44px)}
+main{max-width:560px;margin:0 auto;padding:14px 14px 60px}
+h1{font-size:1.5rem;margin:6px 0;font-weight:800}h2{font-size:1.1rem;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
+.mute{color:var(--mute)}.err{color:var(--err)}.note{font-size:.9rem;color:var(--mute)}
+input{font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);width:100%}
+label{display:block;font-weight:600;margin:10px 0 4px}
+button{font:inherit;font-weight:600;border-radius:10px;padding:12px 16px;border:1px solid var(--green);background:var(--green);color:var(--on);cursor:pointer}
+button.ghost{background:transparent;color:var(--green)}button.sm{padding:6px 10px;font-size:.88rem}button.bad{background:var(--err);border-color:var(--err);color:#fff}
+button:disabled{opacity:.5}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+a.btn{display:inline-block;font-weight:600;border-radius:10px;padding:6px 10px;font-size:.88rem;border:1px solid var(--green);color:var(--green);text-decoration:none}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.bar h1{flex:1;margin:0}
+.counts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}
+.counts div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.counts b{display:block;font-size:1.5rem;line-height:1.1}.counts span{font-size:.8rem;color:var(--mute)}
+.cam{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:1/1}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam .frame{position:absolute;inset:18%;border:3px solid rgba(255,255,255,.85);border-radius:16px;pointer-events:none}
+.cam .off{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#cfd8d3;text-align:center;padding:20px}
+.row{display:flex;gap:8px;margin-top:10px}.row>button{flex:1}
+.res{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.res:last-child{border-bottom:0}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid var(--line);white-space:nowrap}
+.p-paid{color:var(--ok);border-color:var(--ok)}.p-pending{color:var(--warn);border-color:var(--warn)}.p-rejected{color:var(--err);border-color:var(--err)}.p-here{color:#fff;background:var(--ok);border-color:var(--ok)}
+.vm{display:inline-block;width:13px;height:13px;border:2px solid;border-radius:3px;position:relative;vertical-align:-2px;margin:0 4px 0 0}
+.vm:after{content:"";position:absolute;inset:2px;border-radius:50%;background:currentColor}.vm.v{color:#17803d}.vm.n{color:#c62828}
+.ov{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:#fff;overflow:auto}
+.ov.g{background:#0f7a3d}.ov.r{background:#b3261e}.ov.a{background:#b36b00}.ov.n{background:#26413a}
+.ov .big{font-size:2.2rem;font-weight:800;letter-spacing:.04em;margin:0 0 6px}.ov .name{font-size:2rem;font-weight:800;line-height:1.15;margin:10px 0 4px}.ov .sub{font-size:1.15rem;opacity:.95;margin:2px 0}
+.ov .lab{font-size:1.6rem;font-weight:800;letter-spacing:.06em;background:rgba(255,255,255,.18);border-radius:10px;padding:2px 14px;margin:8px 0}
+.ov .vm{border-color:#fff;color:#fff}
+.ov button{background:#fff;color:#111;border-color:#fff;min-width:220px;margin-top:12px;font-size:1.05rem;padding:14px 18px}
+.ov button.line{background:transparent;color:#fff;border-color:#fff}
+.ov img{max-width:100%;max-height:50vh;border-radius:10px;margin-top:10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;z-index:30}
+</style></head>
+<body><div class="kasavu"></div><main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+const CFG={url:"https://jddrwajazpsdrqpwlncu.supabase.co",key:"sb_publishable_W3tJTLdbCOuwkUwkjLW1Iw_9m1zGHFT",event:"Ehsaas'26"};
+const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true}});
+const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
+const S={staff:null,msg:"",tickets:[],bookings:[],q:"",ov:null,busy:false,cam:false,camErr:"",stream:null,raf:0,last:0,lock:null};
+function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
+const bk=id=>S.bookings.find(b=>b.id===id)||{};
+const tlabel=t=>t.kind==="coordinator"?"E26-"+pad(t.coord_no)+"C":(t.ticket_no==null?"—":"E26-"+pad(t.ticket_no));
+const vm=f=>`<span class="vm ${f==="Veg"?"v":"n"}" aria-hidden="true"></span>${esc(f)}`;
+
+/* ---------- login / data ---------- */
+async function boot(){
+  const{data:{session}}=await db.auth.getSession();
+  if(!session){S.staff=null;return view()}
+  const{data,error}=await db.from("staff").select("name,role").eq("user_id",session.user.id).maybeSingle();
+  if(error||!data){S.staff=null;S.msg="This account is not set up as an organiser yet. Ask an admin to add it.";await db.auth.signOut();return view()}
+  S.staff=data;await loadData();view();setInterval(async()=>{if(S.staff&&!S.ov&&!S.busy){await loadData();counts()}},30000);
+}
+async function loadData(){
+  const[t,b]=await Promise.all([db.from("tickets").select("id,ticket_no,coord_no,kind,name,phone,food,booking_id,checked_in_at,reg_seq"),db.from("bookings").select("id,booking_code,status")]);
+  if(t.error||b.error){S.msg="Could not load the list: "+((t.error||b.error).message);return}
+  S.tickets=t.data;S.bookings=b.data;S.msg="";
+}
+function stats(){
+  const P=S.tickets.filter(t=>bk(t.booking_id).status==="paid"),here=P.filter(t=>t.checked_in_at),f=(a,v)=>a.filter(t=>t.food===v).length;
+  return{conf:P.length,here:here.length,vC:f(P,"Veg"),vH:f(here,"Veg"),nC:f(P,"Non-veg"),nH:f(here,"Non-veg")}
+}
+function counts(){const el=$("#counts");if(!el)return;const s=stats();
+  el.innerHTML=`<div><b>${s.here} / ${s.conf}</b><span>Present / Confirmed</span></div><div><b>${s.vH} / ${s.vC}</b><span><i class="vm v"></i>Veg present</span></div><div><b>${s.nH} / ${s.nC}</b><span><i class="vm n"></i>Non-veg present</span></div>`}
+
+/* ---------- views ---------- */
+function view(){
+  const a=$("#app");
+  if(!S.staff){a.innerHTML=`<h1>Gate login</h1><p class="mute">${esc(CFG.event)} entry</p><div class="card">${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}
+    <label for="em">Email</label><input id="em" type="email" autocomplete="username"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"><p><button id="login">Sign in</button></p></div>`;return}
+  a.innerHTML=`<div class="bar"><h1>Gate · ${esc(S.staff.name)}</h1>${S.staff.role==="admin"?`<a class="btn" href="../admin/">Dashboard</a>`:""}<button class="ghost sm" id="logout">Sign out</button></div>
+  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}
+  <div class="counts" id="counts" style="margin-top:10px"></div>
+  <div class="card"><div class="cam"><video id="vid" playsinline muted></video><div class="frame"></div><div class="off" id="camoff">${S.cam?"":esc(S.camErr||"Camera is off")}</div></div>
+    <div class="row"><button id="camtoggle">${S.cam?"Stop camera":"Start camera"}</button></div>
+    <p class="note" style="margin-bottom:0">Point the camera at the QR code on the ticket. If the camera doesn't work, use the search below.</p></div>
+  <div class="card"><h2>Find a person</h2><input id="q" placeholder="Name, phone, ticket number or booking ID" value="${esc(S.q)}" autocomplete="off"><div id="results"></div></div>`;
+  counts();results();
+  if(S.cam)attachCam();
+}
+function results(){
+  const el=$("#results");if(!el)return;const q=S.q.trim().toLowerCase();
+  if(q.length<2){el.innerHTML=`<p class="note">Type at least 2 characters.</p>`;return}
+  const digits=q.replace(/\D/g,""),hits=S.tickets.filter(t=>{const lab=tlabel(t).toLowerCase(),b=bk(t.booking_id);
+    return t.name.toLowerCase().includes(q)||t.phone.includes(q)||lab.includes(q)||(b.booking_code||"").toLowerCase().includes(q)||(digits&&digits.length>=1&&q.replace(/[^0-9]/g,"")===q&&String(t.ticket_no)===String(+digits))}).slice(0,15);
+  el.innerHTML=hits.length?hits.map(t=>{const b=bk(t.booking_id);
+    const pill=t.checked_in_at?`<span class="pill p-here">Present</span>`:`<span class="pill p-${b.status}">${b.status==="paid"?"Confirmed":b.status}</span>`;
+    return `<div class="res"><div><b>${esc(tlabel(t))}</b> ${esc(t.name)}<div class="note">${vm(t.food)} · ${esc(t.phone)} · ${esc(b.booking_code||"")}</div></div><div style="text-align:right">${pill}<div><button class="sm" data-pick="${t.id}" style="margin-top:6px">Open</button></div></div></div>`}).join(""):`<p class="note">No one found.</p>`;
+}
+
+/* ---------- overlays ---------- */
+function overlay(){
+  document.querySelectorAll(".ov").forEach(x=>x.remove());const o=S.ov;if(!o)return;
+  const d=document.createElement("div");d.className="ov "+o.cls;d.setAttribute("role","alertdialog");d.innerHTML=o.html;document.body.appendChild(d);
+  try{navigator.vibrate&&navigator.vibrate(o.cls==="g"?80:[120,60,120])}catch(_){}
+}
+function show(cls,html,extra){S.ov={cls,html,...extra};overlay()}
+function closeOv(){S.ov=null;S.cool=Date.now()+1500;overlay()}   // short pause so the same ticket is not read twice
+const person=r=>`<div class="name">${esc(r.name||"")}</div>${r.label?`<div class="lab">${esc(r.label)}</div>`:""}${r.food?`<div class="sub">${vm(r.food)}</div>`:""}${r.booking_code?`<div class="sub">Booking ${esc(r.booking_code)}${r.people_count>1?" · "+r.people_count+" people":""}</div>`:""}`;
+function showResult(r){
+  const kind=r.kind==="coordinator"?`<div class="sub">COORDINATOR</div>`:"";
+  if(r.result==="ok")show("g",`<div class="big">ADMITTED ✓</div>${kind}${person(r)}<button data-act="next">Scan next</button>`,{auto:true});
+  else if(r.result==="already_scanned"){const t=r.checked_in_at?new Date(r.checked_in_at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}):"";
+    show("r",`<div class="big">ALREADY SCANNED</div>${kind}${person(r)}<div class="sub">Entered at ${esc(t)}${r.checked_in_by?" · checked by "+esc(r.checked_in_by):""}</div><button data-act="next">OK</button>`)}
+  else if(r.result==="pending")show("a",`<div class="big">PAYMENT PENDING</div>${kind}${person(r)}<div class="sub">${inr(r.amount_expected)} expected</div>
+    <button data-act="shot">View payment screenshot</button><div id="shotbox"></div><button data-act="approve">Approve and admit</button><button class="line" data-act="next">Don't admit</button>`,{res:r})
+  else if(r.result==="rejected")show("r",`<div class="big">PAYMENT REJECTED</div>${person(r)}<div class="sub">Do not admit. Ask them to contact the organisers.</div><button data-act="next">OK</button>`)
+  else if(r.result==="cancelled")show("r",`<div class="big">TICKET CANCELLED</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.old_label||"This number")} is no longer valid.</div><div class="sub">Ask for their coordinator ticket:</div><div class="lab">${esc(r.label||"")}</div><button data-act="next">OK</button>`)
+  else show("r",`<div class="big">INVALID TICKET</div><div class="sub">This ticket is not valid.</div><button data-act="next">OK</button>`);
+  if(r.result==="ok"){clearTimeout(S.autoT);S.autoT=setTimeout(()=>{if(S.ov&&S.ov.auto)closeOv()},2600)}
+}
+
+/* ---------- admitting ---------- */
+async function admit(args){
+  if(S.busy)return;S.busy=true;
+  try{const{data,error}=await db.rpc("admit_ticket",args);if(error)throw error;showResult(data);await loadData();counts();results()}
+  catch(e){show("n",`<div class="big">COULDN'T CHECK</div><div class="sub">${esc(((e&&e.message)||"Network problem").slice(0,120))}</div><div class="sub">Check the internet and scan again. If it then says ALREADY SCANNED, the person was admitted.</div><button data-act="next">OK</button>`)}
+  S.busy=false;
+}
+const QR_RE=/^E26-(\d{1,6})(C?)\|([0-9a-f]{12})$/i;
+function handlePayload(text){
+  const m=QR_RE.exec(String(text||"").trim());
+  if(!m){if(S.busy||S.ov)return;return show("r",`<div class="big">NOT A TICKET</div><div class="sub">This QR code is not an ${esc(CFG.event)} ticket.</div><button data-act="next">OK</button>`)}
+  return admit({p_ticket_no:+m[1],p_secret:m[3].toLowerCase(),p_approve:false,p_coord:m[2].toUpperCase()==="C"});
+}
+
+/* ---------- camera ---------- */
+async function startCam(){
+  S.camErr="";
+  try{
+    S.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280}},audio:false});
+    S.cam=true;try{S.lock=await navigator.wakeLock.request("screen")}catch(_){}
+  }catch(e){S.cam=false;S.camErr=/denied|NotAllowed|Permission/i.test(String(e&&(e.name||e.message)))?"Camera permission was denied. Allow the camera for this site in your browser settings, or use the search below.":"Couldn't start the camera. Use the search below."}
+  view();
+}
+function stopCam(){cancelAnimationFrame(S.raf);if(S.stream)S.stream.getTracks().forEach(t=>t.stop());S.stream=null;S.cam=false;try{S.lock&&S.lock.release()}catch(_){}view()}
+function attachCam(){
+  const v=$("#vid");if(!v||!S.stream)return;v.srcObject=S.stream;v.play().catch(()=>{});
+  const c=document.createElement("canvas"),x=c.getContext("2d",{willReadFrequently:true});
+  cancelAnimationFrame(S.raf);
+  const tick=ts=>{
+    S.raf=requestAnimationFrame(tick);
+    if(S.ov||S.busy||Date.now()<(S.cool||0)||ts-S.last<120||v.readyState<2||!v.videoWidth)return;S.last=ts;
+    const k=Math.min(1,720/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*k);c.height=Math.round(v.videoHeight*k);
+    x.drawImage(v,0,0,c.width,c.height);
+    const r=jsQR(x.getImageData(0,0,c.width,c.height).data,c.width,c.height,{inversionAttempts:"dontInvert"});
+    if(r&&r.data)handlePayload(r.data);
+  };
+  S.raf=requestAnimationFrame(tick);
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("button,a");if(!t)return;const id=t.id,ds=t.dataset;
+  if(id==="login"){const{error}=await db.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});S.msg=error?"Wrong email or password.":"";return error?view():boot()}
+  if(id==="logout"){stopCam();await db.auth.signOut();S.staff=null;S.msg="";return view()}
+  if(id==="camtoggle")return S.cam?stopCam():startCam();
+  if(ds.pick){const p=S.tickets.find(x=>x.id===ds.pick);if(!p)return;const b=bk(p.booking_id);
+    return show("n",`<div class="name">${esc(p.name)}</div><div class="lab">${esc(tlabel(p))}</div><div class="sub">${vm(p.food)}</div><div class="sub">Booking ${esc(b.booking_code||"")} · ${esc(b.status||"")}${p.checked_in_at?" · already present":""}</div>
+      <button data-act="admitpick" data-id="${p.id}">Admit ${esc(p.name)}</button><button class="line" data-act="next">Cancel</button>`)}
+  const act=ds.act;if(!act)return;
+  if(act==="next"){clearTimeout(S.autoT);return closeOv()}
+  if(act==="admitpick"){closeOv();return admit({p_id:ds.id,p_approve:false})}
+  if(act==="shot"){const r=S.ov&&S.ov.res,box=$("#shotbox");if(!r||!box)return;box.textContent="Loading…";
+    const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(r.screenshot_path,300);
+    box.innerHTML=error?`<div class="sub">Couldn't open the screenshot.</div>`:`<img src="${data.signedUrl}" alt="Payment screenshot">`;return}
+  if(act==="approve"){const r=S.ov&&S.ov.res;if(!r)return;
+    return show("a",`<div class="big">APPROVE PAYMENT?</div><div class="sub">This marks the <b>whole booking</b> ${esc(r.booking_code)} (${r.people_count} ${r.people_count>1?"people":"person"}, ${inr(r.amount_expected)}) as <b>Paid</b> and admits <b>${esc(r.name)}</b>.</div>
+      <button data-act="approve2">Yes, approve and admit</button><button class="line" data-act="next">No, go back</button>`,{res:r})}
+  if(act==="approve2"){const r=S.ov&&S.ov.res;if(!r)return;closeOv();return admit({p_id:r.id,p_approve:true})}
+});
+document.addEventListener("input",e=>{if(e.target.id==="q"){S.q=e.target.value;results()}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});
+document.addEventListener("visibilitychange",async()=>{if(document.visibilityState==="visible"&&S.cam){try{S.lock=await navigator.wakeLock.request("screen")}catch(_){}}});
+boot();
+</script></body></html>
