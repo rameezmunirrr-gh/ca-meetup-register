@@ -65,6 +65,8 @@ tickets|15|coord_no|integer|f|
 tickets|16|orig_secret|text|f|
 tickets|17|marked_by|uuid|f|
 tickets|18|marked_at|timestamp with time zone|f|
+tickets|19|prev_coord_no|integer|f|
+tickets|20|prev_coord_secret|text|f|
 === CONSTRAINTS ===
 bookings | bookings_amount_expected_check | CHECK ((amount_expected > 0))
 bookings | bookings_booking_code_key | UNIQUE (booking_code)
@@ -107,6 +109,7 @@ staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
 tickets | CREATE INDEX tickets_booking_idx ON public.tickets USING btree (booking_id)
 tickets | CREATE UNIQUE INDEX tickets_coord_no_uq ON public.tickets USING btree (coord_no) WHERE (coord_no IS NOT NULL)
 tickets | CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)
+tickets | CREATE UNIQUE INDEX tickets_prev_coord_no_uq ON public.tickets USING btree (prev_coord_no) WHERE (prev_coord_no IS NOT NULL)
 tickets | CREATE UNIQUE INDEX tickets_ticket_no_key ON public.tickets USING btree (ticket_no)
 === VIEWS ===
 report
@@ -223,6 +226,15 @@ begin
     select * into t from tickets where id = p_id for update;
   elsif p_coord then
     select * into t from tickets where coord_no = p_ticket_no and kind = 'coordinator' for update;
+    if not found then
+      -- maybe a coordinator number that was cancelled (person is a guest again)
+      select * into t from tickets where prev_coord_no = p_ticket_no for update;
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('coordinator', null, t.prev_coord_no));
+      end if;
+    end if;
   else
     select * into t from tickets where ticket_no = p_ticket_no for update;
   end if;
@@ -392,14 +404,25 @@ begin
   if not found then raise exception 'INVALID_TICKET'; end if;
 
   if p_make and t.kind = 'guest' then
-    -- any guest number already given is cancelled (it stays on record, nothing is renumbered)
-    update tickets set kind = 'coordinator', coord_no = s.next_coord, orig_secret = t.secret,
-      secret = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
-      marked_by = auth.uid(), marked_at = now() where id = t.id;
-    update settings set next_coord = next_coord + 1 where id = 1;
+    if t.prev_coord_no is not null then
+      -- this person was a coordinator before: they get their own old number and QR back
+      update tickets set kind = 'coordinator', coord_no = t.prev_coord_no,
+        orig_secret = t.secret,
+        secret = coalesce(t.prev_coord_secret, substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)),
+        prev_coord_no = null, prev_coord_secret = null,
+        marked_by = auth.uid(), marked_at = now() where id = t.id;
+    else
+      -- first time: next new coordinator number. Any guest number stays on record, cancelled while coordinator.
+      update tickets set kind = 'coordinator', coord_no = s.next_coord, orig_secret = t.secret,
+        secret = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+        marked_by = auth.uid(), marked_at = now() where id = t.id;
+      update settings set next_coord = next_coord + 1 where id = 1;
+    end if;
   elsif not p_make and t.kind = 'coordinator' then
-    -- the coordinator number is retired (never reused); a guest number is restored or newly given
-    update tickets set kind = 'guest', coord_no = null, secret = coalesce(orig_secret, secret),
+    -- the coordinator number is kept on this person (cancelled), never given to anyone else.
+    -- the guest number and original QR come back, or a new guest number is given once paid.
+    update tickets set kind = 'guest', prev_coord_no = t.coord_no, prev_coord_secret = t.secret,
+      coord_no = null, secret = coalesce(orig_secret, secret),
       orig_secret = null, marked_by = null, marked_at = null where id = t.id;
     select status into bs from bookings where id = t.booking_id;
     if bs = 'paid' then perform _assign_numbers(t.booking_id); end if;
