@@ -44,8 +44,8 @@ About 30 coordinators in four teams: Games and Activity, Stage Program Planning,
 
 Intended rule: gate-scan access is requested by the person and must be approved by someone with admin access.
 
-**Not built yet:** there is no request/approve screen. Currently an organiser account is created manually in Supabase (a user in Authentication plus a row in the `staff` table). Sign-ups are turned off. *(To confirm: which `role` value is used for gate staff, and how the owner currently adds a staff row.)*
-
+   **Adding staff:** Staff are added manually at the end, once everything is ready and tested: create a user in Supabase (Authentication, Users), then insert a row into the `staff` table. Gate staff use the role `gate`, admins use `admin`. Always set the role explicitly, because the column default is `admin`. As of 14 Oct 2026 only the owner is in the table. There is no in-app request/approve screen yet.
+   
 ## 3. Architecture
 
 - **No server and no build step.** Three static HTML pages hosted on **GitHub Pages**, talking directly to **Supabase** (Postgres database, Auth, Storage).
