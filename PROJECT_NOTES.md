@@ -45,6 +45,8 @@ About 30 coordinators in four teams: Games and Activity, Stage Program Planning,
 Intended rule: gate-scan access is requested by the person and must be approved by someone with admin access.
 
    **Adding staff:** Staff are added manually at the end, once everything is ready and tested: create a user in Supabase (Authentication, Users), then insert a row into the `staff` table. Gate staff use the role `gate`, admins use `admin`. Always set the role explicitly, because the column default is `admin`. As of 14 Oct 2026 only the owner is in the table. There is no in-app request/approve screen yet.
+
+ The database only accepts the role values `admin` and `gate`. To remove someone's access, delete their row from the `staff` table (do not delete their Supabase login, which fails if they have reviewed or scanned anything).
    
 ## 3. Architecture
 
@@ -120,7 +122,7 @@ Intended rule: gate-scan access is requested by the person and must be approved 
 - Replace test values in the `CONFIG` block of `index.html`: UPI ID, payee name, WhatsApp number (currently test values).
 - Budgeting team sets the final price in Admin, Settings. Confirm the cap and deadline.
 - Do a small real test payment and scan it in two UPI apps.
-- Delete all test bookings and empty the `payment-proofs` bucket.
+- - Delete all test data: tickets first, then bookings (the database blocks deleting a booking that still has tickets), empty the `payment-proofs` bucket, and reset `next_ticket` and `next_coord` in `settings` to 1 so real numbering starts at E26-001.
 - Make sure "Allow new users to sign up" is off in Supabase Auth.
 - Create the organiser logins (admins and the two gate members).
 - Turn **Registration open** on in Settings (it is off by default).
