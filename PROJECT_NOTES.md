@@ -1,6 +1,6 @@
 # Ehsaas'26 Registration App: Project Notes
 
-Last updated: 14 Oct 2026 (afternoon, after the full numbering and dashboard test)
+Last updated: 14 Oct 2026, 3 PM (after the full numbering and dashboard test and the settings checks)
 
 **This repo is public.** Never put passwords, the Supabase service role key, database connection strings, UPI IDs, phone numbers or email addresses in this file or anywhere else in the repo. (The Supabase URL and the *publishable* key inside the HTML pages are safe by design.)
 
@@ -48,12 +48,12 @@ A custom registration, payment-verification and entry app for **Ehsaas'26**, a M
 
 | Item | Value |
 |---|---|
-| Cap (people, confirmed + pending) | 150 |
-| Price per person | ₹250 for testing; the final price is set by the budgeting team |
+| Cap (people, confirmed + pending) | 150 (checked 14 Oct 2026, after testing) |
+| Price per person | ₹250 (checked 14 Oct 2026); the final price is set by the budgeting team |
 | Max group per booking | 5 |
 | Registration deadline | 31 Oct 2026, 23:59:59 IST |
 | Registration opens | **20 Oct 2026** |
-| Registration open flag | Off by default. It is currently **on** for testing, and only the owner has the link. No real person registers until the owner says the project is complete. |
+| Registration open flag | Off by default, and currently **off** (checked 14 Oct 2026, 3 PM). Switch it on in Admin, Settings only when testing needs it; only the owner has the link. No real person registers until the owner says the project is complete. |
 
 ---
 
@@ -74,7 +74,7 @@ Intended rule: gate-scan access is requested by the person and must be approved 
 2. Copy the new user's **User UID**.
 3. In the SQL editor: `insert into staff (user_id, name, role) values ('<UID>', '<Name>', '<role>');`
 
-The database only accepts the role values **`admin`** and **`gate`**. **Always write the role explicitly: the column default is `admin`**, so leaving it out would give full admin access. To remove someone's access, **delete their row from `staff`** (do not delete their Supabase login: that fails if they have ever reviewed or scanned anything). As of 14 Oct 2026 only the owner (admin) is in the table. Sign-ups in Supabase Auth should be off (see the launch checklist).
+The database only accepts the role values **`admin`** and **`gate`**. **Always write the role explicitly: the column default is `admin`**, so leaving it out would give full admin access. To remove someone's access, **delete their row from `staff`** (do not delete their Supabase login: that fails if they have ever reviewed or scanned anything). As of 14 Oct 2026 only the owner (admin) is in the table. Sign-ups in Supabase Auth are **off** (confirmed 14 Oct 2026; manual linking and anonymous sign-ins are off too, and email confirmation is on).
 
 Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "This page is for admins". Admins can use both pages.
 
@@ -143,7 +143,7 @@ All write paths are `SECURITY DEFINER` functions. Parameter names matter because
 | `save_scan(p_booking, p_ids, p_hash, p_ok, p_amounts)` | staff | Stores an OCR result. |
 | `admin_update_settings(p_cap, p_price, p_deadline, p_is_open)` | admin | Updates settings (null means keep). |
 | `is_staff()`, `is_admin()`, `_ticket_label(kind, ticket_no, coord_no)` | internal | Helpers for rules and labels (`E26-007`, `E26-001C`). |
-| `_assign_numbers(p_booking)`, `_booking_json(p_booking)` | internal only | Execute rights were revoked from public, anon and authenticated (done 13 Oct 2026; confirm in the `execute rights` line of `sql/schema_snapshot.txt`). |
+| `_assign_numbers(p_booking)`, `_booking_json(p_booking)` | internal only | Execute rights were revoked from public, anon and authenticated (done 13 Oct 2026; confirmed 14 Oct 2026: the rights list shows only `postgres`; the `execute rights` line in `sql/schema_snapshot.txt` shows the same). |
 | `rls_auto_enable()` | event trigger | Turns on row-level security for any new table in `public`. |
 
 ### Security rules (row-level security)
@@ -270,8 +270,8 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
    update settings set next_ticket = 1, next_coord = 1 where id = 1;
    ```
    Then **empty the `payment-proofs` bucket** in the Storage section of the dashboard (SQL cannot delete stored files). Check again: all counts 0 and staff 1, and `select next_ticket, next_coord from settings;` shows `1, 1`. Do not delete `staff`.
-6. Make sure the **cap reads 150 and the price is final** after testing.
-7. In Supabase Authentication, make sure **"Allow new users to sign up" is off** (*to confirm; not verified yet*).
+6. The cap reads 150 and the deadline is correct (confirmed 14 Oct 2026). Make sure the **price is final** (currently ₹250) and the cap is still 150 after any further testing.
+7. In Supabase Authentication, **"Allow new users to sign up" is off** (confirmed 14 Oct 2026). Re-check it before launch in case it was changed.
 8. **Create the organiser logins** (admin friend, two gate members) as in section 2, then test each login, and check that gate users cannot open the admin page.
 9. Check that the keepalive and snapshot workflows show green ticks in the Actions tab.
 10. Turn **Registration open** on in Settings, and only then share the link.
@@ -306,7 +306,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 ## 13. Change log
 
 - **13 Oct 2026:** Database reviewed from exports and all three HTML pages. Security hardening done (report view, helper functions, bucket limits). `undo_checkin` rewritten to work by ticket id. Project notes and `sql/README.md` created.
-- **14 Oct 2026:** Nightly schema snapshot added (`schema-snapshot.yml`, read-only `snapshot_reader`). Numbering rule extended so coordinator numbers also stay with their person (`prev_coord_no`, `prev_coord_secret`, updated `set_coordinator` and `admit_ticket`). Full test passed. Overview changed (Active tickets, Spots used, Present). Admin page accidentally deleted on GitHub and restored from a saved copy with the Overview edits applied.
+- **14 Oct 2026:** Nightly schema snapshot added (`schema-snapshot.yml`, read-only `snapshot_reader`). Numbering rule extended so coordinator numbers also stay with their person (`prev_coord_no`, `prev_coord_secret`, updated `set_coordinator` and `admit_ticket`). Full test passed. Overview changed (Active tickets, Spots used, Present). Admin page accidentally deleted on GitHub and restored from a saved copy with the Overview edits applied. Afternoon checks: helper functions locked, sign-ups off, cap 150, price 250, deadline correct, registration currently closed.
 
 ---
 
