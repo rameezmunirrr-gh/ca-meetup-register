@@ -135,12 +135,25 @@ function remember(key,code,max){const l=LS.get(key,[]).filter(c=>c!==code);l.uns
 const normCode=t=>String(t||"").toUpperCase().replace(/O/g,"0").replace(/[\s-]/g,"");
 function setN(n){S.n=n;while(S.people.length<n)S.people.push(blank());S.people.length=n}
 function opt(i,k,v,cur){return `<label><input type="radio" name="p${i}_${k}" data-i="${i}" data-k="${k}" value="${v}" ${cur===v?"checked":""}><span>${v}</span></label>`}
+/* ===== event date, time and venue: set by admins in Admin > Settings. CONFIG values are the backup if it can't be loaded ===== */
+let evAt=0;
+async function loadEvent(){
+  if(!db||Date.now()-evAt<30000)return;
+  try{const r=await Promise.race([db.rpc("get_event_info"),new Promise(res=>setTimeout(()=>res(null),2500))]);
+    if(r&&r.data&&r.data.event_at&&r.data.venue){S.ev=r.data;evAt=Date.now()}}catch(_){}
+}
+function evParts(o){try{if(!S.ev)return null;const p={};new Intl.DateTimeFormat("en-GB",{...o,timeZone:"Asia/Kolkata"}).formatToParts(new Date(S.ev.event_at)).forEach(x=>p[x.type]=x.value);return p.year?p:null}catch(_){return null}}
+function evDate(){const p=evParts({weekday:"long",day:"numeric",month:"long",year:"numeric"});return p?p.weekday+", "+p.day+" "+p.month+" "+p.year:CONFIG.ticketDate}
+function evTime(){try{const t=S.ev&&fmtT(S.ev.event_at);if(t)return t}catch(_){}return CONFIG.ticketTime}
+function evVenue(){return(S.ev&&S.ev.venue)||CONFIG.ticketVenue}
+function evLine(){const p=evParts({weekday:"short",day:"numeric",month:"short",year:"numeric"});return p?p.weekday+" "+p.day+" "+p.month+" "+p.year+", "+evTime()+" · "+evVenue():CONFIG.eventLine}
 function head(t,s){return `<h1>${t}</h1><p class="sub">${s}</p>`}
 function closeDate(){try{return new Date(S.status.deadline).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kolkata"})}catch(_){return""}}
 function waLink(text){return "https://wa.me/"+CONFIG.organiserWhatsApp+"?text="+encodeURIComponent(text)}
 function contactBtn(text,label){return `<a class="btn ghost" href="${esc(waLink(text))}" target="_blank" rel="noopener">${label||"Contact the organisers"}</a>`}
 
 async function load(){
+  await loadEvent();
   try{
     if(!db)throw new Error("no client");
     const{data,error}=await db.rpc("get_public_status",{p_session:S.sid});if(error)throw error;
@@ -201,7 +214,7 @@ function vHome(){
   <p class="pres">${esc(CONFIG.organiserName)} presents</p>
   <h1>${esc(CONFIG.eventName)}</h1>
   <div class="orn"><i></i><b></b><i></i></div>
-  <dl class="when"><div><dt>Date</dt><dd>${esc(CONFIG.ticketDate)}</dd></div><div><dt>Time</dt><dd>${esc(CONFIG.ticketTime)}</dd></div><div><dt>Venue</dt><dd>${esc(CONFIG.ticketVenue)}</dd></div></dl>
+  <dl class="when"><div><dt>Date</dt><dd>${esc(evDate())}</dd></div><div><dt>Time</dt><dd>${esc(evTime())}</dd></div><div><dt>Venue</dt><dd>${esc(evVenue())}</dd></div></dl>
   </div><div class="band"></div></section>
   <div class="row col" style="gap:12px"><button class="big" id="go-register">Register for the meet-up</button>
   <button class="big ghost" id="go-tickets">Tickets</button></div>`+
@@ -218,7 +231,7 @@ function vClosed(){
 }
 function vForm(){
   const st=S.status;
-  let h=head(esc(CONFIG.eventName),esc(CONFIG.eventLine)+". Registration is ₹"+st.price_per_head+" per person"+(closeDate()?", open until "+closeDate():"")+".");
+  let h=head(esc(CONFIG.eventName),esc(evLine())+". Registration is ₹"+st.price_per_head+" per person"+(closeDate()?", open until "+closeDate():"")+".");
   if(st.next_close_at){const ms=new Date(st.next_close_at).getTime()-(Date.now()+skew);
     if(ms>0&&ms<2*3600e3)h+=`<div class="card note">Heads up: registration takes a short break at <b>${fmtT(st.next_close_at)}</b> for payment checking. If you have already started, you get 10 more minutes to finish.</div>`}
   if(st.spots_left<=20)h+=`<div class="card"><b>Only ${st.spots_left} spot${st.spots_left===1?"":"s"} left</b></div>`;
@@ -361,7 +374,7 @@ function drawTicket(c,t,code){
   x.strokeStyle=GOLD;x.lineWidth=2;x.beginPath();x.moveTo(W/2-170,474);x.lineTo(W/2-22,474);x.moveTo(W/2+22,474);x.lineTo(W/2+170,474);x.stroke();
   x.fillStyle=GOLD;x.beginPath();x.moveTo(W/2,464);x.lineTo(W/2+10,474);x.lineTo(W/2,484);x.lineTo(W/2-10,474);x.closePath();x.fill();
   // details
-  [["Date",CONFIG.ticketDate],["Time",CONFIG.ticketTime],["Venue",CONFIG.ticketVenue]].forEach((r,i)=>{
+  [["Date",evDate()],["Time",evTime()],["Venue",evVenue()]].forEach((r,i)=>{
     const y=556+i*104;txt(x,r[0],90,y,30,"italic 500",GI,"left",0,FD);
     const sz=fit(x,r[1],720,40,24,"500");txt(x,r[1],90,y+48,sz,"500",P.ink,"left",0)});
   // attendee
@@ -386,6 +399,7 @@ function drawTicket(c,t,code){
   x.restore();
 }
 async function drawTickets(){
+  await loadEvent();
   const r=S.cur;S.cv=[];
   try{if(document.fonts&&document.fonts.load)await Promise.all(['700 60px "Cormorant Garamond"','600 40px "Cormorant Garamond"','italic 500 30px "Cormorant Garamond"','400 30px "Jost"','500 30px "Jost"','600 30px "Jost"'].map(f=>document.fonts.load(f)))}catch(_){}
   r.tickets.forEach((t,i)=>{const c=document.getElementById("tc"+i);if(c){drawTicket(c,t,r.booking_code);S.cv[i]=c}});
@@ -509,5 +523,5 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="submit")submit();
   if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;S.file=null;S.result=null;S.errs=[];S.step="loading";render();load()}
 });
-render();
+render();loadEvent().then(()=>{if(S.step==="home")render()});
 </script></body></html>
