@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Organiser · Meetup 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3ef;--card:#fff;--ink:#10231b;--mute:#52665c;--green:#0e5a43;--gold:#c9962b;--line:#cfdcd3;--err:#b3261e;--ok:#17803d;--warn:#a96b00;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}}
+:root[data-theme="dark"]{--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*:before,*:after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
+.kasavu{height:10px;background:repeating-linear-gradient(90deg,var(--gold) 0 18px,var(--bg) 18px 22px,var(--green) 22px 40px,var(--bg) 40px 44px)}
+main{max-width:1100px;margin:0 auto;padding:16px 14px 60px}
+h1{font-size:1.6rem;margin:10px 0 4px;font-weight:800}h2{font-size:1.1rem;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 12px}
+.mute{color:var(--mute)}.err{color:var(--err)}
+input,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
+label{display:block;font-weight:600;margin:10px 0 4px}
+button{font:inherit;font-weight:600;border-radius:8px;padding:9px 13px;border:1px solid var(--green);background:var(--green);color:var(--on);cursor:pointer}
+button.ghost{background:transparent;color:var(--green)}button.bad{background:var(--err);border-color:var(--err);color:#fff}button.sm{padding:5px 9px;font-size:.85rem}
+button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}.tabs button.on{background:var(--green);color:var(--on);border-color:var(--green)}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat b{display:block;font-size:1.7rem;line-height:1.1}
+.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.charts .card{height:300px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}td.n{white-space:normal}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.8rem;font-weight:600;border:1px solid var(--line)}
+.p-paid{color:var(--ok);border-color:var(--ok)}.p-pending{color:var(--warn);border-color:var(--warn)}.p-rejected{color:var(--err);border-color:var(--err)}
+.flag{display:block;font-size:.82rem;color:var(--warn);white-space:normal;max-width:300px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto;z-index:9}
+.modal .box{background:var(--card);border-radius:12px;padding:14px;max-width:960px;width:100%}.modal img{max-width:100%;max-height:78vh;border-radius:8px;display:block;margin:6px auto}.two{display:flex;gap:10px;flex-wrap:wrap}.two>div{flex:1 1 300px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;z-index:10}
+</style></head>
+<body><div class="kasavu"></div><main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js"></script>
+<script>
+const CFG={url:"https://jddrwajazpsdrqpwlncu.supabase.co",key:"sb_publishable_W3tJTLdbCOuwkUwkjLW1Iw_9m1zGHFT"};
+const SIMILAR_BITS=8;                // images differing by <= this many of 1024 bits count as "possibly the same screenshot" (real tests: identical file = 0 bits; different PhonePe payments = 8 bits; different Google Pay payments = ~27)
+const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true}});
+const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
+const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",type:"",review:false},msg:"",charts:[],scanning:false};
+function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
+
+/* ---------- boot / auth ---------- */
+async function boot(){
+  const{data:{session}}=await db.auth.getSession();
+  if(!session){S.staff=null;return view()}
+  const{data,error}=await db.from("staff").select("name,role").eq("user_id",session.user.id).maybeSingle();
+  if(error||!data){S.staff=null;S.msg="This account is not set up as an organiser yet. Ask the admin to add it.";await db.auth.signOut();return view()}
+  S.staff=data;await load();view();
+}
+async function load(){
+  const[b,t,sc,st]=await Promise.all([db.from("bookings").select("*").order("created_at"),db.from("tickets").select("*").order("reg_seq"),db.from("screenshot_scans").select("*"),db.from("settings").select("*").eq("id",1).single()]);
+  const e=b.error||t.error||sc.error||st.error;if(e){S.msg="Could not load data: "+e.message;return}
+  S.bookings=b.data;S.tickets=t.data;S.scans=sc.data;S.settings=st.data;
+}
+const bk=id=>S.bookings.find(b=>b.id===id)||{};
+/* ticket number as shown everywhere: E26-007 (guest), E26-001C (coordinator), "—" (not numbered yet) */
+const tlabel=t=>t.kind==="coordinator"?"E26-"+pad(t.coord_no)+"C":(t.ticket_no==null?"—":"E26-"+pad(t.ticket_no));
+/* list order: coordinators first, then guests by number (the order you clicked Paid), then people awaiting approval by registration order */
+const rank=t=>t.kind==="coordinator"?0:(t.ticket_no==null?2:1);
+const people=()=>S.tickets.map(t=>({...t,b:bk(t.booking_id)})).sort((a,b)=>rank(a)-rank(b)||(rank(a)===0?a.coord_no-b.coord_no:rank(a)===1?a.ticket_no-b.ticket_no:a.reg_seq-b.reg_seq));
+function flags(){
+  const f={},add=(id,m)=>(f[id]=f[id]||[]).push(m),code=id=>bk(id).booking_code;
+  // 1) same transaction ID on different bookings (one line per pair, listing every shared ID)
+  const ids={};S.scans.forEach(s=>(s.txn_ids||[]).forEach(x=>(ids[x]=ids[x]||new Set()).add(s.booking_id)));
+  const shared={};
+  Object.entries(ids).forEach(([x,set])=>{if(set.size>1)[...set].forEach(b=>[...set].filter(y=>y!==b).forEach(o=>{(shared[b+"|"+o]=shared[b+"|"+o]||[]).push(x)}))});
+  Object.entries(shared).forEach(([k,list])=>{const[b,o]=k.split("|");add(b,"Same transaction ID as "+code(o)+": "+list.join(", "))});
+  // 2) image similarity: only a BACKUP when an ID could not be read on one of the two screenshots.
+  //    If both IDs were read and differ, they are different payments even if the screens look alike.
+  const sc=S.scans.filter(s=>s.image_hash);
+  for(let i=0;i<sc.length;i++)for(let j=i+1;j<sc.length;j++){
+    if(sc[i].read_ok&&sc[j].read_ok)continue;
+    const d=ham(sc[i].image_hash,sc[j].image_hash);
+    if(d<=SIMILAR_BITS){add(sc[i].booking_id,"Screenshot looks like "+code(sc[j].booking_id)+" ("+d+" bits apart)");add(sc[j].booking_id,"Screenshot looks like "+code(sc[i].booking_id)+" ("+d+" bits apart)")}}
+  S.scans.forEach(s=>{if(!s.read_ok&&bk(s.booking_id).status!=="rejected")add(s.booking_id,"Could not read a transaction ID")});
+  // 3) amount remarks (only for scans done after the amount upgrade)
+  S.scans.forEach(s=>{const b=bk(s.booking_id);if(b.status==="rejected"||!s.amounts)return;
+    if(!s.amounts.length)add(b.id,"Couldn't find an amount on the screenshot");
+    else if(!s.amounts.map(Number).includes(Number(b.amount_expected)))add(b.id,"Expected "+inr(b.amount_expected)+" not found on the screenshot")});
+  return f;
+}
+function ham(a,b){let d=0;const n=Math.min(a.length,b.length);for(let i=0;i<n;i++){let x=parseInt(a[i],16)^parseInt(b[i],16);while(x){d+=x&1;x>>=1}}return d}
+
+/* ---------- views ---------- */
+function view(){
+  S.charts.forEach(c=>c.destroy());S.charts=[];
+  const a=$("#app");
+  if(!S.staff){a.innerHTML=`<h1>Organiser login</h1><p class="mute">Meetup registrations</p><div class="card" style="max-width:380px">
+    ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<label for="em">Email</label><input id="em" type="email" autocomplete="username" style="width:100%">
+    <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" style="width:100%"><p><button id="login">Sign in</button></p></div>`;return}
+  if(S.staff.role!=="admin"){a.innerHTML=`<h1>Hello, ${esc(S.staff.name)}</h1><div class="card">This page is for admins. <a href="../gate/">Open the gate scanner</a>.</div><button class="ghost" id="logout">Sign out</button>`;return}
+  const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],["scan","Scan screenshots"],["settings","Settings"]];
+  a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--green);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--green)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
+  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div><div id="v"></div>`;
+  ({overview:vOverview,bookings:vBookings,people:vPeople,scan:vScan,settings:vSettings})[S.tab]();
+}
+function vOverview(){
+  const P=people(),live=P.filter(p=>p.b.status!=="rejected"),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending");
+  const money=st=>S.bookings.filter(b=>b.status===st).reduce((s,b)=>s+b.amount_expected,0),here=P.filter(p=>p.checked_in_at&&p.b.status==="paid").length;
+  const used=live.length,left=Math.max(S.settings.cap-used,0),coords=live.filter(p=>p.kind==="coordinator"),pcoords=paid.filter(p=>p.kind==="coordinator");
+  $("#v").innerHTML=`<div class="grid">
+      <div class="card stat"><span class="mute">Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span></div>
+   <div class="card stat"><span class="mute">Spots used</span><b>${used}</b><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span></div>
+   <div class="card stat"><span class="mute">Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span></div>
+   <div class="card stat"><span class="mute">Expected total</span><b>${inr(money("paid")+money("pending"))}</b><span class="mute">compare with your bank</span></div>
+   <div class="card stat"><span class="mute">Present at event</span><b>${here}</b><span class="mute">rejected: ${P.length-used}</span></div>
+   <div class="card stat"><span class="mute">Coordinators</span><b>${coords.length}</b><span class="mute">${coords.filter(p=>p.b.status==="paid").length} confirmed</span></div></div>
+   <div class="bar"><b>Count:</b><select id="mode"><option value="both" ${S.mode==="both"?"selected":""}>Confirmed + Pending</option><option value="paid" ${S.mode==="paid"?"selected":""}>Confirmed only</option></select>
+   <span class="mute">Use "Confirmed only" for final food and hall numbers.</span></div>
+   <div class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div><div class="card"><canvas id="c3"></canvas></div></div>`;
+  if(Chart.defaults)Chart.defaults.color=getComputedStyle(document.documentElement).getPropertyValue("--ink").trim()||"#888";
+  const set=S.mode==="paid"?paid:paid.concat(pend),cnt=(k,vals)=>vals.map(v=>set.filter(p=>p[k]===v).length);
+  const mk=(id,title,labels,data,colors)=>S.charts.push(new Chart($(id),{type:"doughnut",data:{labels:labels.map((l,i)=>l+" ("+data[i]+")"),datasets:[{data,backgroundColor:colors}]},options:{maintainAspectRatio:false,plugins:{title:{display:true,text:title+" · "+set.length+" people"},legend:{position:"bottom"}}}}));
+  mk("#c1","Food",["Veg","Non-veg"],cnt("food",["Veg","Non-veg"]),["#2e9e6b","#c9692b"]);
+  mk("#c2","Location",["In Bengaluru","Outside Bengaluru"],cnt("location",["In Bengaluru","Outside Bengaluru"]),["#2f6fd1","#8a56c9"]);
+  mk("#c3","Attendance",["Surely","Most probably"],cnt("attendance",["Surely","Most probably"]),["#17803d","#c9962b"]);
+}
+function filtBar(withPeople){
+  const f=S.f,o=(v,l)=>`<option value="${v}" ${f.pay===v?"selected":""}>${l}</option>`;
+  return `<div class="bar"><input id="q" placeholder="Search name, phone, booking ID" value="${esc(f.q)}" style="min-width:230px">
+  <select id="fpay">${o("","All payments")}${o("pending","Pending")}${o("paid","Paid")}${o("rejected","Rejected")}</select>
+  ${withPeople?`<select id="ffood"><option value="">Food: all</option><option ${f.food==="Veg"?"selected":""}>Veg</option><option ${f.food==="Non-veg"?"selected":""}>Non-veg</option></select>
+  <select id="floc"><option value="">Location: all</option><option ${f.loc==="In Bengaluru"?"selected":""}>In Bengaluru</option><option ${f.loc==="Outside Bengaluru"?"selected":""}>Outside Bengaluru</option></select>
+  <select id="fatt"><option value="">Attendance: all</option><option ${f.att==="Surely"?"selected":""}>Surely</option><option ${f.att==="Most probably"?"selected":""}>Most probably</option></select>
+  <select id="ftype"><option value="">Type: all</option><option value="guest" ${f.type==="guest"?"selected":""}>Guests only</option><option value="coordinator" ${f.type==="coordinator"?"selected":""}>Coordinators only</option></select>
+  <button class="ghost" id="csv">Download Excel (CSV)</button>`:`<label style="margin:0"><input type="checkbox" id="frev" ${f.review?"checked":""}> Needs review only</label>`}</div>`;
+}
+function vBookings(){$("#v").innerHTML=filtBar(false)+`<div class="card wrap" id="tbl"></div>`;tBookings()}
+function amtRemark(b,s){if(!s)return"";if(!s.amounts)return'<div class="mute">Amount: re-scan to check</div>';
+  if(!s.amounts.length)return`<div class="err">Amount: couldn't find one</div>`;
+  return s.amounts.map(Number).includes(Number(b.amount_expected))?`<div style="color:var(--ok)">Amount ✓ ${inr(b.amount_expected)} found</div>`:`<div class="err">Amount ✗ ${inr(b.amount_expected)} not found</div>`}
+function idRead(id){const s=S.scans.find(x=>x.booking_id===id),b=bk(id);return !s?'<span class="mute">not scanned</span>':(s.txn_ids&&s.txn_ids.length?s.txn_ids.map(esc).join("<br>"):'<span class="mute">no ID found</span>')+amtRemark(b,s)}
+function tBookings(){
+  const F=flags(),q=S.f.q.toLowerCase(),rows=S.bookings.filter(b=>{
+    const names=S.tickets.filter(t=>t.booking_id===b.id);
+    if(S.f.pay&&b.status!==S.f.pay)return false;if(S.f.review&&!(F[b.id]||[]).length)return false;
+    return !q||b.booking_code.toLowerCase().includes(q)||names.some(t=>t.name.toLowerCase().includes(q)||t.phone.includes(q))}).reverse();
+  $("#tbl").innerHTML=`<table><tr><th>Booking</th><th>People</th><th>Amount</th><th>Status</th><th>ID read</th><th>Review flags</th><th>Actions</th></tr>`+rows.map(b=>{
+    const ts=S.tickets.filter(t=>t.booking_id===b.id),fl=F[b.id]||[];
+    return `<tr><td><b>${esc(b.booking_code)}</b><div class="mute">${new Date(b.created_at).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></td>
+    <td class="n">${ts.map(t=>esc(tlabel(t))+" "+esc(t.name)).join("<br>")}</td><td>${inr(b.amount_expected)}</td>
+    <td><span class="pill p-${b.status}">${b.status}</span></td><td class="n">${idRead(b.id)}</td><td>${fl.map(x=>`<span class="flag">⚑ ${esc(x)}</span>`).join("")||'<span class="mute">—</span>'}</td>
+    <td><button class="sm ghost" data-shot="${b.id}">Screenshot</button> ${b.status!=="paid"?`<button class="sm" data-st="paid" data-b="${b.id}">Paid</button>`:""}
+    ${b.status!=="rejected"?`<button class="sm bad" data-st="rejected" data-b="${b.id}">Reject</button>`:""} ${b.status!=="pending"?`<button class="sm ghost" data-st="pending" data-b="${b.id}">Pending</button>`:""}</td></tr>`}).join("")+`</table>${rows.length?"":'<p class="mute">Nothing to show.</p>'}`;
+}
+function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
+  return people().filter(p=>(!f.pay||p.b.status===f.pay)&&(!f.food||p.food===f.food)&&(!f.loc||p.location===f.loc)&&(!f.att||p.attendance===f.att)&&(!f.type||p.kind===f.type)&&(!q||p.name.toLowerCase().includes(q)||p.phone.includes(q)||tlabel(p).toLowerCase().includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)))}
+function vPeople(){$("#v").innerHTML=filtBar(true)+`<div class="card wrap" id="tbl"></div>`;tPeople()}
+function tPeople(){const r=filteredPeople();
+  $("#tbl").innerHTML=`<p class="mute">${r.length} people shown</p><table><tr><th>Ticket</th><th>Type</th><th>Name</th><th>Phone</th><th>Location</th><th>Attendance</th><th>Food</th><th>Booking</th><th>Payment</th><th>Present</th></tr>`+
+  r.map(p=>`<tr><td><b>${esc(tlabel(p))}</b></td><td>${p.kind==="coordinator"?"Coordinator"+(p.ticket_no!=null?`<div class="mute">guest ${esc("E26-"+pad(p.ticket_no))} cancelled</div>`:"")   :"Guest"+(p.prev_coord_no!=null?`<div class="mute">coordinator ${esc("E26-"+pad(p.prev_coord_no)+"C")} cancelled</div>`:"")}${p.b.status==="rejected"?"":`<div style="margin-top:4px">${p.kind==="coordinator"?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div>`}</td><td>${esc(p.name)}</td><td>${p.phone}</td><td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?`Present <button class="sm ghost" data-undo="${p.id}">Undo</button>`:"—"}</td></tr>`).join("")+`</table>`}
+function csv(){const r=filteredPeople(),h=["Ticket No.","Type","Name","Phone","Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at"];
+  const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+  const rows=r.map(p=>[tlabel(p),p.kind==="coordinator"?"Coordinator":"Guest",p.name,p.phone,p.location,p.attendance,p.food,p.b.booking_code,p.b.status,p.b.amount_expected,p.checked_in_at?"Yes":"No",p.checked_in_at||""]);
+  const txt="\ufeff"+[h].concat(rows).map(x=>x.map(q).join(",")).join("\r\n"),a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));a.download="meetup-registrations.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+async function shots(items){
+  const m=document.createElement("div");m.className="modal";m.innerHTML=`<div class="box"><div class="bar"><b style="flex:1">Payment screenshot</b><button class="sm" id="mx">Close</button></div><div class="two" id="mi">Loading…</div></div>`;document.body.appendChild(m);
+  m.onclick=e=>{if(e.target===m||e.target.id==="mx")m.remove()};
+  const out=[];for(const it of items){const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(it.path,300);
+    out.push(`<div><b>${esc(it.label)}</b>${error?`<p class="err">Could not open (${esc(error.message)})</p>`:`<img src="${data.signedUrl}" alt="Payment screenshot ${esc(it.label)}">`}</div>`)}
+  $("#mi").innerHTML=out.join("");
+}
+function vScan(){
+  const un=S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)),bad=S.scans.filter(s=>(!s.read_ok||!s.amounts)&&bk(s.booking_id).status!=="rejected");
+  $("#v").innerHTML=`<div class="card"><h2>Scan screenshots</h2><p>Reads each payment screenshot on <b>this computer</b> (nothing is sent to any outside service), finds the transaction ID, and flags bookings that share an ID or a near-identical image. Participants see nothing.</p>
+  <p><b>${un.length}</b> not scanned yet · <b>${bad.length}</b> unreadable or from before the amount check · <b>${S.scans.length}</b> scanned in total</p>
+  <p><button id="scan" ${S.scanning?"disabled":""}>Scan ${un.length} new</button> <button class="ghost" id="rescan" ${S.scanning||!bad.length?"disabled":""}>Re-scan ${bad.length} unreadable / older</button> <button class="ghost" id="rescanall" ${S.scanning||!S.scans.length?"disabled":""}>Re-scan all ${S.scans.length}</button></p>
+  <p id="prog" class="mute"></p><p class="mute">Each screenshot is read twice, so allow about 3 seconds each. The first scan downloads the reading engine (a few MB). Keep this tab open while it runs. Results appear as flags under Bookings.</p></div>`;
+}
+function loadScript(src){return new Promise((res,rej)=>{if(window.Tesseract)return res();const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("Could not load the reading engine. Check your internet."));document.head.appendChild(s)})}
+function extractIds(t){const ids=new Set();
+  (t.match(/\b\d{12}\b/g)||[]).forEach(x=>{if(!/^91[6-9]\d{9}$/.test(x))ids.add(x)});   // skip +91 phone numbers
+  (t.match(/\bT\d{16,24}\b/g)||[]).forEach(x=>ids.add(x));return [...ids]}
+function extractAmounts(t){
+  const out=new Set();
+  (t.match(/[^\s\d]?\d[\d,]*(?:\.\d{1,2})?/g)||[]).forEach(tok=>{
+    const d=tok.replace(/^[^\d]+/,""),n=d.replace(/[^\d.]/g,"");          // drop a leading symbol such as % ~ z
+    if(d.replace(/\D/g,"").length>7)return;                                // skip IDs and other long numbers
+    const v=parseFloat(n);if(isFinite(v)&&v>0)out.add(v);
+    if(/^[23]\d/.test(d)){const w=parseFloat(d.slice(1).replace(/[^\d.]/g,""));if(isFinite(w)&&w>0)out.add(w)}  // rupee sign read as the digit 2 or 3
+  });
+  return [...out].filter(x=>x<=1000000).slice(0,80);
+}
+async function shrink(blob,k){const bmp=await createImageBitmap(blob),c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+  c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);return new Promise(r=>c.toBlob(r,"image/png"))}
+async function readShot(w,blob){
+  // pass 1: normal reading (best for transaction IDs). pass 2: half size + sparse layout (big amounts become readable)
+  await w.setParameters({tessedit_pageseg_mode:"3"});const t1=(await w.recognize(blob)).data.text;
+  let t2="";try{await w.setParameters({tessedit_pageseg_mode:"11"});t2=(await w.recognize(await shrink(blob,.5))).data.text}catch(_){}
+  await w.setParameters({tessedit_pageseg_mode:"3"});
+  let ids=extractIds(t1);if(!ids.length)ids=extractIds(t2);
+  return{ids,amts:[...new Set(extractAmounts(t1).concat(extractAmounts(t2)))]}}
+async function dhash(blob){
+  const bmp=await createImageBitmap(blob),c=document.createElement("canvas");c.width=33;c.height=32;const x=c.getContext("2d");x.drawImage(bmp,0,0,33,32);
+  const d=x.getImageData(0,0,33,32).data,g=(i,j)=>{const k=(j*33+i)*4;return .299*d[k]+.587*d[k+1]+.114*d[k+2]};let bits="";
+  for(let j=0;j<32;j++)for(let i=0;i<32;i++)bits+=g(i,j)>g(i+1,j)?"1":"0";
+  let h="";for(let k=0;k<1024;k+=4)h+=parseInt(bits.slice(k,k+4),2).toString(16);return h}
+async function runScan(list){
+  if(S.scanning||!list.length)return;S.scanning=true;vScan();const prog=$("#prog");
+  try{
+    prog.textContent="Loading the reading engine…";await loadScript("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js");
+    const w=await Tesseract.createWorker("eng",1,{langPath:"https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int"});
+    let n=0;for(const b of list){n++;prog.textContent=`Scanning ${n} of ${list.length} (${b.booking_code})…`;
+      try{const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(b.screenshot_path,300);if(error)throw error;
+        const blob=await(await fetch(data.signedUrl)).blob(),rd=await readShot(w,blob),ids=rd.ids,amts=rd.amts,hash=await dhash(blob);
+        const r=await db.rpc("save_scan",{p_booking:b.id,p_ids:ids,p_hash:hash,p_ok:ids.length>0,p_amounts:amts});if(r.error)throw r.error}
+      catch(e){prog.textContent="Problem with "+b.booking_code+": "+e.message}}
+    await w.terminate();await load();prog.textContent="Done. Check the Bookings tab for flags."
+  }catch(e){prog.textContent=e.message}
+  S.scanning=false;const p=prog.textContent;vScan();$("#prog").textContent=p;
+}
+function istInput(iso){return new Date(new Date(iso).getTime()+5.5*3600e3).toISOString().slice(0,16)}
+function vSettings(){const s=S.settings;
+  $("#v").innerHTML=`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
+  <label><input type="checkbox" id="sopen" ${s.is_open?"checked":""}> Registration open</label>
+  <label for="scap">Cap (people)</label><input id="scap" type="number" min="0" value="${s.cap}">
+  <label for="sprice">Price per person (₹)</label><input id="sprice" type="number" min="1" value="${s.price_per_head}">
+  <label for="sdl">Deadline (India time)</label><input id="sdl" type="datetime-local" value="${istInput(s.deadline)}">
+  <p class="mute">The form closes at the deadline or when the cap is reached, whichever comes first. Changing the price affects new bookings only.</p>
+  <p><button id="ssave">Save settings</button></p></div>
+  <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
+  <p class="mute">A reminder list. Nothing here is checked automatically.</p>
+  <label style="font-weight:400"><input type="checkbox"> UPI ID and payee name in the participant page are the final ones (not Ramiz's test ones)</label>
+  <label style="font-weight:400"><input type="checkbox"> WhatsApp number in the participant page is the organisers' number (not the test number)</label>
+  <label style="font-weight:400"><input type="checkbox"> A ₹1 test payment was scanned in two UPI apps</label>
+  <label style="font-weight:400"><input type="checkbox"> All test bookings deleted and the payment-proofs storage emptied</label>
+  <label style="font-weight:400"><input type="checkbox"> "Allow new users to sign up" is off in Supabase</label>
+  <label style="font-weight:400"><input type="checkbox"> The other organiser logins are created</label></div>`}
+
+/* ---------- events ---------- */
+document.addEventListener("click",async e=>{const t=e.target,id=t.id;
+  if(id==="login"){const{error}=await db.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});S.msg=error?"Wrong email or password.":"";return error?view():boot()}
+  if(id==="logout"){await db.auth.signOut();S.staff=null;S.msg="";return view()}
+  if(id==="refresh"){await load();view();return toast("Refreshed")}
+  if(t.dataset.tab){S.tab=t.dataset.tab;return view()}
+    if(t.dataset.undo){
+    if(!confirm("Undo this check-in?"))return;
+    const r=await db.rpc("undo_checkin",{p_id:t.dataset.undo});
+    if(r.error)return toast("Failed: "+r.error.message);
+    await load();view();return toast("Check-in undone");
+  }
+  if(id==="csv")return csv();
+  if(t.dataset.shot){const b=bk(t.dataset.shot),F=flags()[b.id]||[],items=[{path:b.screenshot_path,label:b.booking_code}];
+    S.scans.filter(s=>s.booking_id!==b.id).forEach(s=>{const o=bk(s.booking_id);if(F.some(x=>x.includes(o.booking_code)))items.push({path:o.screenshot_path,label:o.booking_code+" (flagged match)"})});return shots(items)}
+  if(t.dataset.st){const r=await db.rpc("set_booking_status",{p_booking:t.dataset.b,p_status:t.dataset.st});if(r.error)return toast("Failed: "+r.error.message);await load();view();return toast("Marked "+t.dataset.st+(t.dataset.st==="paid"?". Ticket numbers given.":""))}
+  if(t.dataset.co){const tk=S.tickets.find(x=>x.id===t.dataset.t),make=t.dataset.co==="make";if(!tk)return;
+    const msg=make?"Make "+tk.name+" a coordinator?"+(tk.ticket_no!=null?"\n\nTheir guest number "+tlabel(tk)+" will be cancelled and they will get the next coordinator number. Other numbers do not change.":"\n\nThey will get the next coordinator number (E26-"+pad(S.settings.next_coord)+"C)."):"Remove "+tk.name+" as coordinator?\n\nThe coordinator number is retired and never reused. They go back to being a guest.";
+    if(!confirm(msg))return;
+    const r=await db.rpc("set_coordinator",{p_ticket_id:tk.id,p_make:make});if(r.error)return toast("Failed: "+r.error.message);
+    await load();view();return toast(make?tk.name+" is now "+r.data.label:tk.name+" is a guest again")}
+  if(id==="scan")return runScan(S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
+  if(id==="rescanall")return runScan(S.scans.map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
+  if(id==="rescan")return runScan(S.scans.filter(s=>!s.read_ok||!s.amounts).map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
+  if(id==="ssave"){const r=await db.rpc("admin_update_settings",{p_cap:+$("#scap").value,p_price:+$("#sprice").value,p_deadline:new Date($("#sdl").value+":59+05:30").toISOString(),p_is_open:$("#sopen").checked});
+    if(r.error)return toast("Failed: "+r.error.message);await load();view();toast("Settings saved")}
+});
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.id==="mode"){S.mode=t.value;view()}
+  if(["fpay","ffood","floc","fatt","ftype","frev"].includes(t.id)){S.f.pay=$("#fpay")?.value??S.f.pay;if($("#ffood")){S.f.food=$("#ffood").value;S.f.loc=$("#floc").value;S.f.att=$("#fatt").value;S.f.type=$("#ftype").value}if($("#frev"))S.f.review=$("#frev").checked;S.tab==="people"?tPeople():tBookings()}});
+document.addEventListener("input",e=>{if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});
+boot();
+</script></body></html>
