@@ -12,6 +12,9 @@ bookings|10|reviewed_via|text|f|
 bookings|11|created_at|timestamp with time zone|t|now()
 keepalive|1|id|integer|t|
 keepalive|2|note|text|f|
+reg_sessions|1|id|uuid|t|
+reg_sessions|2|started_at|timestamp with time zone|t|now()
+reg_sessions|3|last_seen|timestamp with time zone|t|now()
 report|1|sl_no|integer|f|
 report|2|name|text|f|
 report|3|phone|text|f|
@@ -44,6 +47,13 @@ settings|5|deadline|timestamp with time zone|t|'2026-10-31 18:29:59+00'::timesta
 settings|6|is_open|boolean|t|false
 settings|7|next_ticket|integer|t|1
 settings|8|next_coord|integer|t|1
+settings|9|pause_enabled|boolean|t|false
+settings|10|pause_close_time|time without time zone|t|'23:00:00'::time without time zone
+settings|11|pause_open_time|time without time zone|t|'00:00:00'::time without time zone
+settings|12|grace_minutes|integer|t|10
+settings|13|closed_at|timestamp with time zone|f|
+settings|14|event_at|timestamp with time zone|t|'2026-11-22 08:30:00+00'::timestamp with time zone
+settings|15|venue|text|t|'Savoury Business Hotel, Madiwala'::text
 staff|1|user_id|uuid|t|
 staff|2|name|text|t|
 staff|3|role|text|t|'admin'::text
@@ -77,14 +87,18 @@ bookings | bookings_reviewed_via_check | CHECK ((reviewed_via = ANY (ARRAY['admi
 bookings | bookings_status_check | CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'rejected'::text])))
 bookings | bookings_submission_id_key | UNIQUE (submission_id)
 keepalive | keepalive_pkey | PRIMARY KEY (id)
+reg_sessions | reg_sessions_pkey | PRIMARY KEY (id)
 screenshot_scans | screenshot_scans_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
 screenshot_scans | screenshot_scans_pkey | PRIMARY KEY (booking_id)
 screenshot_scans | screenshot_scans_scanned_by_fkey | FOREIGN KEY (scanned_by) REFERENCES auth.users(id)
 settings | settings_cap_check | CHECK ((cap >= 0))
+settings | settings_grace_check | CHECK (((grace_minutes >= 1) AND (grace_minutes <= 60)))
 settings | settings_id_check | CHECK ((id = 1))
 settings | settings_max_group_check | CHECK (((max_group >= 1) AND (max_group <= 5)))
+settings | settings_pause_times_check | CHECK ((pause_close_time <> pause_open_time))
 settings | settings_pkey | PRIMARY KEY (id)
 settings | settings_price_per_head_check | CHECK ((price_per_head > 0))
+settings | settings_venue_len | CHECK (((char_length(btrim(venue)) >= 1) AND (char_length(btrim(venue)) <= 120)))
 staff | staff_pkey | PRIMARY KEY (user_id)
 staff | staff_role_check | CHECK ((role = ANY (ARRAY['admin'::text, 'gate'::text])))
 staff | staff_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -103,6 +117,7 @@ bookings | CREATE UNIQUE INDEX bookings_booking_code_key ON public.bookings USIN
 bookings | CREATE UNIQUE INDEX bookings_pkey ON public.bookings USING btree (id)
 bookings | CREATE UNIQUE INDEX bookings_submission_id_key ON public.bookings USING btree (submission_id)
 keepalive | CREATE UNIQUE INDEX keepalive_pkey ON public.keepalive USING btree (id)
+reg_sessions | CREATE UNIQUE INDEX reg_sessions_pkey ON public.reg_sessions USING btree (id)
 screenshot_scans | CREATE UNIQUE INDEX screenshot_scans_pkey ON public.screenshot_scans USING btree (booking_id)
 settings | CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (id)
 staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
@@ -138,6 +153,7 @@ report : {security_invoker=true}
 === ROW LEVEL SECURITY ON/OFF ===
 bookings : rls=true
 keepalive : rls=true
+reg_sessions : rls=true
 screenshot_scans : rls=true
 settings : rls=true
 staff : rls=true
@@ -187,6 +203,92 @@ AS $function$
         order by t.reg_seq) from tickets t where t.booking_id = b.id))
   from bookings b where b.id = p_booking $function$
 
+--- _close_moment(s settings) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._close_moment(s settings)
+ RETURNS timestamp with time zone
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+declare pi jsonb := _pause_info(s);
+begin
+  return least(case when not s.is_open then s.closed_at end,
+               case when (pi->>'in_pause')::boolean then (pi->>'last_close')::timestamptz end,
+               case when now() > s.deadline then s.deadline end);
+end $function$
+
+--- _grace_until(s settings, p_session uuid, p_slack interval) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._grace_until(s settings, p_session uuid, p_slack interval DEFAULT '00:00:00'::interval)
+ RETURNS timestamp with time zone
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+declare cm timestamptz; r reg_sessions%rowtype;
+begin
+  if p_session is null then return null; end if;
+  cm := _close_moment(s);
+  if cm is null or now() > cm + make_interval(mins => s.grace_minutes) + p_slack then return null; end if;
+  select * into r from reg_sessions where id = p_session;
+  if not found or r.started_at >= cm or r.last_seen < cm - interval '10 minutes' then return null; end if;
+  if exists (select 1 from bookings where submission_id = p_session) then return null; end if;
+  return cm + make_interval(mins => s.grace_minutes);
+end $function$
+
+--- _pause_info(s settings) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._pause_info(s settings)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+declare ist_now timestamp; lc timestamp; op timestamp;
+begin
+  if not s.pause_enabled then
+    return jsonb_build_object('in_pause', false, 'last_close', null, 'next_open', null, 'next_close', null);
+  end if;
+  ist_now := now() at time zone 'Asia/Kolkata';
+  lc := ist_now::date + s.pause_close_time;
+  if lc > ist_now then lc := lc - interval '1 day'; end if;      -- most recent close moment
+  op := lc::date + s.pause_open_time;
+  if op <= lc then op := op + interval '1 day'; end if;           -- the reopen that follows it
+  return jsonb_build_object(
+    'in_pause',   ist_now < op,
+    'last_close', lc at time zone 'Asia/Kolkata',
+    'next_open',  op at time zone 'Asia/Kolkata',
+    'next_close', (lc + interval '1 day') at time zone 'Asia/Kolkata');
+end $function$
+
+--- _public_state(s settings, p_session uuid) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._public_state(s settings, p_session uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+declare used int; remaining int; reason text; pi jsonb; gu timestamptz; reopen timestamptz;
+begin
+  select count(*) into used from tickets t join bookings b on b.id = t.booking_id where b.status <> 'rejected';
+  remaining := greatest(s.cap - used, 0);
+  pi := _pause_info(s);
+  reason := case when not s.is_open then 'not_open'
+                 when now() > s.deadline then 'deadline'
+                 when remaining = 0 then 'full'
+                 when (pi->>'in_pause')::boolean then 'paused'
+                 else null end;
+  reopen := case when reason = 'paused' and (pi->>'next_open')::timestamptz <= s.deadline
+                 then (pi->>'next_open')::timestamptz else null end;
+  if reason = 'paused' and reopen is null then reason := 'deadline'; end if;
+  gu := case when reason in ('not_open', 'paused', 'deadline') then _grace_until(s, p_session) else null end;
+  return jsonb_build_object('accepting', reason is null, 'closed_reason', reason,
+    'spots_left', remaining, 'price_per_head', s.price_per_head,
+    'max_group', greatest(least(s.max_group, remaining), 1), 'deadline', s.deadline,
+    'server_now', now(), 'grace_until', gu, 'reopen_at', reopen,
+    'pause_enabled', s.pause_enabled,
+    'next_close_at', case when reason is null and s.pause_enabled and (pi->>'next_close')::timestamptz < s.deadline
+                          then (pi->>'next_close')::timestamptz else null end);
+end $function$
+
 --- _ticket_label(p_kind text, p_ticket_no integer, p_coord_no integer) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public._ticket_label(p_kind text, p_ticket_no integer, p_coord_no integer)
  RETURNS text
@@ -197,8 +299,32 @@ AS $function$
               when p_ticket_no is null then null
               else 'E26-' || lpad(p_ticket_no::text, 3, '0') end $function$
 
---- admin_update_settings(p_cap integer, p_price integer, p_deadline timestamp with time zone, p_is_open boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
-CREATE OR REPLACE FUNCTION public.admin_update_settings(p_cap integer DEFAULT NULL::integer, p_price integer DEFAULT NULL::integer, p_deadline timestamp with time zone DEFAULT NULL::timestamp with time zone, p_is_open boolean DEFAULT NULL::boolean)
+--- admin_registration_status() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_registration_status()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; st jsonb; cm timestamptz; gc int := 0; gu timestamptz;
+begin
+  if not is_staff() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1;
+  st := _public_state(s, null);
+  cm := _close_moment(s);
+  if cm is not null and now() <= cm + make_interval(mins => s.grace_minutes) then
+    gu := cm + make_interval(mins => s.grace_minutes);
+    select count(*) into gc from reg_sessions r
+    where r.started_at < cm and r.last_seen >= cm - interval '10 minutes'
+      and not exists (select 1 from bookings b where b.submission_id = r.id);
+  end if;
+  return jsonb_build_object('closed_reason', st->'closed_reason', 'accepting', st->'accepting',
+    'reopen_at', st->'reopen_at', 'next_close_at', st->'next_close_at',
+    'grace_count', gc, 'grace_until', case when gc > 0 then gu else null end, 'server_now', now());
+end $function$
+
+--- admin_set_event(p_event_at timestamp with time zone, p_venue text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_event(p_event_at timestamp with time zone, p_venue text)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -206,8 +332,33 @@ CREATE OR REPLACE FUNCTION public.admin_update_settings(p_cap integer DEFAULT NU
 AS $function$
 begin
   if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_event_at is null or coalesce(btrim(p_venue), '') = '' then raise exception 'INVALID_EVENT'; end if;
+  update settings set event_at = p_event_at, venue = btrim(p_venue) where id = 1;
+end $function$
+
+--- admin_update_settings(p_cap integer, p_price integer, p_deadline timestamp with time zone, p_is_open boolean, p_pause_enabled boolean, p_pause_close time without time zone, p_pause_open time without time zone) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_update_settings(p_cap integer DEFAULT NULL::integer, p_price integer DEFAULT NULL::integer, p_deadline timestamp with time zone DEFAULT NULL::timestamp with time zone, p_is_open boolean DEFAULT NULL::boolean, p_pause_enabled boolean DEFAULT NULL::boolean, p_pause_close time without time zone DEFAULT NULL::time without time zone, p_pause_open time without time zone DEFAULT NULL::time without time zone)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1 for update;
+  if coalesce(p_pause_close, s.pause_close_time) = coalesce(p_pause_open, s.pause_open_time) then
+    raise exception 'INVALID_PAUSE_TIMES';
+  end if;
   update settings set cap = coalesce(p_cap, cap), price_per_head = coalesce(p_price, price_per_head),
-    deadline = coalesce(p_deadline, deadline), is_open = coalesce(p_is_open, is_open) where id = 1;
+    deadline = coalesce(p_deadline, deadline), is_open = coalesce(p_is_open, is_open),
+    pause_enabled = coalesce(p_pause_enabled, pause_enabled),
+    pause_close_time = coalesce(p_pause_close, pause_close_time),
+    pause_open_time = coalesce(p_pause_open, pause_open_time),
+    closed_at = case when p_is_open is true then null
+                     when p_is_open is false and s.is_open then now()
+                     else closed_at end
+  where id = 1;
 end $function$
 
 --- admit_ticket(p_ticket_no integer, p_secret text, p_approve boolean, p_coord boolean, p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
@@ -273,23 +424,27 @@ begin
   return info || jsonb_build_object('result', 'ok');
 end $function$
 
---- get_public_status() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
-CREATE OR REPLACE FUNCTION public.get_public_status()
+--- get_event_info() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.get_event_info()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object('event_at', event_at, 'venue', venue) from settings where id = 1
+$function$
+
+--- get_public_status(p_session uuid) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.get_public_status(p_session uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare s settings%rowtype; used int; remaining int; reason text;
+declare s settings%rowtype;
 begin
   select * into s from settings where id = 1;
-  select count(*) into used from tickets t join bookings b on b.id = t.booking_id where b.status <> 'rejected';
-  remaining := greatest(s.cap - used, 0);
-  reason := case when not s.is_open then 'not_open' when now() > s.deadline then 'deadline'
-                 when remaining = 0 then 'full' else null end;
-  return jsonb_build_object('accepting', reason is null, 'closed_reason', reason,
-    'spots_left', remaining, 'price_per_head', s.price_per_head,
-    'max_group', greatest(least(s.max_group, remaining), 1), 'deadline', s.deadline);
+  return _public_state(s, p_session);
 end $function$
 
 --- is_admin() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
@@ -322,6 +477,31 @@ begin
   select * into b from bookings where booking_code = c;
   if not found then return null; end if;
   return _booking_json(b.id);
+end $function$
+
+--- registration_heartbeat(p_session uuid) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.registration_heartbeat(p_session uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; st jsonb;
+begin
+  if p_session is null then raise exception 'INVALID_DATA'; end if;
+  select * into s from settings where id = 1;
+  st := _public_state(s, p_session);
+  if (st->>'accepting')::boolean then
+    insert into reg_sessions (id) values (p_session)
+    on conflict (id) do update set last_seen = now();
+    delete from reg_sessions where last_seen < now() - interval '1 day';
+  else
+    -- while closed, only a person who is still inside their grace minutes gets refreshed; nobody new can start
+    if (st->>'grace_until') is not null then
+      update reg_sessions set last_seen = now() where id = p_session;
+    end if;
+  end if;
+  return st;
 end $function$
 
 --- rls_auto_enable() | execute rights: default (everyone)
@@ -440,7 +620,7 @@ CREATE OR REPLACE FUNCTION public.submit_booking(p_submission_id uuid, p_people 
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text;
+declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text; pi jsonb;
 begin
   select * into b from bookings where submission_id = p_submission_id;
   if found then return _booking_json(b.id); end if;
@@ -449,7 +629,13 @@ begin
   select * into b from bookings where submission_id = p_submission_id;
   if found then return _booking_json(b.id); end if;
 
-  if not s.is_open or now() > s.deadline then raise exception 'REGISTRATION_CLOSED'; end if;
+  pi := _pause_info(s);
+  if (not s.is_open or (pi->>'in_pause')::boolean or now() > s.deadline) then
+    -- closed right now: only people who were already filling the form get the grace minutes (+30 s for upload time)
+    if _grace_until(s, p_submission_id, interval '30 seconds') is null then
+      raise exception 'REGISTRATION_CLOSED';
+    end if;
+  end if;
   if p_people is null or jsonb_typeof(p_people) <> 'array' then raise exception 'INVALID_DATA'; end if;
   n := jsonb_array_length(p_people);
   if n < 1 or n > s.max_group then raise exception 'INVALID_GROUP_SIZE'; end if;
@@ -523,6 +709,7 @@ pgrst_drop_watch | sql_drop | extensions.pgrst_drop_watch | enabled=O
 === TABLE AND VIEW PERMISSIONS ===
 bookings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 keepalive : {postgres=arwdDxtm/postgres,anon=rDxtm/postgres,authenticated=Dxtm/postgres,service_role=Dxtm/postgres}
+reg_sessions : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}
 report : {postgres=arwdDxtm/postgres,anon=Dxtm/postgres,authenticated=rDxtm/postgres,service_role=Dxtm/postgres}
 screenshot_scans : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 settings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
