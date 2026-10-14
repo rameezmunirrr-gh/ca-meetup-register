@@ -23,6 +23,7 @@ Last updated: 14 Oct 2026 (after adding the daily pause and 10-minute grace)
 **Staying accurate**
 - **Read the current files** before suggesting changes: the HTML pages and the `sql/` folder. The live database can differ from the repo if SQL was run directly. `sql/schema_snapshot.txt` is the up-to-date copy of the database structure (tables, columns, constraints, functions with their execute rights, policies, bucket limits), refreshed every night.
 - The repo is public, so live files can be read from `https://raw.githubusercontent.com/rameezmunirrr-gh/ca-meetup-register/main/<path>`. Raw GitHub caches for a few minutes, and the WebFetch tool only returns a *summary* of long files. If a shell with internet is available, `curl` the raw URL with a `?nocache=<number>` suffix to get the exact text.
+- **Source of truth:** `sql/schema_snapshot.txt` (the actual database, nightly) beats `sql/changes.sql` (a hand-kept history that may have gaps). If they disagree, trust the snapshot and say so.
 - Every time SQL is run in Supabase, remind the owner to **paste it into `sql/changes.sql`** (only statements that change something, with a date comment). At the end of a session, offer to **update this file**.
 - Respect the "Decisions not to undo" in section 9.
 
@@ -103,7 +104,7 @@ Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "T
 | `.github/workflows/schema-snapshot.yml` | Nightly database structure snapshot. |
 | `PROJECT_NOTES.md` | This file. |
 | `sql/README.md` | Guide to the sql folder, including manual export queries (now optional because of the snapshot). |
-| `sql/changes.sql` | Every statement that changed the database, with date comments (the *why* behind each change). |
+| `sql/changes.sql` | A history of SQL that changed the database, with date comments (the *why* behind each change). **Not guaranteed complete or fully reliable:** the owner pastes into it by hand, and some early changes may be missing (for example the 14 Oct numbering update and the `snapshot_reader` setup were not in it on 14 Oct 2026). Never treat it as the current state of the database. The source of truth is the live database as recorded in `sql/schema_snapshot.txt`. |
 | `sql/schema_snapshot.txt` | Automatic nightly export. Never edit by hand. |
 
 ---
