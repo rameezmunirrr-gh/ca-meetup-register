@@ -1,6 +1,6 @@
 # Ehsaas'26 Registration App: Project Notes
 
-Last updated: 14 Oct 2026 (after adding the daily pause and 10-minute grace)
+Last updated: 14 Oct 2026 (after deciding who gets logins now, and the restyle direction)
 
 **This repo is public.** Never put passwords, the Supabase service role key, database connection strings, UPI IDs, phone numbers or email addresses in this file or anywhere else in the repo. (The Supabase URL and the *publishable* key inside the HTML pages are safe by design.)
 
@@ -70,12 +70,12 @@ About 30 coordinators in four teams: Games and Activity, Stage Program Planning,
 
 Intended rule: gate-scan access is requested by the person and must be approved by someone with admin access. **There is no request/approve screen yet** (see section 12).
 
-**Adding staff:** Staff are added manually at the end, once everything is ready and tested:
+**Adding staff:** The owner and **one friend (app building and admin)** get logins **now**, so the friend can work on the dashboard. **Everyone else** (gate members, any other admins, the other coordinators) is added manually **at the end**, once everything is ready and tested. The steps are the same for everyone:
 1. Supabase, Authentication, Users, Add user (email and password, auto-confirm).
 2. Copy the new user's **User UID**.
 3. In the SQL editor: `insert into staff (user_id, name, role) values ('<UID>', '<Name>', '<role>');`
 
-The database only accepts the role values **`admin`** and **`gate`**. **Always write the role explicitly: the column default is `admin`**, so leaving it out would give full admin access. To remove someone's access, **delete their row from `staff`** (do not delete their Supabase login: that fails if they have ever reviewed or scanned anything). As of 14 Oct 2026 only the owner (admin) is in the table. Sign-ups in Supabase Auth are **off** (confirmed 14 Oct 2026; manual linking and anonymous sign-ins are off too, and email confirmation is on).
+The database only accepts the role values **`admin`** and **`gate`**. **Always write the role explicitly: the column default is `admin`**, so leaving it out would give full admin access. To remove someone's access, **delete their row from `staff`** (do not delete their Supabase login: that fails if they have ever reviewed or scanned anything). As of 14 Oct 2026 only the owner (admin) is in the table; the friend (admin) is to be added next, so expect **two** rows (both `admin`) from then on until the end-of-project additions. Sign-ups in Supabase Auth are **off** (confirmed 14 Oct 2026; manual linking and anonymous sign-ins are off too, and email confirmation is on).
 
 Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "This page is for admins". Admins can use both pages.
 
@@ -269,7 +269,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 
 ## 11. Before registration opens (20 Oct 2026)
 
-1. **Finish the restyle and re-test the pages** (section 12).
+1. **Finish the restyle (gate scanner, admin dashboard, ticket image) and re-test the pages** (section 12).
 2. In the `CONFIG` block of `index.html`, replace the **test** values with the real ones: UPI ID, payee name, organiser WhatsApp number. (Do not copy them into this file.)
 3. Budgeting team sets the **final price** in Admin, Settings. Confirm the cap (150) and deadline (31 Oct 2026, 23:59:59 IST).
 4. Do a small real test payment (for example ₹1) and scan it in two UPI apps.
@@ -284,10 +284,10 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
    delete from bookings;
    update settings set next_ticket = 1, next_coord = 1 where id = 1;
    ```
-   Then **empty the `payment-proofs` bucket** in the Storage section of the dashboard (SQL cannot delete stored files). Check again: all counts 0 and staff 1, and `select next_ticket, next_coord from settings;` shows `1, 1`. Do not delete `staff`.
+   Then **empty the `payment-proofs` bucket** in the Storage section of the dashboard (SQL cannot delete stored files). Check again: all counts 0 and staff 2 (the owner and the friend admin; use the real number of people added so far), and `select next_ticket, next_coord from settings;` shows `1, 1`. Do not delete `staff`.
 6. The cap reads 150 and the deadline is correct (confirmed 14 Oct 2026). Make sure the **price is final** (currently ₹250) and the cap is still 150 after any further testing.
 7. In Supabase Authentication, **"Allow new users to sign up" is off** (confirmed 14 Oct 2026). Re-check it before launch in case it was changed.
-8. **Create the organiser logins** (admin friend, two gate members) as in section 2, then test each login, and check that gate users cannot open the admin page.
+8. **Create the remaining organiser logins** (the two gate members and anyone else; the owner and the friend admin already exist) as in section 2, then test each login, and check that gate users cannot open the admin page.
 9. Check that the keepalive and snapshot workflows show green ticks in the Actions tab.
 10. Turn **Registration open** on in Settings, and only then share the link.
 
@@ -305,7 +305,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - Daily pause with 10-minute grace: SQL tested on a scratch Postgres with a fake clock, and both pages tested in a headless browser with a mocked server. **Still to be tested by the owner on the real site** (see the test steps given with the update).
 
 **Immediate task:**
-1. **Restyle the whole web application.** Start by asking the owner for: the colours and feel wanted, any reference they like, and which page to begin with (the public registration page matters most, since participants see it first). Keep the existing behaviour; only change look and feel. Test again afterwards.
+1. **Finish the restyle.** Decisions so far (14 Oct 2026): keep the **Kerala green and gold** look but refresh it; the **public registration page is already restyled** (light theme: ivory with green); next are the **gate scanner** and the **admin dashboard**, which will both be **dark themed with the same colour theme** (one shared set of dark colours, so the two staff pages look like a pair; today they follow the device's light/dark setting, and the plan is to make them dark always); the **ticket image** (drawn in JavaScript on a canvas, colours written in the code) should be restyled to **match the new look**. Keep the existing behaviour; only change look and feel. The look lives in each page's `<style>` block (colours are named values such as `--green` and `--gold` at the top), plus the colour values inside `drawTicket` in `index.html` for tickets. Keep the gate's big green/red/amber result screens clearly colour-coded. Test again afterwards.
 
 **Ideas and known gaps (none are blockers):**
 - In-app screen for gate staff to request access and for admins to approve (currently manual in Supabase).
@@ -324,6 +324,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - **13 Oct 2026:** Database reviewed from exports and all three HTML pages. Security hardening done (report view, helper functions, bucket limits). `undo_checkin` rewritten to work by ticket id. Project notes and `sql/README.md` created.
 - **14 Oct 2026:** Nightly schema snapshot added (`schema-snapshot.yml`, read-only `snapshot_reader`). Numbering rule extended so coordinator numbers also stay with their person (`prev_coord_no`, `prev_coord_secret`, updated `set_coordinator` and `admit_ticket`). Full test passed. Overview changed (Active tickets, Spots used, Present). Admin page accidentally deleted on GitHub and restored from a saved copy with the Overview edits applied. Afternoon checks: helper functions locked, sign-ups off, cap 150, price 250, deadline correct, registration currently closed.
 - **14 Oct 2026 (later):** Daily pause + 10-minute grace added: new `settings` columns, `reg_sessions` table, `registration_heartbeat`, `admin_registration_status`, updated `get_public_status`, `submit_booking` and `admin_update_settings`; pause options and live banner in Admin; countdown, paused message and heartbeat on the public page. Run `daily-pause.sql` first, then upload both pages.
+- **14 Oct 2026 (end of day):** Decided that the owner and one friend (admin) get logins now, and everyone else is added at the end (section 2). Restyle direction agreed (section 12): public page light (ivory and green), gate and admin dark with one shared colour theme. Explained to the owner how an admin is added (create the Supabase login, copy the User UID, insert a `staff` row with the role written explicitly).
 
 ---
 
