@@ -37,7 +37,6 @@ end $function$;
 revoke execute on function public.undo_checkin(integer, boolean, uuid) from public, anon;
 grant execute on function public.undo_checkin(integer, boolean, uuid) to authenticated;
 
--- (Paste this whole file at the end of sql/changes.sql in GitHub after you run it.)
 -- 14 Oct 2026: daily "reconciliation pause" + 10-minute grace for people mid-registration.
 -- Run this whole file once in the Supabase SQL editor. Safe to run twice.
 
@@ -320,3 +319,125 @@ revoke execute on function public.admin_update_settings(integer, integer, timest
   public.admin_registration_status() from public, anon;
 grant execute on function public.admin_update_settings(integer, integer, timestamp with time zone, boolean, boolean, time, time),
   public.admin_registration_status() to authenticated;
+
+-- 14 Oct 2026: a number touched by a person is never given to anyone else.
+-- A person keeps their guest number AND their coordinator number for good.
+-- Run this whole file once in the Supabase SQL editor.
+
+-- 1) Remember a removed coordinator's number and QR secret on the same person
+alter table public.tickets
+  add column if not exists prev_coord_no integer,
+  add column if not exists prev_coord_secret text;
+
+-- a retired coordinator number can belong to only one person
+create unique index if not exists tickets_prev_coord_no_uq
+  on public.tickets (prev_coord_no) where prev_coord_no is not null;
+
+
+-- 2) Make / remove coordinator
+create or replace function public.set_coordinator(p_ticket_id uuid, p_make boolean)
+ returns jsonb
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare s settings%rowtype; t tickets%rowtype; bs text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1 for update;
+  select * into t from tickets where id = p_ticket_id for update;
+  if not found then raise exception 'INVALID_TICKET'; end if;
+
+  if p_make and t.kind = 'guest' then
+    if t.prev_coord_no is not null then
+      -- this person was a coordinator before: they get their own old number and QR back
+      update tickets set kind = 'coordinator', coord_no = t.prev_coord_no,
+        orig_secret = t.secret,
+        secret = coalesce(t.prev_coord_secret, substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)),
+        prev_coord_no = null, prev_coord_secret = null,
+        marked_by = auth.uid(), marked_at = now() where id = t.id;
+    else
+      -- first time: next new coordinator number. Any guest number stays on record, cancelled while coordinator.
+      update tickets set kind = 'coordinator', coord_no = s.next_coord, orig_secret = t.secret,
+        secret = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+        marked_by = auth.uid(), marked_at = now() where id = t.id;
+      update settings set next_coord = next_coord + 1 where id = 1;
+    end if;
+  elsif not p_make and t.kind = 'coordinator' then
+    -- the coordinator number is kept on this person (cancelled), never given to anyone else.
+    -- the guest number and original QR come back, or a new guest number is given once paid.
+    update tickets set kind = 'guest', prev_coord_no = t.coord_no, prev_coord_secret = t.secret,
+      coord_no = null, secret = coalesce(orig_secret, secret),
+      orig_secret = null, marked_by = null, marked_at = null where id = t.id;
+    select status into bs from bookings where id = t.booking_id;
+    if bs = 'paid' then perform _assign_numbers(t.booking_id); end if;
+  end if;
+
+  select * into t from tickets where id = t.id;
+  return jsonb_build_object('id', t.id, 'kind', t.kind, 'ticket_no', t.ticket_no,
+                            'label', _ticket_label(t.kind, t.ticket_no, t.coord_no));
+end $function$;
+
+
+-- 3) Gate check: a cancelled coordinator ticket now shows CANCELLED (not INVALID)
+create or replace function public.admit_ticket(p_ticket_no integer default null::integer, p_secret text default null::text, p_approve boolean default false, p_coord boolean default false, p_id uuid default null::uuid)
+ returns jsonb
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare t tickets%rowtype; b bookings%rowtype; info jsonb; who text;
+begin
+  if not is_staff() then raise exception 'NOT_ALLOWED'; end if;
+  if p_approve then perform 1 from settings where id = 1 for update; end if;
+
+  if p_id is not null then
+    select * into t from tickets where id = p_id for update;
+  elsif p_coord then
+    select * into t from tickets where coord_no = p_ticket_no and kind = 'coordinator' for update;
+    if not found then
+      -- maybe a coordinator number that was cancelled (person is a guest again)
+      select * into t from tickets where prev_coord_no = p_ticket_no for update;
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('coordinator', null, t.prev_coord_no));
+      end if;
+    end if;
+  else
+    select * into t from tickets where ticket_no = p_ticket_no for update;
+  end if;
+  if not found then return jsonb_build_object('result', 'invalid'); end if;
+
+  if p_id is null and t.kind = 'coordinator' and not p_coord then
+    return jsonb_build_object('result', 'cancelled', 'name', t.name,
+      'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+      'old_label', _ticket_label('guest', t.ticket_no, null));
+  end if;
+  if p_secret is not null and t.secret <> p_secret then
+    return jsonb_build_object('result', 'invalid'); end if;
+
+  select * into b from bookings where id = t.booking_id for update;
+
+  if b.status = 'pending' and p_approve then
+    update bookings set status = 'paid', reviewed_by = auth.uid(), reviewed_at = now(), reviewed_via = 'gate' where id = b.id;
+    perform _assign_numbers(b.id);
+    select * into t from tickets where id = t.id;
+    b.status := 'paid';
+  end if;
+
+  info := jsonb_build_object('id', t.id, 'ticket_no', t.ticket_no, 'kind', t.kind,
+    'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'name', t.name, 'food', t.food,
+    'booking_code', b.booking_code, 'people_count', b.people_count,
+    'amount_expected', b.amount_expected, 'screenshot_path', b.screenshot_path);
+
+  if b.status = 'rejected' then return info || jsonb_build_object('result', 'rejected'); end if;
+  if b.status = 'pending' then return info || jsonb_build_object('result', 'pending'); end if;
+  if t.checked_in_at is not null then
+    select name into who from staff where user_id = t.checked_in_by;
+    return info || jsonb_build_object('result', 'already_scanned', 'checked_in_at', t.checked_in_at, 'checked_in_by', who);
+  end if;
+  update tickets set checked_in_at = now(), checked_in_by = auth.uid() where id = t.id;
+  return info || jsonb_build_object('result', 'ok');
+end $function$;
