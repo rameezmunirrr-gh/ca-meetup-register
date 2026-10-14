@@ -234,6 +234,14 @@ async function runScan(list){
   S.scanning=false;const p=prog.textContent;vScan();$("#prog").textContent=p;
 }
 function istInput(iso){return new Date(new Date(iso).getTime()+5.5*3600e3).toISOString().slice(0,16)}
+function evCard(s){
+  if(s.event_at===undefined)return `<div class="card" style="max-width:520px"><h2>Event details</h2><p class="err" style="margin:0"><b>One setup step is missing.</b> Run <code>event-details.sql</code> in the Supabase SQL editor, then reload this page.</p></div>`;
+  return `<div class="card" style="max-width:520px"><h2>Event details</h2>
+  <p class="mute" style="margin-top:0">Shown to participants on the home page, the registration form and on every ticket.</p>
+  <label for="sev">Event date and time (India time)</label><input id="sev" type="datetime-local" value="${istInput(s.event_at)}">
+  <label for="svenue">Venue</label><input id="svenue" type="text" maxlength="120" style="width:100%" value="${esc(s.venue||"")}">
+  <p class="mute">Tickets already downloaded keep the details they were made with, so settle these before tickets are issued.</p>
+  <p><button id="evsave">Save event details</button></p></div>`}
 function vSettings(){const s=S.settings;
   const hm=x=>String(x||"").slice(0,5);
   $("#v").innerHTML=regBar()+`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
@@ -252,6 +260,7 @@ function vSettings(){const s=S.settings;
   <label for="sdl">Deadline (India time)</label><input id="sdl" type="datetime-local" value="${istInput(s.deadline)}">
   <p class="mute">The form closes at the deadline or when the cap is reached, whichever comes first. Changing the price affects new bookings only.</p>
   <p><button id="ssave">Save settings</button></p></div>
+  ${evCard(s)}
   <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
   <p class="mute">A reminder list. Nothing here is checked automatically.</p>
   <label style="font-weight:400"><input type="checkbox"> UPI ID and payee name in the participant page are the final ones (not Ramiz's test ones)</label>
@@ -285,6 +294,12 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
   if(id==="scan")return runScan(S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
   if(id==="rescanall")return runScan(S.scans.map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
   if(id==="rescan")return runScan(S.scans.filter(s=>!s.read_ok||!s.amounts).map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
+  if(id==="evsave"){
+    const v=$("#sev").value,vn=$("#svenue").value.trim();
+    if(!v)return toast("Choose the event date and time");
+    if(!vn)return toast("Type the venue");
+    const r=await db.rpc("admin_set_event",{p_event_at:new Date(v+":00+05:30").toISOString(),p_venue:vn});
+    if(r.error)return toast("Failed: "+r.error.message);await load();view();toast("Event details saved")}
   if(id==="ssave"){
     if($("#sclose").value&&$("#sclose").value===$("#sreopen").value)return toast("Close time and reopen time must be different");
     const r=await db.rpc("admin_update_settings",{p_cap:+$("#scap").value,p_price:+$("#sprice").value,p_deadline:$("#sdl").value?new Date($("#sdl").value+":59+05:30").toISOString():null,p_is_open:$("#sopen").checked,
