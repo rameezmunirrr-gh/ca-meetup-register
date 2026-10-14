@@ -1,6 +1,6 @@
 # Ehsaas'26 Registration App: Project Notes
 
-Last updated: 14 Oct 2026, 3 PM (after the full numbering and dashboard test and the settings checks)
+Last updated: 14 Oct 2026 (after adding the daily pause and 10-minute grace)
 
 **This repo is public.** Never put passwords, the Supabase service role key, database connection strings, UPI IDs, phone numbers or email addresses in this file or anywhere else in the repo. (The Supabase URL and the *publishable* key inside the HTML pages are safe by design.)
 
@@ -111,12 +111,13 @@ Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "T
 ## 5. Database (Supabase, `public` schema)
 
 ### Tables
-- **`settings`** (one row, `id = 1`): `cap`, `price_per_head`, `max_group` (1 to 5), `deadline`, `is_open`, `next_ticket`, `next_coord` (the counters for the next guest and coordinator number).
+- **`settings`** (one row, `id = 1`): `cap`, `price_per_head`, `max_group` (1 to 5), `deadline`, `is_open`, `closed_at` (when registration was last switched off by hand), `pause_enabled`, `pause_close_time`, `pause_open_time` (daily pause, India time), `grace_minutes` (10, fixed), `next_ticket`, `next_coord` (the counters for the next guest and coordinator number).
 - **`bookings`**: one row per payment. `booking_code` (8 hex characters, unique), `submission_id` (unique, prevents double submits), `people_count` (1 to 5), `amount_expected`, `status` (`pending` / `paid` / `rejected`), `screenshot_path`, `reviewed_by`, `reviewed_at`, `reviewed_via` (`admin` or `gate`), `created_at`.
 - **`tickets`**: one row per person. `booking_id`, `ticket_no` (unique, the guest number), `coord_no` (the current coordinator number), `kind` (`guest` / `coordinator`), `secret` (12 hex characters, goes in the QR), `orig_secret` (the guest QR secret kept while someone is a coordinator), **`prev_coord_no`** and **`prev_coord_secret`** (a retired coordinator number and its QR secret, kept on the same person), `name`, `phone` (exactly 10 digits), `location`, `attendance`, `food`, `checked_in_at`, `checked_in_by`, `marked_by`, `marked_at`, `reg_seq` (registration order), `created_at`.
 - **`screenshot_scans`**: one row per booking (primary key `booking_id`): `txn_ids`, `image_hash`, `read_ok`, `amounts`, `scanned_by`, `scanned_at`. Deleted with its booking.
 - **`staff`**: `user_id` (primary key, linked to the login), `name`, `role` (`admin` or `gate` only).
 - **`keepalive`**: tiny table for the ping (readable by anon).
+- **`reg_sessions`**: one row per registration attempt in progress (`id` = the page's submission ID, `started_at`, `last_seen`). No personal data. Written only by `registration_heartbeat`; nobody can read it directly. Rows older than a day are deleted automatically.
 
 ### Rules enforced by the database itself
 - Unique: `bookings.booking_code`, `bookings.submission_id`, `tickets.ticket_no`, `tickets.coord_no` (where not null), `tickets.prev_coord_no` (where not null).
@@ -133,15 +134,18 @@ All write paths are `SECURITY DEFINER` functions. Parameter names matter because
 
 | Function | Who can call it | What it does |
 |---|---|---|
-| `get_public_status()` | public | Returns `accepting`, `closed_reason` (`not_open` / `deadline` / `full`), `spots_left`, `price_per_head`, `max_group` (the smaller of the setting and the spots left, at least 1), `deadline`. Spots used = all people in non-rejected bookings (confirmed + pending). |
+| `get_public_status(p_session default null)` | public | Returns `accepting`, `closed_reason` (`not_open` / `deadline` / `full` / `paused`), `spots_left`, `price_per_head`, `max_group` (the smaller of the setting and the spots left, at least 1), `deadline`, `server_now`, `grace_until` (set only if this session may still finish), `reopen_at` (end of today's pause), `next_close_at` (next daily pause), `pause_enabled`. Spots used = all people in non-rejected bookings (confirmed + pending). |
+| `registration_heartbeat(p_session)` | public | The form page calls it on arrival and every 30 seconds. While registration is open it records the session; while closed it only refreshes a session that is still inside its grace minutes, and never starts a new one. Returns the same JSON as `get_public_status`. |
 | `lookup_booking(p_code)` | public | Finds a booking by its code (case, spaces, dashes ignored; letter O treated as zero) and returns its tickets. QR secrets are only included when the booking is `paid`. |
-| `submit_booking(p_submission_id, p_people, p_screenshot_path)` | public | Creates one booking and one ticket per person. Safe to retry (same submission ID returns the original). Locks the settings row, checks open/deadline/group size/cap (`NOT_ENOUGH_SPOTS`), validates every field, checks the screenshot exists in storage, creates a code. `p_people` items use the keys `name`, `phone`, `loc`, `att`, `food`. |
+| `submit_booking(p_submission_id, p_people, p_screenshot_path)` | public | Creates one booking and one ticket per person. Safe to retry (same submission ID returns the original). Locks the settings row, checks deadline, open/pause (a closed registration still accepts a session with valid grace, plus 30 seconds for the upload), group size and cap (`NOT_ENOUGH_SPOTS`), validates every field, checks the screenshot exists in storage, creates a code. `p_people` items use the keys `name`, `phone`, `loc`, `att`, `food`. |
 | `set_booking_status(p_booking, p_status)` | admin | Sets pending/paid/rejected. When set to paid, gives numbers to guest tickets that have none. |
 | `set_coordinator(p_ticket_id, p_make)` | admin | Makes or removes a coordinator (section 7). |
 | `admit_ticket(p_ticket_no, p_secret, p_approve, p_coord, p_id)` | staff | Gate check-in. Finds a ticket by guest number, coordinator number (`p_coord = true`) or ticket id (`p_id`, used for manual search, skips the QR secret check). Returns `invalid`, `cancelled`, `pending`, `rejected`, `already_scanned` or `ok`. With `p_approve = true` it first marks the whole booking paid (`reviewed_via = 'gate'`) and numbers it. |
 | `undo_checkin(p_ticket_no, p_coord, p_id)` | admin | Clears a check-in. Works by ticket id, coordinator number or guest number. Raises `INVALID_TICKET` if nothing matches. |
 | `save_scan(p_booking, p_ids, p_hash, p_ok, p_amounts)` | staff | Stores an OCR result. |
-| `admin_update_settings(p_cap, p_price, p_deadline, p_is_open)` | admin | Updates settings (null means keep). |
+| `admin_update_settings(p_cap, p_price, p_deadline, p_is_open, p_pause_enabled, p_pause_close, p_pause_open)` | admin | Updates settings (null means keep). Remembers `closed_at` when `is_open` goes from on to off, clears it when switched on. Raises `INVALID_PAUSE_TIMES` if close and reopen are the same. |
+| `admin_registration_status()` | staff | Live status for the dashboard banner: closed reason, reopen time, next pause, and how many people are still inside their grace minutes (`grace_count`, `grace_until`). |
+| `_pause_info(settings)`, `_grace_until(settings, session, slack)`, `_public_state(settings, session)` | internal only | The pause-window maths (India time), the grace check, and the shared status JSON. Execute rights revoked from everyone. |
 | `is_staff()`, `is_admin()`, `_ticket_label(kind, ticket_no, coord_no)` | internal | Helpers for rules and labels (`E26-007`, `E26-001C`). |
 | `_assign_numbers(p_booking)`, `_booking_json(p_booking)` | internal only | Execute rights were revoked from public, anon and authenticated (done 13 Oct 2026; confirmed 14 Oct 2026: the rights list shows only `postgres`; the `execute rights` line in `sql/schema_snapshot.txt` shows the same). |
 | `rls_auto_enable()` | event trigger | Turns on row-level security for any new table in `public`. |
@@ -160,6 +164,7 @@ Bucket `payment-proofs`. Anyone can upload (needed for the public form), but onl
 ### Public page (`index.html`)
 Home has two buttons: Register and Tickets.
 1. **Register:** the page asks `get_public_status`. If closed it shows why. The form takes 1 to 5 people (a "Include friends" switch reveals 2 to `max_group`, and `max_group` shrinks as spots run out). Each person: name, 10-digit phone, location, attendance, food.
+   - **Daily pause and grace:** when the form opens, the page starts a session (its submission ID) and sends a heartbeat every 30 seconds. If registration closes (daily pause or switched off by hand) while someone is filling the form, a yellow bar shows a 10:00 countdown and they can finish and submit. If they run out of time, they see "Your 10 minutes are over" with a WhatsApp button (they should not pay again). New visitors during a pause see "Registrations are paused for a short while" with the reopen time. Within 2 hours before a pause the form shows a heads-up note.
 2. **Review** the details, then **Pay**: shows the exact total, a UPI QR drawn in the page, copy-UPI-ID, share/download QR, and the screenshot upload. The page compresses the image and uploads it, then calls `submit_booking`.
 3. **Done:** shows the **Booking ID**, saved on the device (also usable from any device). Status is `pending`. A WhatsApp contact button opens a chat with the organisers with the Booking ID pre-filled.
 4. If spots run out while someone is filling the form, they get a message and a smaller group limit, and no half-made booking is created (tested).
@@ -179,7 +184,7 @@ Login with email and password. Tabs:
 - **Bookings:** every booking with its people (with ticket numbers), amount, status, the OCR-read transaction ID, review flags, and buttons Screenshot / Paid / Reject / Pending. Review flags: same transaction ID on two bookings, near-identical image (only as a backup when an ID couldn't be read), unreadable ID, expected amount not found on the screenshot.
 - **People:** one row per person. Filters (search, payment, food, location, attendance, type), **Download Excel (CSV)**, **Make coordinator / Remove coordinator** buttons, notes such as "guest E26-004 cancelled" and "coordinator E26-001C cancelled", and **Present** with an **Undo** button (admin only, calls `undo_checkin` by ticket id).
 - **Scan screenshots:** runs OCR in the admin's browser (nothing leaves the computer), saves transaction IDs, an image hash and amounts through `save_scan`.
-- **Settings:** registration open switch, cap, price per person, deadline (India time), and a reminder checklist.
+- **Settings:** registration open switch; when it is on, a **daily pause** box (switch + close time + reopen time, India time, same every day until the deadline); cap, price, deadline, and a reminder checklist. A live status banner (open / paused / closed, and "A user is currently updating even though the registration is closed, using the 10 minutes grace time.") appears at the top of Overview and Settings and refreshes every 15 seconds. Empty deadline no longer causes an error.
 
 ### Gate scanner (`gate/index.html`)
 - Login. Live counters: **Present / Confirmed**, **Veg present / Veg confirmed**, **Non-veg present / Non-veg confirmed** (only people in paid bookings), refreshed every 30 seconds.
@@ -213,10 +218,19 @@ Participant submits, an admin opens Bookings, checks the screenshot and flags, t
 
 ## 8. Cap and counting rules
 
+
 - The cap counts **every person in a non-rejected booking**, confirmed or pending. Registration closes when this reaches the cap. Rejecting a booking frees its spots.
 - Coordinators count toward the cap like everyone else. Making someone a coordinator does not change the total.
 - The public page shows "Only N spots left" when 20 or fewer remain, and "All spots are taken" at the cap.
 - The dashboard separates the two groups: **Active tickets** (confirmed) and **Pending**, so that active + pending = spots used. No waiting list exists or is needed.
+
+### Daily pause and grace rules (added 14 Oct 2026)
+- The master **Registration open** switch overrides everything. The daily pause only applies while it is on. The cap never gets grace. The **deadline gets the same 10-minute grace** (people mid-registration at the deadline can finish; nobody new can start).
+- The pause is enforced in the database (`submit_booking`), not only on the page. Times are India time, the same every day until the deadline. Close and reopen cannot be equal. Overnight windows (23:00 to 00:30) and same-day windows (13:00 to 14:00) both work.
+- **Grace:** 10 minutes (`grace_minutes`, fixed). A person counts as "mid-registration" if their form session started before the closing moment and was last seen within 10 minutes before it (so someone who left to pay in a UPI app still qualifies). People who open the form after closing time get nothing. Applies to the daily pause and to switching registration off by hand (`closed_at`).
+- The cap still applies during grace (`NOT_ENOUGH_SPOTS`).
+- If the reopen time after a pause would fall past the deadline, the page shows "deadline passed". The closing moment used for grace is the earliest of: switched off by hand (`closed_at`), pause start, deadline (`_close_moment`).
+- The dashboard banner tells the admin when no one is mid-registration, i.e. when it is safe to check the bank balance.
 
 ---
 
@@ -287,6 +301,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - Numbering rule "a number stays with its person" (coordinator numbers are also kept), with the gate showing TICKET CANCELLED for retired coordinator numbers.
 - Overview redesigned (Active tickets, Spots used, Present matching the gate).
 - Full test passed (section 10).
+- Daily pause with 10-minute grace: SQL tested on a scratch Postgres with a fake clock, and both pages tested in a headless browser with a mocked server. **Still to be tested by the owner on the real site** (see the test steps given with the update).
 
 **Immediate task:**
 1. **Restyle the whole web application.** Start by asking the owner for: the colours and feel wanted, any reference they like, and which page to begin with (the public registration page matters most, since participants see it first). Keep the existing behaviour; only change look and feel. Test again afterwards.
@@ -307,6 +322,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 
 - **13 Oct 2026:** Database reviewed from exports and all three HTML pages. Security hardening done (report view, helper functions, bucket limits). `undo_checkin` rewritten to work by ticket id. Project notes and `sql/README.md` created.
 - **14 Oct 2026:** Nightly schema snapshot added (`schema-snapshot.yml`, read-only `snapshot_reader`). Numbering rule extended so coordinator numbers also stay with their person (`prev_coord_no`, `prev_coord_secret`, updated `set_coordinator` and `admit_ticket`). Full test passed. Overview changed (Active tickets, Spots used, Present). Admin page accidentally deleted on GitHub and restored from a saved copy with the Overview edits applied. Afternoon checks: helper functions locked, sign-ups off, cap 150, price 250, deadline correct, registration currently closed.
+- **14 Oct 2026 (later):** Daily pause + 10-minute grace added: new `settings` columns, `reg_sessions` table, `registration_heartbeat`, `admin_registration_status`, updated `get_public_status`, `submit_booking` and `admin_update_settings`; pause options and live banner in Admin; countdown, paused message and heartbeat on the public page. Run `daily-pause.sql` first, then upload both pages.
 
 ---
 
