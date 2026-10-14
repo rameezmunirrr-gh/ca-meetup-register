@@ -44,6 +44,8 @@ table{width:100%;border-collapse:collapse;font-size:.95rem}td,th{text-align:left
 .upi code{padding:8px 10px;border:1px dashed var(--line);border-radius:8px;background:var(--bg)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;z-index:9}
 .note{font-size:.9rem;color:var(--mute)}
+[hidden]{display:none!important}
+#gbar{position:sticky;top:0;z-index:5;background:var(--warn);color:var(--on);padding:10px 16px;text-align:center;font-weight:600}
 .pill{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid var(--line);font-size:.85rem;font-weight:600;white-space:nowrap}
 .p-ok{color:var(--ok);border-color:var(--ok)}.p-wait{color:var(--warn);border-color:var(--warn)}.p-bad{color:var(--err);border-color:var(--err)}
 ul.names{margin:10px 0 0;padding-left:20px}
@@ -53,6 +55,7 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:18px;box-shadow:0 6
 </style></head>
 <body>
 <div class="kasavu"></div>
+<div id="gbar" role="status" aria-live="polite" hidden></div>
 <main id="app"></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script>
@@ -99,14 +102,48 @@ function contactBtn(text,label){return `<a class="btn ghost" href="${esc(waLink(
 async function load(){
   try{
     if(!db)throw new Error("no client");
-    const{data,error}=await db.rpc("get_public_status");if(error)throw error;
-    S.status=data;
-    if(!data.accepting)S.step="closed";
+    const{data,error}=await db.rpc("get_public_status",{p_session:S.sid});if(error)throw error;
+    applyStatus(data);
+    if(!data.accepting&&!data.grace_until)S.step="closed";
     else{if(S.step==="loading"||S.step==="closed"||S.step==="error")S.step="form";
       if(S.n>maxN()){setN(maxN());S.friends=S.n>1}}
   }catch(_){S.step="error"}
   render();
+  if(S.step==="form")beat();
 }
+
+/* ===== daily pause + 10-minute grace ===== */
+let skew=0,expAt=0;
+const inFill=()=>["form","summary","pay"].includes(S.step);
+function applyStatus(d){S.status=d;if(d&&d.server_now)skew=new Date(d.server_now).getTime()-Date.now()}
+const IST={timeZone:"Asia/Kolkata"};
+function fmtT(iso){try{return new Date(iso).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit",hour12:true,...IST}).toUpperCase()}catch(_){return""}}
+function fmtWhen(iso){try{const d=new Date(iso),day=x=>x.toLocaleDateString("en-IN",{day:"numeric",month:"short",...IST});
+  return fmtT(iso)+(day(d)===day(new Date(Date.now()+skew))?"":" on "+day(d))}catch(_){return""}}
+function graceMs(){return S.status&&S.status.grace_until?new Date(S.status.grace_until).getTime()-(Date.now()+skew):null}
+async function beat(){
+  if(!db||!inFill())return;
+  try{
+    const{data,error}=await db.rpc("registration_heartbeat",{p_session:S.sid});if(error)throw error;
+    applyStatus(data);
+    if(!data.accepting&&!data.grace_until&&inFill()&&!S.busy){S.graceLost=true;S.step="closed";render()}
+  }catch(_){}
+  paintBar();
+}
+function paintBar(){
+  const el=$("#gbar");if(!el)return;
+  const ms=graceMs();
+  if(ms!=null&&ms>0&&inFill()){
+    const m=Math.floor(ms/60000),s=Math.floor(ms/1000)%60;
+    el.textContent=(S.status.closed_reason==="deadline"?"The registration deadline has passed, but you have ":"Registration has paused, but you have ")+m+":"+String(s).padStart(2,"0")+" left to finish your booking. Please pay, upload the screenshot and submit."+(S.status.reopen_at?" If you think your registration will take more than 10 minutes, please continue after "+fmtWhen(S.status.reopen_at)+" (when registration reopens).":"");
+    el.hidden=false;
+  }else{
+    el.hidden=true;
+    if(ms!=null&&ms<=0&&inFill()&&!S.busy&&Date.now()-expAt>5000){expAt=Date.now();beat()}
+  }
+}
+setInterval(beat,30000);setInterval(paintBar,1000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)beat()});
 function render(){
   const a=$("#app");
   a.innerHTML=({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket})[S.step]();
@@ -123,13 +160,18 @@ function vHome(){
 }
 function vError(){return head("Couldn't load registration","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
 function vClosed(){
-  const r=S.status&&S.status.closed_reason;
-  const m={not_open:["Registrations haven't opened yet","Please check back soon."],deadline:["Registrations are closed","The registration deadline has passed."],full:["All spots are taken","Registrations are full. Please contact the organisers if you need help."]}[r]||["Registrations are closed",""];
-  return head(m[0],esc(CONFIG.eventName)+". "+m[1])+`<div class="row"><button class="ghost" id="retry">Check again</button><button class="ghost" id="go-home">Home</button></div>`;
+  const st=S.status||{},r=st.closed_reason,re=st.reopen_at?fmtWhen(st.reopen_at):"";
+  const m={not_open:["Registrations haven't opened yet","Please check back soon."],
+    paused:["Registrations are paused for a short while","This is a short daily break while the organisers check payments. "+(re?"Registration reopens at "+re+".":"Please check back soon.")],deadline:["Registrations are closed","The registration deadline has passed."],full:["All spots are taken","Registrations are full. Please contact the organisers if you need help."]}[r]||["Registrations are closed",""];
+  let h=head(m[0],esc(CONFIG.eventName)+". "+m[1]);
+  if(S.graceLost&&(r==="paused"||r==="not_open"||r==="deadline"))h+=`<div class="card"><b>Your 10 minutes to finish are over.</b><p class="note">If you have already paid, please do not pay again. Message the organisers with your payment screenshot and they will sort it out.</p>${contactBtn("Hi, I was registering for "+CONFIG.eventName+" when registration closed. I have paid Rs "+total()+" for "+S.n+" person(s). Name: "+((S.people[0]||{}).name||""),"Message the organisers")}</div>`;
+  return h+`<div class="row"><button class="ghost" id="retry">Check again</button><button class="ghost" id="go-home">Home</button></div>`;
 }
 function vForm(){
   const st=S.status;
   let h=head(esc(CONFIG.eventName),esc(CONFIG.eventLine)+". Registration is ₹"+st.price_per_head+" per person"+(closeDate()?", open until "+closeDate():"")+".");
+  if(st.next_close_at){const ms=new Date(st.next_close_at).getTime()-(Date.now()+skew);
+    if(ms>0&&ms<2*3600e3)h+=`<div class="card note">Heads up: registration takes a short break at <b>${fmtT(st.next_close_at)}</b> for payment checking. If you have already started, you get 10 more minutes to finish.</div>`}
   if(st.spots_left<=20)h+=`<div class="card"><b>Only ${st.spots_left} spot${st.spots_left===1?"":"s"} left</b></div>`;
   if(lastCode())h+=`<div class="card note">You already made a booking from this device (Booking ID <b>${esc(lastCode())}</b>). Submitting again creates a new booking.</div>`;
   if(S.errs.length)h+=`<div class="card errbox" role="alert"><b>Please fix:</b><ul>${S.errs.map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`;
@@ -370,7 +412,7 @@ async function submit(){
   }catch(e){
     const m=(e&&e.message)||String(e);
     if(/NOT_ENOUGH_SPOTS|REGISTRATION_CLOSED/.test(m)){
-      S.busy=false;S.step="loading";await load();
+      S.busy=false;S.graceLost=/REGISTRATION_CLOSED/.test(m);S.step="loading";await load();
       if(S.step==="form")S.errs=["Spots ran out while you were registering. Please reduce the number of people, or try again later."];
       render();return}
     else if(/INVALID_/.test(m)){S.step="form";S.errs=["Some details were not accepted ("+(m.match(/INVALID_\w+/)||[""])[0]+"). Please check each field."]}
@@ -402,7 +444,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(ds.dl)downloadTicket(ds.dl,+ds.i);
   if(id==="dl-all-pdf")downloadAll("pdf");
   if(id==="dl-all-jpg")downloadAll("jpg");
-  if(id==="retry"||id==="recheck"){S.step="loading";render();load()}
+  if(id==="retry"||id==="recheck"){S.graceLost=false;S.step="loading";render();load()}
   if(id==="review"){S.errs=validate();if(S.errs.length)render();else{S.step="summary";render()}}
   if(id==="edit"){S.step="form";S.errs=[];render()}
   if(id==="topay"){S.step="pay";S.payErr="";render()}
@@ -414,7 +456,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
     if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Pay ₹"+total()})}catch(_){}}
     else{await download();toast("Sharing isn't supported here, so the QR was downloaded")}}
   if(id==="submit")submit();
-  if(id==="again"){S.sid=uuid();S.people=[blank()];S.n=1;S.friends=false;S.file=null;S.result=null;S.errs=[];S.step="loading";render();load()}
+  if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;S.file=null;S.result=null;S.errs=[];S.step="loading";render();load()}
 });
 render();
 </script></body></html>
