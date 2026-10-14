@@ -57,7 +57,24 @@ async function load(){
   const[b,t,sc,st]=await Promise.all([db.from("bookings").select("*").order("created_at"),db.from("tickets").select("*").order("reg_seq"),db.from("screenshot_scans").select("*"),db.from("settings").select("*").eq("id",1).single()]);
   const e=b.error||t.error||sc.error||st.error;if(e){S.msg="Could not load data: "+e.message;return}
   S.bookings=b.data;S.tickets=t.data;S.scans=sc.data;S.settings=st.data;
+  try{const r=await db.rpc("admin_registration_status");S.reg=r.error?null:r.data}catch(_){S.reg=null}
 }
+/* ===== live registration status banner (daily pause + 10-minute grace) ===== */
+function fmtIST(iso){try{const d=new Date(iso),day=x=>x.toLocaleDateString("en-IN",{day:"numeric",month:"short",timeZone:"Asia/Kolkata"});
+  return d.toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit",hour12:true,timeZone:"Asia/Kolkata"}).toUpperCase()+(day(d)===day(new Date())?"":" on "+day(d))}catch(_){return""}}
+function regBar(){const r=S.reg;if(!r)return `<div id="regbar"></div>`;
+  const box=(c,t)=>`<div id="regbar" class="card" style="border-color:${c};margin-bottom:10px">${t}</div>`;
+  if(r.grace_count>0)return box("var(--warn)",`<b>⏳ ${r.grace_count===1?"A user is":r.grace_count+" users are"} currently updating even though the registration is closed, using the 10 minutes grace time.</b><br><span class="mute">Grace time ends at ${fmtIST(r.grace_until)}. Please wait until then before you check the bank balance.</span>`);
+  if(r.accepting)return box("var(--ok)",`<b>Registration is open.</b>${r.next_close_at?` <span class="mute">Next daily pause: ${fmtIST(r.next_close_at)}.</span>`:""}`);
+  const why={paused:`<b>Registration is paused (daily break).</b> <span class="mute">${r.reopen_at?"Reopens at "+fmtIST(r.reopen_at)+".":""} Nobody is mid-registration, so you can check the bank balance now.</span>`,
+    not_open:`<b>Registration is closed.</b> <span class="mute">Nobody is mid-registration.</span>`,
+    deadline:`<b>Registration is closed: deadline passed.</b>`,full:`<b>Registration is closed: all spots are taken.</b>`}[r.closed_reason]||`<b>Registration is closed.</b>`;
+  return box("var(--err)",why)}
+async function refreshReg(){
+  if(!S.staff||S.staff.role!=="admin"||!$("#regbar"))return;
+  try{const r=await db.rpc("admin_registration_status");if(!r.error){S.reg=r.data;$("#regbar").outerHTML=regBar()}}catch(_){}
+}
+setInterval(refreshReg,15000);
 const bk=id=>S.bookings.find(b=>b.id===id)||{};
 /* ticket number as shown everywhere: E26-007 (guest), E26-001C (coordinator), "—" (not numbered yet) */
 const tlabel=t=>t.kind==="coordinator"?"E26-"+pad(t.coord_no)+"C":(t.ticket_no==null?"—":"E26-"+pad(t.ticket_no));
@@ -104,7 +121,7 @@ function vOverview(){
   const P=people(),live=P.filter(p=>p.b.status!=="rejected"),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending");
   const money=st=>S.bookings.filter(b=>b.status===st).reduce((s,b)=>s+b.amount_expected,0),here=P.filter(p=>p.checked_in_at&&p.b.status==="paid").length;
   const used=live.length,left=Math.max(S.settings.cap-used,0),coords=live.filter(p=>p.kind==="coordinator"),pcoords=paid.filter(p=>p.kind==="coordinator");
-  $("#v").innerHTML=`<div class="grid">
+  $("#v").innerHTML=regBar()+`<div class="grid">
       <div class="card stat"><span class="mute">Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span></div>
    <div class="card stat"><span class="mute">Spots used</span><b>${used}</b><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span></div>
    <div class="card stat"><span class="mute">Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span></div>
@@ -218,8 +235,18 @@ async function runScan(list){
 }
 function istInput(iso){return new Date(new Date(iso).getTime()+5.5*3600e3).toISOString().slice(0,16)}
 function vSettings(){const s=S.settings;
-  $("#v").innerHTML=`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
+  const hm=x=>String(x||"").slice(0,5);
+  $("#v").innerHTML=regBar()+`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
   <label><input type="checkbox" id="sopen" ${s.is_open?"checked":""}> Registration open</label>
+  <p class="mute" style="margin-top:0">When you switch registration off, anyone already filling the form gets 10 minutes to finish.</p>
+  <div id="pausebox" style="display:${s.is_open?"block":"none"};border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0 12px">
+    <label style="margin-top:0"><input type="checkbox" id="spause" ${s.pause_enabled?"checked":""}> Pause registration every day (to check the bank balance)</label>
+    <div class="grid" style="margin-top:6px">
+      <div><label for="sclose" style="font-weight:400">Close at (India time)</label><input id="sclose" type="time" value="${hm(s.pause_close_time)||"23:00"}"></div>
+      <div><label for="sreopen" style="font-weight:400">Reopen at (India time)</label><input id="sreopen" type="time" value="${hm(s.pause_open_time)||"00:00"}"></div>
+    </div>
+    <p class="mute" style="margin-bottom:0">Same times every day until the deadline. Anyone already filling the form at closing time gets a 10-minute countdown to finish; nobody new can start.</p>
+  </div>
   <label for="scap">Cap (people)</label><input id="scap" type="number" min="0" value="${s.cap}">
   <label for="sprice">Price per person (₹)</label><input id="sprice" type="number" min="1" value="${s.price_per_head}">
   <label for="sdl">Deadline (India time)</label><input id="sdl" type="datetime-local" value="${istInput(s.deadline)}">
@@ -258,10 +285,14 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
   if(id==="scan")return runScan(S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
   if(id==="rescanall")return runScan(S.scans.map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
   if(id==="rescan")return runScan(S.scans.filter(s=>!s.read_ok||!s.amounts).map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
-  if(id==="ssave"){const r=await db.rpc("admin_update_settings",{p_cap:+$("#scap").value,p_price:+$("#sprice").value,p_deadline:new Date($("#sdl").value+":59+05:30").toISOString(),p_is_open:$("#sopen").checked});
+  if(id==="ssave"){
+    if($("#sclose").value&&$("#sclose").value===$("#sreopen").value)return toast("Close time and reopen time must be different");
+    const r=await db.rpc("admin_update_settings",{p_cap:+$("#scap").value,p_price:+$("#sprice").value,p_deadline:$("#sdl").value?new Date($("#sdl").value+":59+05:30").toISOString():null,p_is_open:$("#sopen").checked,
+      p_pause_enabled:$("#spause").checked,p_pause_close:$("#sclose").value||null,p_pause_open:$("#sreopen").value||null});
     if(r.error)return toast("Failed: "+r.error.message);await load();view();toast("Settings saved")}
 });
 document.addEventListener("change",e=>{const t=e.target;
+  if(t.id==="sopen"&&$("#pausebox"))$("#pausebox").style.display=t.checked?"block":"none";
   if(t.id==="mode"){S.mode=t.value;view()}
   if(["fpay","ffood","floc","fatt","ftype","frev"].includes(t.id)){S.f.pay=$("#fpay")?.value??S.f.pay;if($("#ffood")){S.f.food=$("#ffood").value;S.f.loc=$("#floc").value;S.f.att=$("#fatt").value;S.f.type=$("#ftype").value}if($("#frev"))S.f.review=$("#frev").checked;S.tab==="people"?tPeople():tBookings()}});
 document.addEventListener("input",e=>{if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
