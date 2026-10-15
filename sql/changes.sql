@@ -946,3 +946,771 @@ grant execute on function approve_transfer(uuid, boolean) to authenticated;
 grant execute on function decline_transfer(uuid, text) to authenticated;
 grant execute on function admin_remove_listing(uuid) to authenticated;
 grant execute on function admit_ticket(integer, text, boolean, boolean, uuid) to authenticated;
+
+-- =====================================================================
+-- TICKET TRANSFER, PART 2  (Public/Private transfer, locked price, comments, coordinator transfers)
+-- Run this AFTER "transfer-feature.sql" (part 1). Safe to run more than once.
+-- Run it in the Supabase SQL editor.
+--
+-- What changes compared with part 1
+--   * Every ad / transfer is PRIVATE (buyer pays seller directly, organisers only approve)
+--     or PUBLIC (buyer pays the organisers, organisers pay the seller after approval).
+--   * The seller picks the price on the ad and may add a short comment (no phone numbers).
+--     Editing the price closes the old ad ("edited") and opens a new one, so a buyer who
+--     tapped Buy at Rs 200 can never be charged Rs 250. Starting the transfer locks the price.
+--   * A buyer's tap on Buy remembers the price the buyer saw. A buyer can check the request
+--     with ad + phone and is shown the transfer code once the seller has chosen them.
+--   * Public transfers track the money: amount confirmed with the seller, buyer's payment proof,
+--     payment received, seller paid, refund.
+--   * Coordinators and former coordinators can now transfer too. On approval the buyer gets a
+--     brand-new GUEST number and QR; the coordinator number (and any old guest number) is retired
+--     for good. The seller's ticket is typed exactly as printed: 7, E26-007 or E26-001C.
+--   * The retired-number check at the gate also covers retired coordinator numbers.
+--
+-- New error messages the pages should translate (the old ones from part 1 still apply, except
+-- NOT_GUEST and FORMER_COORDINATOR which no longer happen):
+--   INVALID_MODE, INVALID_PAYOUT, INVALID_COMMENT, INVALID_BUYER, COORDINATOR_ACK_REQUIRED,
+--   WRONG_BUYER, PAYMENT_IN_PROGRESS, AMOUNT_NOT_CONFIRMED, PAYMENT_NOT_RECEIVED,
+--   SCREENSHOT_MISSING, NOT_PUBLIC, INVALID_AMOUNT
+-- =====================================================================
+
+-- 1. TABLE CHANGES -----------------------------------------------------------------------------
+alter table ticket_listings add column if not exists mode text not null default 'private';
+alter table ticket_listings add column if not exists comment text;
+alter table ticket_listings drop constraint if exists ticket_listings_mode_check;
+alter table ticket_listings add constraint ticket_listings_mode_check check (mode in ('private','public'));
+alter table ticket_listings drop constraint if exists ticket_listings_comment_check;
+alter table ticket_listings add constraint ticket_listings_comment_check
+  check (comment is null or char_length(comment) between 1 and 140);
+-- an ad whose price was changed is kept as history with status 'edited'
+alter table ticket_listings drop constraint if exists ticket_listings_status_check;
+alter table ticket_listings add constraint ticket_listings_status_check
+  check (status in ('active','withdrawn','sold','closed','removed','edited'));
+
+alter table ticket_interests add column if not exists price_seen integer;
+
+alter table ticket_transfers add column if not exists mode text not null default 'private';
+alter table ticket_transfers add column if not exists payout text;                 -- seller's UPI ID or phone (Public only)
+alter table ticket_transfers add column if not exists agreed_amount integer;       -- what the buyer pays the organisers (Public only)
+alter table ticket_transfers add column if not exists amount_confirmed_at timestamptz;
+alter table ticket_transfers add column if not exists amount_confirmed_by uuid references auth.users(id);
+alter table ticket_transfers add column if not exists intended_phone text;         -- the buyer the seller chose (optional)
+alter table ticket_transfers add column if not exists buyer_interest_id uuid references ticket_interests(id) on delete set null;
+alter table ticket_transfers add column if not exists buyer_paid_at timestamptz;
+alter table ticket_transfers add column if not exists buyer_screenshot_path text;
+alter table ticket_transfers add column if not exists payment_received_at timestamptz;
+alter table ticket_transfers add column if not exists payment_received_by uuid references auth.users(id);
+alter table ticket_transfers add column if not exists seller_paid_at timestamptz;
+alter table ticket_transfers add column if not exists seller_paid_ref text;
+alter table ticket_transfers add column if not exists refunded_at timestamptz;
+alter table ticket_transfers add column if not exists refund_ref text;
+alter table ticket_transfers add column if not exists from_kind text;              -- guest / coordinator / former_coordinator
+alter table ticket_transfers add column if not exists from_coord_no integer;       -- retired coordinator number
+
+alter table ticket_transfers drop constraint if exists ticket_transfers_mode_check;
+alter table ticket_transfers add constraint ticket_transfers_mode_check check (mode in ('private','public'));
+alter table ticket_transfers drop constraint if exists ticket_transfers_from_kind_check;
+alter table ticket_transfers add constraint ticket_transfers_from_kind_check
+  check (from_kind is null or from_kind in ('guest','coordinator','former_coordinator'));
+alter table ticket_transfers drop constraint if exists ticket_transfers_payout_check;
+alter table ticket_transfers add constraint ticket_transfers_payout_check
+  check (payout is null or payout ~ '^([0-9]{10}|[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31})$');
+alter table ticket_transfers drop constraint if exists ticket_transfers_amount_check;
+alter table ticket_transfers add constraint ticket_transfers_amount_check
+  check (agreed_amount is null or agreed_amount >= 0);
+-- a retired coordinator number appears in history only once
+create unique index if not exists ticket_transfers_from_coord_uq on ticket_transfers (from_coord_no)
+  where from_coord_no is not null;
+
+-- 2. REMOVE THE OLD VERSIONS WHOSE ARGUMENTS CHANGED -------------------------------------------
+drop function if exists post_listing(text, integer, integer, text);
+drop function if exists manage_ticket(text, integer);
+drop function if exists close_listing(text, integer, boolean);
+drop function if exists start_transfer(text, integer, integer);
+drop function if exists withdraw_transfer(text, integer);
+drop function if exists apply_receive(integer, text, text, text, text, text, text);
+drop function if exists _seller_ticket(text, integer);
+
+-- 3. INTERNAL HELPERS ----------------------------------------------------------------------------
+-- "E26-007", "7", "e26 007" -> guest 7;  "E26-001C", "1c" -> coordinator 1;  anything else -> nulls
+create or replace function _parse_ticket(p text, out kind text, out no integer)
+language plpgsql immutable as $$
+declare s text;
+begin
+  s := upper(regexp_replace(coalesce(p, ''), '[\s-]', '', 'g'));
+  s := regexp_replace(s, '^E26', '');
+  s := replace(s, 'O', '0');
+  if s ~ '^[0-9]{1,6}C$' then kind := 'coordinator'; no := substr(s, 1, length(s) - 1)::integer;
+  elsif s ~ '^[0-9]{1,6}$' then kind := 'guest'; no := s::integer;
+  end if;
+end $$;
+
+-- What kind of seat this is: guest, coordinator, or a guest who used to be a coordinator
+create or replace function _seller_kind(t tickets) returns text
+language sql immutable as $$
+  select case when t.kind = 'coordinator' then 'coordinator'
+              when t.prev_coord_no is not null then 'former_coordinator'
+              else 'guest' end $$;
+
+-- Why a ticket cannot be sold/transferred right now (null = it can).
+-- Coordinators and former coordinators are allowed now; only unpaid or already-scanned tickets are blocked.
+create or replace function _transfer_block_reason(t tickets, b bookings) returns text
+language sql as $$
+  select case
+    when b.status <> 'paid' then 'NOT_PAID'
+    when t.kind = 'guest' and t.ticket_no is null then 'NOT_PAID'
+    when t.checked_in_at is not null then 'ALREADY_CHECKED_IN'
+  end $$;
+
+-- Booking ID + ticket as printed -> the ticket's id (the seller's proof of ownership)
+create or replace function _seller_ticket(p_booking_code text, p_ticket text) returns uuid
+language plpgsql security definer set search_path to 'public' as $$
+declare c text; b bookings%rowtype; v uuid; k text; n integer;
+begin
+  c := _norm_code(p_booking_code);
+  if length(c) <> 8 then raise exception 'INVALID_TICKET'; end if;
+  select kind, no into k, n from _parse_ticket(p_ticket);
+  if k is null then raise exception 'INVALID_TICKET'; end if;
+  select * into b from bookings where booking_code = c;
+  if not found then raise exception 'INVALID_TICKET'; end if;
+  if k = 'guest' then
+    select id into v from tickets where booking_id = b.id and kind = 'guest' and ticket_no = n;
+  else
+    select id into v from tickets where booking_id = b.id and kind = 'coordinator' and coord_no = n;
+  end if;
+  if found then return v; end if;
+  if exists (select 1 from ticket_transfers x join tickets tk on tk.id = x.ticket_id
+             where tk.booking_id = b.id and x.status = 'done'
+               and ((k = 'guest' and x.from_ticket_no = n) or (k = 'coordinator' and x.from_coord_no = n)))
+  then raise exception 'ALREADY_TRANSFERRED'; end if;
+  raise exception 'INVALID_TICKET';
+end $$;
+
+-- A seller's comment: short, plain text, no phone numbers / UPI IDs / links (those would skip the organisers)
+create or replace function _clean_comment(p text) returns text
+language plpgsql immutable as $$
+declare v text;
+begin
+  if p is null then return null; end if;
+  v := btrim(regexp_replace(p, '\s+', ' ', 'g'));
+  if v = '' then return null; end if;
+  if char_length(v) > 140
+     or length(regexp_replace(v, '[^0-9]', '', 'g')) >= 8
+     or position('@' in v) > 0
+     or v ~* '(https?:|www\.)'
+  then raise exception 'INVALID_COMMENT'; end if;
+  return v;
+end $$;
+
+-- The seller's payout: a 10-digit phone number or a UPI ID like name@bank
+create or replace function _clean_payout(p text) returns text
+language plpgsql immutable as $$
+declare v text;
+begin
+  v := btrim(coalesce(p, ''));
+  if v ~ '^[0-9]{10}$' or v ~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$' then return v; end if;
+  raise exception 'INVALID_PAYOUT';
+end $$;
+
+-- 4. PUBLIC FUNCTIONS ----------------------------------------------------------------------------
+create or replace function list_board() returns jsonb
+language sql stable security definer set search_path to 'public' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'price', l.price, 'mode', l.mode, 'comment', l.comment,
+                                               'posted_at', l.created_at) order by l.created_at desc), '[]'::jsonb)
+  from ticket_listings l
+  join tickets t on t.id = l.ticket_id
+  join bookings b on b.id = t.booking_id
+  where (select transfers_open from settings where id = 1)
+    and l.status = 'active' and t.checked_in_at is null and b.status = 'paid' $$;
+
+create or replace function post_listing(p_code text, p_ticket text, p_price integer, p_contact text,
+                                        p_mode text default 'private', p_comment text default null,
+                                        p_ack boolean default false) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; l ticket_listings%rowtype; r text; cm text;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v for update;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if coalesce(p_mode, '') not in ('private', 'public') then raise exception 'INVALID_MODE'; end if;
+  if _seller_kind(t) <> 'guest' and not coalesce(p_ack, false) then raise exception 'COORDINATOR_ACK_REQUIRED'; end if;
+  if p_price is null or p_price < 0 or p_price > s.max_resale_price then raise exception 'INVALID_PRICE'; end if;
+  if coalesce(p_contact, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  cm := _clean_comment(p_comment);
+  if exists (select 1 from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin'))
+  then raise exception 'ALREADY_IN_TRANSFER'; end if;
+  if exists (select 1 from ticket_listings where ticket_id = t.id and status = 'active')
+  then raise exception 'ALREADY_LISTED'; end if;
+  insert into ticket_listings (ticket_id, price, contact_phone, mode, comment)
+  values (t.id, p_price, p_contact, p_mode, cm) returning * into l;
+  return jsonb_build_object('id', l.id, 'price', l.price, 'mode', l.mode);
+end $$;
+
+-- Change the price (closes the old ad as 'edited' and opens a new one) and/or the comment (changed in place).
+-- p_comment: null keeps the current comment, '' clears it.
+create or replace function edit_listing(p_code text, p_ticket text, p_price integer, p_comment text default null) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; l ticket_listings%rowtype;
+        n ticket_listings%rowtype; r text; cm text;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v for update;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if exists (select 1 from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin'))
+  then raise exception 'ALREADY_IN_TRANSFER'; end if;
+  select * into l from ticket_listings where ticket_id = t.id and status = 'active' for update;
+  if not found then raise exception 'NO_ACTIVE_LISTING'; end if;
+  if p_price is null or p_price < 0 or p_price > s.max_resale_price then raise exception 'INVALID_PRICE'; end if;
+  cm := case when p_comment is null then l.comment else _clean_comment(p_comment) end;
+  if p_price = l.price then
+    update ticket_listings set comment = cm where id = l.id;
+    return jsonb_build_object('id', l.id, 'price', l.price, 'changed', false);
+  end if;
+  update ticket_listings set status = 'edited', closed_at = now() where id = l.id;
+  insert into ticket_listings (ticket_id, price, contact_phone, mode, comment)
+  values (t.id, p_price, l.contact_phone, l.mode, cm) returning * into n;
+  return jsonb_build_object('id', n.id, 'price', n.price, 'changed', true);
+end $$;
+
+-- Seller's "Manage my listing" page
+create or replace function manage_ticket(p_code text, p_ticket text) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare v uuid; t tickets%rowtype; b bookings%rowtype; s settings%rowtype; l ticket_listings%rowtype;
+        x ticket_transfers%rowtype; li jsonb; xi jsonb; hist jsonb;
+begin
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v;
+  select * into b from bookings where id = t.booking_id;
+  select * into s from settings where id = 1;
+  select * into l from ticket_listings where ticket_id = t.id and status = 'active';
+  if found then
+    li := jsonb_build_object('id', l.id, 'price', l.price, 'mode', l.mode, 'comment', l.comment,
+      'contact_phone', l.contact_phone, 'created_at', l.created_at,
+      'interests', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'name', i.name, 'phone', i.phone,
+                  'choice', i.choice, 'price_seen', i.price_seen, 'created_at', i.created_at) order by i.created_at)
+                  from ticket_interests i where i.listing_id = l.id), '[]'::jsonb));
+  end if;
+  select coalesce(jsonb_agg(h.j order by h.created_at desc), '[]'::jsonb) into hist
+  from (select jsonb_build_object('id', o.id, 'price', o.price, 'status', o.status, 'comment', o.comment,
+                                  'created_at', o.created_at, 'closed_at', o.closed_at) as j, o.created_at
+        from ticket_listings o where o.ticket_id = t.id and o.status <> 'active'
+        order by o.created_at desc limit 10) h;
+  select * into x from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin');
+  if found then
+    xi := jsonb_build_object('status', x.status, 'code', x.code, 'mode', x.mode, 'price', x.price,
+                             'agreed_amount', x.agreed_amount, 'amount_confirmed', x.amount_confirmed_at is not null,
+                             'created_at', x.created_at, 'buyer_name', x.new_name, 'buyer_phone', x.new_phone,
+                             'buyer_paid', x.buyer_paid_at is not null,
+                             'payment_received', x.payment_received_at is not null, 'payout', x.payout);
+  end if;
+  return jsonb_build_object('label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'kind', _seller_kind(t), 'open', s.transfers_open, 'max_price', s.max_resale_price,
+    'blocked', _transfer_block_reason(t, b), 'listing', li, 'history', hist, 'transfer', xi);
+end $$;
+
+-- Seller deletes the ad (p_sold = false) or marks it sold/complete (p_sold = true). Works even when transfers are closed.
+create or replace function close_listing(p_code text, p_ticket text, p_sold boolean default false) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare v uuid; n int;
+begin
+  v := _seller_ticket(p_code, p_ticket);
+  update ticket_listings set status = case when coalesce(p_sold, false) then 'sold' else 'withdrawn' end, closed_at = now()
+  where ticket_id = v and status = 'active';
+  get diagnostics n = row_count;
+  if n = 0 then raise exception 'NO_ACTIVE_LISTING'; end if;
+end $$;
+
+-- Buyer taps Buy/Interested. Remembers the price the buyer saw. In a Public ad the seller's number is never shown.
+create or replace function express_interest(p_listing uuid, p_name text, p_phone text, p_choice text) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; l ticket_listings%rowtype; t tickets%rowtype; b bookings%rowtype; n int;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  select * into l from ticket_listings where id = p_listing and status = 'active';
+  if not found then raise exception 'LISTING_NOT_AVAILABLE'; end if;
+  select * into t from tickets where id = l.ticket_id;
+  select * into b from bookings where id = t.booking_id;
+  if _transfer_block_reason(t, b) is not null then raise exception 'LISTING_NOT_AVAILABLE'; end if;
+  if length(trim(coalesce(p_name, ''))) not between 1 and 80 then raise exception 'INVALID_NAME'; end if;
+  if coalesce(p_phone, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  if coalesce(p_choice, '') not in ('talk', 'agree') then raise exception 'INVALID_CHOICE'; end if;
+  select count(*) into n from ticket_interests where listing_id = l.id;
+  if n >= 50 and not exists (select 1 from ticket_interests where listing_id = l.id and phone = p_phone)
+  then raise exception 'TOO_MANY_INTERESTED'; end if;
+  insert into ticket_interests (listing_id, name, phone, choice, price_seen)
+  values (l.id, trim(p_name), p_phone, p_choice, l.price)
+  on conflict (listing_id, phone) do update set name = excluded.name, choice = excluded.choice, price_seen = excluded.price_seen;
+  return jsonb_build_object('choice', p_choice, 'price', l.price, 'mode', l.mode,
+                            'contact_phone', case when p_choice = 'talk' and l.mode = 'private' then l.contact_phone end);
+end $$;
+
+-- The buyer's "Check my request" page: ad + the phone used when tapping Buy.
+-- States: waiting, price_changed, accepted (shows the transfer code), done, ended, taken, sold, gone
+create or replace function check_request(p_listing uuid, p_phone text) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare i ticket_interests%rowtype; l ticket_listings%rowtype; n ticket_listings%rowtype;
+        x ticket_transfers%rowtype; t tickets%rowtype;
+begin
+  if coalesce(p_phone, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  select * into i from ticket_interests where listing_id = p_listing and phone = p_phone;
+  if not found then return null; end if;
+  select * into l from ticket_listings where id = p_listing;
+  if l.status = 'active' then
+    return jsonb_build_object('state', 'waiting', 'price', l.price, 'mode', l.mode);
+  elsif l.status = 'edited' then
+    select * into n from ticket_listings where ticket_id = l.ticket_id and status = 'active';
+    if found then
+      return jsonb_build_object('state', 'price_changed', 'old_price', i.price_seen, 'new_price', n.price,
+                                'new_listing', n.id, 'mode', n.mode);
+    end if;
+    return jsonb_build_object('state', 'gone');
+  elsif l.status = 'closed' then
+    select * into x from ticket_transfers where listing_id = l.id order by created_at desc limit 1;
+    if not found or x.intended_phone is distinct from p_phone then
+      return jsonb_build_object('state', 'taken');
+    end if;
+    if x.status in ('awaiting_buyer', 'pending_admin') then
+      select * into t from tickets where id = x.ticket_id;
+      return jsonb_build_object('state', 'accepted', 'code', x.code, 'mode', x.mode, 'price', x.price,
+                                'ticket', _ticket_label(t.kind, t.ticket_no, t.coord_no));
+    elsif x.status = 'done' then
+      return jsonb_build_object('state', 'done', 'code', x.code);
+    end if;
+    return jsonb_build_object('state', 'ended');
+  elsif l.status = 'sold' then
+    return jsonb_build_object('state', 'sold');
+  end if;
+  return jsonb_build_object('state', 'gone');
+end $$;
+
+-- Seller starts the transfer. Locks the price and returns the one-time transfer code.
+--   with an ad: mode and price come from the ad; p_buyer (optional) is one of the people who tapped Buy
+--   without an ad: p_mode is required; a Public transfer also needs p_price (the amount to collect)
+--   Public transfers need the seller's payout (UPI ID or phone)
+create or replace function start_transfer(p_code text, p_ticket text, p_price integer default null,
+                                          p_mode text default null, p_payout text default null,
+                                          p_buyer uuid default null, p_ack boolean default false) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; l ticket_listings%rowtype;
+        i ticket_interests%rowtype; x ticket_transfers%rowtype; r text; c text; price int; md text; po text;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v for update;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if _seller_kind(t) <> 'guest' and not coalesce(p_ack, false) then raise exception 'COORDINATOR_ACK_REQUIRED'; end if;
+  if exists (select 1 from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin'))
+  then raise exception 'ALREADY_IN_TRANSFER'; end if;
+  select * into l from ticket_listings where ticket_id = t.id and status = 'active' for update;
+  if found then
+    md := l.mode;
+    price := l.price;
+    if price > s.max_resale_price then raise exception 'INVALID_PRICE'; end if;
+    if p_buyer is not null then
+      select * into i from ticket_interests where id = p_buyer and listing_id = l.id;
+      if not found then raise exception 'INVALID_BUYER'; end if;
+    end if;
+    update ticket_listings set status = 'closed', closed_at = now() where id = l.id;
+  else
+    md := coalesce(p_mode, '');
+    if md not in ('private', 'public') then raise exception 'INVALID_MODE'; end if;
+    if p_buyer is not null then raise exception 'INVALID_BUYER'; end if;
+    price := p_price;
+    if price is not null and (price < 0 or price > s.max_resale_price) then raise exception 'INVALID_PRICE'; end if;
+    if md = 'public' and price is null then raise exception 'INVALID_PRICE'; end if;
+  end if;
+  if md = 'public' then po := _clean_payout(p_payout); end if;
+  loop
+    c := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
+    exit when not exists (select 1 from ticket_transfers where code = c);
+  end loop;
+  insert into ticket_transfers (ticket_id, code, price, listing_id, mode, payout, agreed_amount,
+                                intended_phone, buyer_interest_id)
+  values (t.id, c, price, l.id, md, po, case when md = 'public' then price end, i.phone, i.id)
+  returning * into x;
+  return jsonb_build_object('code', x.code, 'price', x.price, 'mode', x.mode,
+                            'label', _ticket_label(t.kind, t.ticket_no, t.coord_no), 'kind', _seller_kind(t));
+end $$;
+
+-- Seller cancels their live transfer. Not possible once the buyer has paid the organisers.
+create or replace function withdraw_transfer(p_code text, p_ticket text) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare v uuid; x ticket_transfers%rowtype;
+begin
+  v := _seller_ticket(p_code, p_ticket);
+  perform 1 from tickets where id = v for update;
+  select * into x from ticket_transfers where ticket_id = v and status in ('awaiting_buyer','pending_admin') for update;
+  if not found then raise exception 'NO_ACTIVE_TRANSFER'; end if;
+  if x.buyer_paid_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  update ticket_transfers set status = 'withdrawn' where id = x.id;
+end $$;
+
+-- Buyer's side: seller's ticket + transfer code + the five details.
+-- If the seller chose a particular buyer, only that phone number is accepted.
+create or replace function apply_receive(p_ticket text, p_code text, p_name text, p_phone text,
+                                         p_location text, p_attendance text, p_food text) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; c text; v uuid; t tickets%rowtype; b bookings%rowtype; x ticket_transfers%rowtype;
+        r text; k text; n integer;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  c := _norm_code(p_code);
+  select kind, no into k, n from _parse_ticket(p_ticket);
+  if length(c) <> 10 or k is null then raise exception 'INVALID_TRANSFER'; end if;
+  select ticket_id into v from ticket_transfers where code = c;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  select * into t from tickets where id = v for update;           -- lock order: ticket first, then the application
+  select * into x from ticket_transfers where code = c for update;
+  if x.status not in ('awaiting_buyer','pending_admin')
+     or not ((k = 'guest' and t.kind = 'guest' and t.ticket_no = n) or (k = 'coordinator' and t.kind = 'coordinator' and t.coord_no = n))
+  then raise exception 'INVALID_TRANSFER'; end if;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if x.buyer_paid_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  if length(trim(coalesce(p_name, ''))) not between 1 and 80 then raise exception 'INVALID_NAME'; end if;
+  if coalesce(p_phone, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  if x.intended_phone is not null and x.intended_phone <> p_phone then raise exception 'WRONG_BUYER'; end if;
+  if coalesce(p_location, '') not in ('In Bengaluru', 'Outside Bengaluru') then raise exception 'INVALID_LOCATION'; end if;
+  if coalesce(p_attendance, '') not in ('Surely', 'Most probably') then raise exception 'INVALID_ATTENDANCE'; end if;
+  if coalesce(p_food, '') not in ('Veg', 'Non-veg') then raise exception 'INVALID_FOOD'; end if;
+  update ticket_transfers set new_name = trim(p_name), new_phone = p_phone, new_location = p_location,
+    new_attendance = p_attendance, new_food = p_food, buyer_applied_at = now(), status = 'pending_admin'
+  where id = x.id;
+  return lookup_transfer(c);
+end $$;
+
+-- Public transfers only: after the organisers confirmed the amount with the seller, the buyer pays the
+-- organisers and uploads the proof (file name must start with "transfer-" + the transfer code).
+-- Works even if transfers were switched off meanwhile (so transfers already in progress can finish).
+create or replace function submit_transfer_payment(p_ticket text, p_code text, p_screenshot_path text) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare c text; v uuid; t tickets%rowtype; x ticket_transfers%rowtype; k text; n integer;
+begin
+  c := _norm_code(p_code);
+  select kind, no into k, n from _parse_ticket(p_ticket);
+  if length(c) <> 10 or k is null then raise exception 'INVALID_TRANSFER'; end if;
+  select ticket_id into v from ticket_transfers where code = c;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  select * into t from tickets where id = v for update;
+  select * into x from ticket_transfers where code = c for update;
+  if x.status <> 'pending_admin'
+     or not ((k = 'guest' and t.kind = 'guest' and t.ticket_no = n) or (k = 'coordinator' and t.kind = 'coordinator' and t.coord_no = n))
+  then raise exception 'INVALID_TRANSFER'; end if;
+  if x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  if x.amount_confirmed_at is null then raise exception 'AMOUNT_NOT_CONFIRMED'; end if;
+  if x.payment_received_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  if p_screenshot_path is null or p_screenshot_path not like 'transfer-' || x.code || '%'
+     or not exists (select 1 from storage.objects where bucket_id = 'payment-proofs' and name = p_screenshot_path)
+  then raise exception 'SCREENSHOT_MISSING'; end if;
+  update ticket_transfers set buyer_screenshot_path = p_screenshot_path, buyer_paid_at = now() where id = x.id;
+  return lookup_transfer(c);
+end $$;
+
+-- Status page, by transfer code only. After approval it returns the buyer's own new ticket (never the Booking ID).
+create or replace function lookup_transfer(p_code text) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare c text; x ticket_transfers%rowtype; t tickets%rowtype; b bookings%rowtype; res jsonb;
+begin
+  c := _norm_code(p_code);
+  if length(c) <> 10 then return null; end if;
+  select * into x from ticket_transfers where code = c;
+  if not found then return null; end if;
+  select * into t from tickets where id = x.ticket_id;
+  select * into b from bookings where id = t.booking_id;
+  res := jsonb_build_object('status', x.status, 'mode', x.mode, 'price', x.price,
+    'agreed_amount', x.agreed_amount, 'amount_confirmed', x.amount_confirmed_at is not null,
+    'buyer_applied', x.new_name is not null,
+    'paid', x.buyer_paid_at is not null, 'payment_received', x.payment_received_at is not null,
+    'refund_due', (x.mode = 'public' and x.payment_received_at is not null and x.refunded_at is null
+                   and x.status in ('declined', 'withdrawn')),
+    'refunded', x.refunded_at is not null, 'decline_reason', x.decline_reason);
+  if x.status in ('awaiting_buyer', 'pending_admin') then
+    res := res || jsonb_build_object('old_label', _ticket_label(t.kind, t.ticket_no, t.coord_no));
+  elsif x.status = 'done' then
+    res := res || jsonb_build_object('old_label',
+      case when x.from_kind = 'coordinator' then _ticket_label('coordinator', null, x.from_coord_no)
+           else _ticket_label('guest', x.from_ticket_no, null) end);
+    -- show the ticket only while it is still the one issued by this transfer (never a later holder's)
+    if t.ticket_no is not distinct from x.to_ticket_no and t.kind = 'guest' and b.status = 'paid' then
+      res := res || jsonb_build_object('ticket', jsonb_build_object('label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+        'secret', t.secret, 'name', t.name, 'location', t.location, 'attendance', t.attendance, 'food', t.food));
+    end if;
+  end if;
+  return res;
+end $$;
+
+-- 5. ADMIN FUNCTIONS -----------------------------------------------------------------------------
+-- Public transfers: the organisers called the seller and agreed the amount the buyer must pay.
+create or replace function admin_confirm_amount(p_id uuid, p_amount integer) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status not in ('awaiting_buyer', 'pending_admin') then raise exception 'NOT_PENDING'; end if;
+  if x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  if x.buyer_paid_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  if p_amount is null or p_amount < 0 or p_amount > s.max_resale_price then raise exception 'INVALID_AMOUNT'; end if;
+  update ticket_transfers set agreed_amount = p_amount, amount_confirmed_at = now(), amount_confirmed_by = auth.uid()
+  where id = x.id;
+end $$;
+
+-- Tick (or untick) "payment received" after checking the bank app.
+create or replace function admin_mark_payment_received(p_id uuid, p_received boolean default true) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status <> 'pending_admin' then raise exception 'NOT_PENDING'; end if;
+  if x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  if x.amount_confirmed_at is null then raise exception 'AMOUNT_NOT_CONFIRMED'; end if;
+  if coalesce(p_received, true) then
+    update ticket_transfers set payment_received_at = coalesce(payment_received_at, now()),
+      buyer_paid_at = coalesce(buyer_paid_at, now()), payment_received_by = auth.uid() where id = x.id;
+  else
+    -- also forget the "paid" mark if it only came from the admin's tick (the buyer never uploaded proof)
+    update ticket_transfers set payment_received_at = null, payment_received_by = null,
+      buyer_paid_at = case when buyer_screenshot_path is null then null else buyer_paid_at end
+    where id = x.id;
+  end if;
+end $$;
+
+-- After approval the organisers pay the seller by UPI and record it here.
+create or replace function admin_mark_seller_paid(p_id uuid, p_ref text default null) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status <> 'done' or x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  update ticket_transfers set seller_paid_at = coalesce(seller_paid_at, now()),
+    seller_paid_ref = nullif(left(btrim(coalesce(p_ref, '')), 100), '') where id = x.id;
+end $$;
+
+-- After a declined/withdrawn Public transfer where the organisers had received the money: record the refund.
+create or replace function admin_mark_refunded(p_id uuid, p_ref text default null) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.mode <> 'public' or x.status not in ('declined', 'withdrawn') or x.payment_received_at is null
+  then raise exception 'NOT_PENDING'; end if;
+  update ticket_transfers set refunded_at = coalesce(refunded_at, now()),
+    refund_ref = nullif(left(btrim(coalesce(p_ref, '')), 100), '') where id = x.id;
+end $$;
+
+-- Remove just the comment of an ad (for example if it is rude), keeping the ad.
+create or replace function admin_clear_comment(p_id uuid) returns void
+language plpgsql security definer set search_path to 'public' as $$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  update ticket_listings set comment = null where id = p_id;
+  if not found then raise exception 'NO_ACTIVE_LISTING'; end if;
+end $$;
+
+-- Approve a matched pair: new person, NEXT FREE guest number, new QR. Old numbers are retired for good.
+-- A coordinator seat becomes a normal guest seat; a former coordinator loses both their numbers.
+create or replace function approve_transfer(p_id uuid, p_payment_confirmed boolean default false) returns jsonb
+language plpgsql security definer set search_path to 'public' as $$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; x ticket_transfers%rowtype;
+        r text; new_no int; k text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1 for update;          -- same lock order as the gate: settings, ticket, ...
+  select ticket_id into v from ticket_transfers where id = p_id;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  select * into t from tickets where id = v for update;
+  select * into x from ticket_transfers where id = p_id for update;
+  if x.status <> 'pending_admin' then raise exception 'NOT_PENDING'; end if;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);                                -- checked again now: it may have changed while waiting
+  if r is not null then raise exception '%', r; end if;
+  if x.mode = 'public' then
+    if x.amount_confirmed_at is null then raise exception 'AMOUNT_NOT_CONFIRMED'; end if;
+    if x.payment_received_at is null then raise exception 'PAYMENT_NOT_RECEIVED'; end if;
+  end if;
+  k := _seller_kind(t);
+  new_no := s.next_ticket;
+  update ticket_transfers set status = 'done',
+    from_name = t.name, from_phone = t.phone, from_location = t.location, from_attendance = t.attendance,
+    from_food = t.food, from_ticket_no = t.ticket_no, to_ticket_no = new_no,
+    from_kind = k,
+    from_coord_no = case k when 'coordinator' then t.coord_no when 'former_coordinator' then t.prev_coord_no end,
+    payment_confirmed = coalesce(p_payment_confirmed, false) or x.payment_received_at is not null,
+    decided_by = auth.uid(), decided_at = now()
+  where id = x.id;
+  update tickets set ticket_no = new_no, secret = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+    kind = 'guest', coord_no = null, orig_secret = null, prev_coord_no = null, prev_coord_secret = null,
+    marked_by = null, marked_at = null,
+    name = x.new_name, phone = x.new_phone, location = x.new_location,
+    attendance = x.new_attendance, food = x.new_food
+  where id = t.id;
+  update settings set next_ticket = next_ticket + 1 where id = 1;
+  update ticket_listings set status = 'closed', closed_at = now() where ticket_id = t.id and status = 'active';
+  return jsonb_build_object('id', t.id, 'kind', k, 'mode', x.mode, 'agreed_amount', x.agreed_amount, 'payout', x.payout,
+    'old_label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'label', _ticket_label('guest', new_no, null), 'name', x.new_name);
+end $$;
+
+-- 6. GATE: retired guest numbers AND retired coordinator numbers say TICKET CANCELLED ---------------
+CREATE OR REPLACE FUNCTION public.admit_ticket(p_ticket_no integer DEFAULT NULL::integer, p_secret text DEFAULT NULL::text, p_approve boolean DEFAULT false, p_coord boolean DEFAULT false, p_id uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare t tickets%rowtype; b bookings%rowtype; info jsonb; who text;
+begin
+  if not is_staff() then raise exception 'NOT_ALLOWED'; end if;
+  if p_approve then perform 1 from settings where id = 1 for update; end if;
+
+  if p_id is not null then
+    select * into t from tickets where id = p_id for update;
+  elsif p_coord then
+    select * into t from tickets where coord_no = p_ticket_no and kind = 'coordinator' for update;
+    if not found then
+      -- maybe a coordinator number that was cancelled (person is a guest again)
+      select * into t from tickets where prev_coord_no = p_ticket_no for update;
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('coordinator', null, t.prev_coord_no));
+      end if;
+      -- or a coordinator number retired by an approved transfer: show who holds the seat now
+      select tk.* into t from ticket_transfers x join tickets tk on tk.id = x.ticket_id
+       where x.from_coord_no = p_ticket_no and x.status = 'done';
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('coordinator', null, p_ticket_no));
+      end if;
+    end if;
+  else
+    select * into t from tickets where ticket_no = p_ticket_no for update;
+    if not found and p_ticket_no is not null then
+      -- a number retired by an approved transfer: the QR is cancelled, show who holds the seat now
+      select tk.* into t from ticket_transfers x join tickets tk on tk.id = x.ticket_id
+       where x.from_ticket_no = p_ticket_no and x.status = 'done';
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('guest', p_ticket_no, null));
+      end if;
+    end if;
+  end if;
+  if not found then return jsonb_build_object('result', 'invalid'); end if;
+
+  if p_id is null and t.kind = 'coordinator' and not p_coord then
+    return jsonb_build_object('result', 'cancelled', 'name', t.name,
+      'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+      'old_label', _ticket_label('guest', t.ticket_no, null));
+  end if;
+  if p_secret is not null and t.secret <> p_secret then
+    return jsonb_build_object('result', 'invalid'); end if;
+
+  select * into b from bookings where id = t.booking_id for update;
+
+  if b.status = 'pending' and p_approve then
+    update bookings set status = 'paid', reviewed_by = auth.uid(), reviewed_at = now(), reviewed_via = 'gate' where id = b.id;
+    perform _assign_numbers(b.id);
+    select * into t from tickets where id = t.id;
+    b.status := 'paid';
+  end if;
+
+  info := jsonb_build_object('id', t.id, 'ticket_no', t.ticket_no, 'kind', t.kind,
+    'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'name', t.name, 'food', t.food,
+    'booking_code', b.booking_code, 'people_count', b.people_count,
+    'amount_expected', b.amount_expected, 'screenshot_path', b.screenshot_path);
+
+  if b.status = 'rejected' then return info || jsonb_build_object('result', 'rejected'); end if;
+  if b.status = 'pending' then return info || jsonb_build_object('result', 'pending'); end if;
+  if t.checked_in_at is not null then
+    select name into who from staff where user_id = t.checked_in_by;
+    return info || jsonb_build_object('result', 'already_scanned', 'checked_in_at', t.checked_in_at, 'checked_in_by', who);
+  end if;
+  update tickets set checked_in_at = now(), checked_in_by = auth.uid() where id = t.id;
+  return info || jsonb_build_object('result', 'ok');
+end $function$;
+
+-- 7. WHO MAY CALL WHAT ---------------------------------------------------------------------------
+-- (Supabase hands out run rights to anon/authenticated by default, so they are taken away explicitly here.)
+revoke all on function _parse_ticket(text) from public, anon, authenticated;
+revoke all on function _seller_kind(tickets) from public, anon, authenticated;
+revoke all on function _clean_comment(text) from public, anon, authenticated;
+revoke all on function _clean_payout(text) from public, anon, authenticated;
+revoke all on function _norm_code(text) from public, anon, authenticated;
+revoke all on function _transfer_block_reason(tickets, bookings) from public, anon, authenticated;
+revoke all on function _seller_ticket(text, text) from public, anon, authenticated;
+
+revoke all on function list_board() from public, anon, authenticated;
+revoke all on function post_listing(text, text, integer, text, text, text, boolean) from public, anon, authenticated;
+revoke all on function edit_listing(text, text, integer, text) from public, anon, authenticated;
+revoke all on function manage_ticket(text, text) from public, anon, authenticated;
+revoke all on function close_listing(text, text, boolean) from public, anon, authenticated;
+revoke all on function express_interest(uuid, text, text, text) from public, anon, authenticated;
+revoke all on function check_request(uuid, text) from public, anon, authenticated;
+revoke all on function start_transfer(text, text, integer, text, text, uuid, boolean) from public, anon, authenticated;
+revoke all on function withdraw_transfer(text, text) from public, anon, authenticated;
+revoke all on function apply_receive(text, text, text, text, text, text, text) from public, anon, authenticated;
+revoke all on function submit_transfer_payment(text, text, text) from public, anon, authenticated;
+revoke all on function lookup_transfer(text) from public, anon, authenticated;
+revoke all on function admin_confirm_amount(uuid, integer) from public, anon, authenticated;
+revoke all on function admin_mark_payment_received(uuid, boolean) from public, anon, authenticated;
+revoke all on function admin_mark_seller_paid(uuid, text) from public, anon, authenticated;
+revoke all on function admin_mark_refunded(uuid, text) from public, anon, authenticated;
+revoke all on function admin_clear_comment(uuid) from public, anon, authenticated;
+revoke all on function approve_transfer(uuid, boolean) from public, anon, authenticated;
+revoke all on function admit_ticket(integer, text, boolean, boolean, uuid) from public, anon, authenticated;
+-- the part 1 helpers and admin functions that were not touched here: close the same gap
+revoke all on function get_transfer_status() from public, anon, authenticated;
+revoke all on function decline_transfer(uuid, text) from public, anon, authenticated;
+revoke all on function admin_remove_listing(uuid) from public, anon, authenticated;
+revoke all on function admin_set_transfer_settings(boolean, integer) from public, anon, authenticated;
+
+-- website visitors (no login)
+grant execute on function get_transfer_status() to anon, authenticated;
+grant execute on function list_board() to anon, authenticated;
+grant execute on function post_listing(text, text, integer, text, text, text, boolean) to anon, authenticated;
+grant execute on function edit_listing(text, text, integer, text) to anon, authenticated;
+grant execute on function manage_ticket(text, text) to anon, authenticated;
+grant execute on function close_listing(text, text, boolean) to anon, authenticated;
+grant execute on function express_interest(uuid, text, text, text) to anon, authenticated;
+grant execute on function check_request(uuid, text) to anon, authenticated;
+grant execute on function start_transfer(text, text, integer, text, text, uuid, boolean) to anon, authenticated;
+grant execute on function withdraw_transfer(text, text) to anon, authenticated;
+grant execute on function apply_receive(text, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function submit_transfer_payment(text, text, text) to anon, authenticated;
+grant execute on function lookup_transfer(text) to anon, authenticated;
+-- signed-in staff only (admins are checked again inside each function)
+grant execute on function admin_set_transfer_settings(boolean, integer) to authenticated;
+grant execute on function admin_confirm_amount(uuid, integer) to authenticated;
+grant execute on function admin_mark_payment_received(uuid, boolean) to authenticated;
+grant execute on function admin_mark_seller_paid(uuid, text) to authenticated;
+grant execute on function admin_mark_refunded(uuid, text) to authenticated;
+grant execute on function admin_clear_comment(uuid) to authenticated;
+grant execute on function approve_transfer(uuid, boolean) to authenticated;
+grant execute on function decline_transfer(uuid, text) to authenticated;
+grant execute on function admin_remove_listing(uuid) to authenticated;
+grant execute on function admit_ticket(integer, text, boolean, boolean, uuid) to authenticated;
