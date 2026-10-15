@@ -54,9 +54,68 @@ settings|12|grace_minutes|integer|t|10
 settings|13|closed_at|timestamp with time zone|f|
 settings|14|event_at|timestamp with time zone|t|'2026-11-22 08:30:00+00'::timestamp with time zone
 settings|15|venue|text|t|'Savoury Business Hotel, Madiwala'::text
+settings|16|transfers_open|boolean|t|false
+settings|17|max_resale_price|integer|t|250
 staff|1|user_id|uuid|t|
 staff|2|name|text|t|
 staff|3|role|text|t|'admin'::text
+ticket_interests|1|id|uuid|t|gen_random_uuid()
+ticket_interests|2|listing_id|uuid|t|
+ticket_interests|3|name|text|t|
+ticket_interests|4|phone|text|t|
+ticket_interests|5|choice|text|t|
+ticket_interests|6|created_at|timestamp with time zone|t|now()
+ticket_interests|7|price_seen|integer|f|
+ticket_listings|1|id|uuid|t|gen_random_uuid()
+ticket_listings|2|ticket_id|uuid|t|
+ticket_listings|3|price|integer|t|
+ticket_listings|4|contact_phone|text|t|
+ticket_listings|5|status|text|t|'active'::text
+ticket_listings|6|created_at|timestamp with time zone|t|now()
+ticket_listings|7|closed_at|timestamp with time zone|f|
+ticket_listings|8|mode|text|t|'private'::text
+ticket_listings|9|comment|text|f|
+ticket_transfers|1|id|uuid|t|gen_random_uuid()
+ticket_transfers|2|ticket_id|uuid|t|
+ticket_transfers|3|code|text|t|
+ticket_transfers|4|status|text|t|'awaiting_buyer'::text
+ticket_transfers|5|price|integer|f|
+ticket_transfers|6|listing_id|uuid|f|
+ticket_transfers|7|new_name|text|f|
+ticket_transfers|8|new_phone|text|f|
+ticket_transfers|9|new_location|text|f|
+ticket_transfers|10|new_attendance|text|f|
+ticket_transfers|11|new_food|text|f|
+ticket_transfers|12|buyer_applied_at|timestamp with time zone|f|
+ticket_transfers|13|from_name|text|f|
+ticket_transfers|14|from_phone|text|f|
+ticket_transfers|15|from_location|text|f|
+ticket_transfers|16|from_attendance|text|f|
+ticket_transfers|17|from_food|text|f|
+ticket_transfers|18|from_ticket_no|integer|f|
+ticket_transfers|19|to_ticket_no|integer|f|
+ticket_transfers|20|payment_confirmed|boolean|t|false
+ticket_transfers|21|decided_by|uuid|f|
+ticket_transfers|22|decided_at|timestamp with time zone|f|
+ticket_transfers|23|decline_reason|text|f|
+ticket_transfers|24|created_at|timestamp with time zone|t|now()
+ticket_transfers|25|mode|text|t|'private'::text
+ticket_transfers|26|payout|text|f|
+ticket_transfers|27|agreed_amount|integer|f|
+ticket_transfers|28|amount_confirmed_at|timestamp with time zone|f|
+ticket_transfers|29|amount_confirmed_by|uuid|f|
+ticket_transfers|30|intended_phone|text|f|
+ticket_transfers|31|buyer_interest_id|uuid|f|
+ticket_transfers|32|buyer_paid_at|timestamp with time zone|f|
+ticket_transfers|33|buyer_screenshot_path|text|f|
+ticket_transfers|34|payment_received_at|timestamp with time zone|f|
+ticket_transfers|35|payment_received_by|uuid|f|
+ticket_transfers|36|seller_paid_at|timestamp with time zone|f|
+ticket_transfers|37|seller_paid_ref|text|f|
+ticket_transfers|38|refunded_at|timestamp with time zone|f|
+ticket_transfers|39|refund_ref|text|f|
+ticket_transfers|40|from_kind|text|f|
+ticket_transfers|41|from_coord_no|integer|f|
 tickets|1|id|uuid|t|gen_random_uuid()
 tickets|2|ticket_no|integer|f|
 tickets|3|secret|text|t|
@@ -95,6 +154,7 @@ settings | settings_cap_check | CHECK ((cap >= 0))
 settings | settings_grace_check | CHECK (((grace_minutes >= 1) AND (grace_minutes <= 60)))
 settings | settings_id_check | CHECK ((id = 1))
 settings | settings_max_group_check | CHECK (((max_group >= 1) AND (max_group <= 5)))
+settings | settings_max_resale_price_check | CHECK ((max_resale_price >= 0))
 settings | settings_pause_times_check | CHECK ((pause_close_time <> pause_open_time))
 settings | settings_pkey | PRIMARY KEY (id)
 settings | settings_price_per_head_check | CHECK ((price_per_head > 0))
@@ -102,6 +162,35 @@ settings | settings_venue_len | CHECK (((char_length(btrim(venue)) >= 1) AND (ch
 staff | staff_pkey | PRIMARY KEY (user_id)
 staff | staff_role_check | CHECK ((role = ANY (ARRAY['admin'::text, 'gate'::text])))
 staff | staff_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+ticket_interests | ticket_interests_choice_check | CHECK ((choice = ANY (ARRAY['talk'::text, 'agree'::text])))
+ticket_interests | ticket_interests_listing_id_fkey | FOREIGN KEY (listing_id) REFERENCES ticket_listings(id) ON DELETE CASCADE
+ticket_interests | ticket_interests_listing_id_phone_key | UNIQUE (listing_id, phone)
+ticket_interests | ticket_interests_name_check | CHECK (((char_length(btrim(name)) >= 1) AND (char_length(btrim(name)) <= 80)))
+ticket_interests | ticket_interests_phone_check | CHECK ((phone ~ '^[0-9]{10}$'::text))
+ticket_interests | ticket_interests_pkey | PRIMARY KEY (id)
+ticket_listings | ticket_listings_comment_check | CHECK (((comment IS NULL) OR ((char_length(comment) >= 1) AND (char_length(comment) <= 140))))
+ticket_listings | ticket_listings_contact_phone_check | CHECK ((contact_phone ~ '^[0-9]{10}$'::text))
+ticket_listings | ticket_listings_mode_check | CHECK ((mode = ANY (ARRAY['private'::text, 'public'::text])))
+ticket_listings | ticket_listings_pkey | PRIMARY KEY (id)
+ticket_listings | ticket_listings_price_check | CHECK ((price >= 0))
+ticket_listings | ticket_listings_status_check | CHECK ((status = ANY (ARRAY['active'::text, 'withdrawn'::text, 'sold'::text, 'closed'::text, 'removed'::text, 'edited'::text])))
+ticket_listings | ticket_listings_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+ticket_transfers | ticket_transfers_amount_check | CHECK (((agreed_amount IS NULL) OR (agreed_amount >= 0)))
+ticket_transfers | ticket_transfers_amount_confirmed_by_fkey | FOREIGN KEY (amount_confirmed_by) REFERENCES auth.users(id)
+ticket_transfers | ticket_transfers_buyer_interest_id_fkey | FOREIGN KEY (buyer_interest_id) REFERENCES ticket_interests(id) ON DELETE SET NULL
+ticket_transfers | ticket_transfers_buyer_present | CHECK (((status <> ALL (ARRAY['pending_admin'::text, 'done'::text])) OR ((new_name IS NOT NULL) AND (new_phone IS NOT NULL) AND (new_location IS NOT NULL) AND (new_attendance IS NOT NULL) AND (new_food IS NOT NULL))))
+ticket_transfers | ticket_transfers_code_key | UNIQUE (code)
+ticket_transfers | ticket_transfers_decided_by_fkey | FOREIGN KEY (decided_by) REFERENCES auth.users(id)
+ticket_transfers | ticket_transfers_from_kind_check | CHECK (((from_kind IS NULL) OR (from_kind = ANY (ARRAY['guest'::text, 'coordinator'::text, 'former_coordinator'::text]))))
+ticket_transfers | ticket_transfers_listing_id_fkey | FOREIGN KEY (listing_id) REFERENCES ticket_listings(id) ON DELETE SET NULL
+ticket_transfers | ticket_transfers_mode_check | CHECK ((mode = ANY (ARRAY['private'::text, 'public'::text])))
+ticket_transfers | ticket_transfers_new_values | CHECK ((((new_phone IS NULL) OR (new_phone ~ '^[0-9]{10}$'::text)) AND ((new_location IS NULL) OR (new_location = ANY (ARRAY['In Bengaluru'::text, 'Outside Bengaluru'::text]))) AND ((new_attendance IS NULL) OR (new_attendance = ANY (ARRAY['Surely'::text, 'Most probably'::text]))) AND ((new_food IS NULL) OR (new_food = ANY (ARRAY['Veg'::text, 'Non-veg'::text])))))
+ticket_transfers | ticket_transfers_payment_received_by_fkey | FOREIGN KEY (payment_received_by) REFERENCES auth.users(id)
+ticket_transfers | ticket_transfers_payout_check | CHECK (((payout IS NULL) OR (payout ~ '^([0-9]{10}|[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31})$'::text)))
+ticket_transfers | ticket_transfers_pkey | PRIMARY KEY (id)
+ticket_transfers | ticket_transfers_price_check | CHECK (((price IS NULL) OR (price >= 0)))
+ticket_transfers | ticket_transfers_status_check | CHECK ((status = ANY (ARRAY['awaiting_buyer'::text, 'pending_admin'::text, 'done'::text, 'declined'::text, 'withdrawn'::text])))
+ticket_transfers | ticket_transfers_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 tickets | tickets_attendance_check | CHECK ((attendance = ANY (ARRAY['Surely'::text, 'Most probably'::text])))
 tickets | tickets_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id)
 tickets | tickets_checked_in_by_fkey | FOREIGN KEY (checked_in_by) REFERENCES auth.users(id)
@@ -121,6 +210,15 @@ reg_sessions | CREATE UNIQUE INDEX reg_sessions_pkey ON public.reg_sessions USIN
 screenshot_scans | CREATE UNIQUE INDEX screenshot_scans_pkey ON public.screenshot_scans USING btree (booking_id)
 settings | CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (id)
 staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
+ticket_interests | CREATE UNIQUE INDEX ticket_interests_listing_id_phone_key ON public.ticket_interests USING btree (listing_id, phone)
+ticket_interests | CREATE UNIQUE INDEX ticket_interests_pkey ON public.ticket_interests USING btree (id)
+ticket_listings | CREATE UNIQUE INDEX ticket_listings_one_active ON public.ticket_listings USING btree (ticket_id) WHERE (status = 'active'::text)
+ticket_listings | CREATE UNIQUE INDEX ticket_listings_pkey ON public.ticket_listings USING btree (id)
+ticket_transfers | CREATE UNIQUE INDEX ticket_transfers_code_key ON public.ticket_transfers USING btree (code)
+ticket_transfers | CREATE UNIQUE INDEX ticket_transfers_from_coord_uq ON public.ticket_transfers USING btree (from_coord_no) WHERE (from_coord_no IS NOT NULL)
+ticket_transfers | CREATE UNIQUE INDEX ticket_transfers_from_no_uq ON public.ticket_transfers USING btree (from_ticket_no) WHERE (from_ticket_no IS NOT NULL)
+ticket_transfers | CREATE UNIQUE INDEX ticket_transfers_one_open ON public.ticket_transfers USING btree (ticket_id) WHERE (status = ANY (ARRAY['awaiting_buyer'::text, 'pending_admin'::text]))
+ticket_transfers | CREATE UNIQUE INDEX ticket_transfers_pkey ON public.ticket_transfers USING btree (id)
 tickets | CREATE INDEX tickets_booking_idx ON public.tickets USING btree (booking_id)
 tickets | CREATE UNIQUE INDEX tickets_coord_no_uq ON public.tickets USING btree (coord_no) WHERE (coord_no IS NOT NULL)
 tickets | CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)
@@ -157,6 +255,9 @@ reg_sessions : rls=true
 screenshot_scans : rls=true
 settings : rls=true
 staff : rls=true
+ticket_interests : rls=true
+ticket_listings : rls=true
+ticket_transfers : rls=true
 tickets : rls=true
 === POLICIES (public tables and storage) ===
 public.bookings | staff_read_bookings | SELECT | {authenticated} | using: is_staff() | check: -
@@ -164,6 +265,9 @@ public.keepalive | anon can read keepalive | SELECT | {anon} | using: true | che
 public.screenshot_scans | staff_read_scans | SELECT | {authenticated} | using: is_staff() | check: -
 public.settings | staff_read_settings | SELECT | {authenticated} | using: is_staff() | check: -
 public.staff | staff_read_staff | SELECT | {authenticated} | using: ((user_id = auth.uid()) OR is_admin()) | check: -
+public.ticket_interests | admin_read_interests | SELECT | {authenticated} | using: is_admin() | check: -
+public.ticket_listings | admin_read_listings | SELECT | {authenticated} | using: is_admin() | check: -
+public.ticket_transfers | admin_read_transfers | SELECT | {authenticated} | using: is_admin() | check: -
 public.tickets | staff_read_tickets | SELECT | {authenticated} | using: is_staff() | check: -
 storage.objects | proofs_staff_read | SELECT | {authenticated} | using: ((bucket_id = 'payment-proofs'::text) AND is_staff()) | check: -
 storage.objects | proofs_upload | INSERT | {anon,authenticated} | using: - | check: (bucket_id = 'payment-proofs'::text)
@@ -203,6 +307,38 @@ AS $function$
         order by t.reg_seq) from tickets t where t.booking_id = b.id))
   from bookings b where b.id = p_booking $function$
 
+--- _clean_comment(p text) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._clean_comment(p text)
+ RETURNS text
+ LANGUAGE plpgsql
+ IMMUTABLE
+AS $function$
+declare v text;
+begin
+  if p is null then return null; end if;
+  v := btrim(regexp_replace(p, '\s+', ' ', 'g'));
+  if v = '' then return null; end if;
+  if char_length(v) > 140
+     or length(regexp_replace(v, '[^0-9]', '', 'g')) >= 8
+     or position('@' in v) > 0
+     or v ~* '(https?:|www\.)'
+  then raise exception 'INVALID_COMMENT'; end if;
+  return v;
+end $function$
+
+--- _clean_payout(p text) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._clean_payout(p text)
+ RETURNS text
+ LANGUAGE plpgsql
+ IMMUTABLE
+AS $function$
+declare v text;
+begin
+  v := btrim(coalesce(p, ''));
+  if v ~ '^[0-9]{10}$' or v ~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$' then return v; end if;
+  raise exception 'INVALID_PAYOUT';
+end $function$
+
 --- _close_moment(s settings) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public._close_moment(s settings)
  RETURNS timestamp with time zone
@@ -233,6 +369,30 @@ begin
   if not found or r.started_at >= cm or r.last_seen < cm - interval '10 minutes' then return null; end if;
   if exists (select 1 from bookings where submission_id = p_session) then return null; end if;
   return cm + make_interval(mins => s.grace_minutes);
+end $function$
+
+--- _norm_code(p text) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._norm_code(p text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select replace(replace(replace(upper(coalesce(p, '')), 'O', '0'), ' ', ''), '-', '') $function$
+
+--- _parse_ticket(p text, OUT kind text, OUT no integer) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._parse_ticket(p text, OUT kind text, OUT no integer)
+ RETURNS record
+ LANGUAGE plpgsql
+ IMMUTABLE
+AS $function$
+declare s text;
+begin
+  s := upper(regexp_replace(coalesce(p, ''), '[\s-]', '', 'g'));
+  s := regexp_replace(s, '^E26', '');
+  s := replace(s, 'O', '0');
+  if s ~ '^[0-9]{1,6}C$' then kind := 'coordinator'; no := substr(s, 1, length(s) - 1)::integer;
+  elsif s ~ '^[0-9]{1,6}$' then kind := 'guest'; no := s::integer;
+  end if;
 end $function$
 
 --- _pause_info(s settings) | execute rights: {postgres=X/postgres}
@@ -289,6 +449,44 @@ begin
                           then (pi->>'next_close')::timestamptz else null end);
 end $function$
 
+--- _seller_kind(t tickets) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._seller_kind(t tickets)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select case when t.kind = 'coordinator' then 'coordinator'
+              when t.prev_coord_no is not null then 'former_coordinator'
+              else 'guest' end $function$
+
+--- _seller_ticket(p_booking_code text, p_ticket text) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._seller_ticket(p_booking_code text, p_ticket text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare c text; b bookings%rowtype; v uuid; k text; n integer;
+begin
+  c := _norm_code(p_booking_code);
+  if length(c) <> 8 then raise exception 'INVALID_TICKET'; end if;
+  select kind, no into k, n from _parse_ticket(p_ticket);
+  if k is null then raise exception 'INVALID_TICKET'; end if;
+  select * into b from bookings where booking_code = c;
+  if not found then raise exception 'INVALID_TICKET'; end if;
+  if k = 'guest' then
+    select id into v from tickets where booking_id = b.id and kind = 'guest' and ticket_no = n;
+  else
+    select id into v from tickets where booking_id = b.id and kind = 'coordinator' and coord_no = n;
+  end if;
+  if found then return v; end if;
+  if exists (select 1 from ticket_transfers x join tickets tk on tk.id = x.ticket_id
+             where tk.booking_id = b.id and x.status = 'done'
+               and ((k = 'guest' and x.from_ticket_no = n) or (k = 'coordinator' and x.from_coord_no = n)))
+  then raise exception 'ALREADY_TRANSFERRED'; end if;
+  raise exception 'INVALID_TICKET';
+end $function$
+
 --- _ticket_label(p_kind text, p_ticket_no integer, p_coord_no integer) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public._ticket_label(p_kind text, p_ticket_no integer, p_coord_no integer)
  RETURNS text
@@ -298,6 +496,112 @@ AS $function$
   select case when p_kind = 'coordinator' then 'E26-' || lpad(p_coord_no::text, 3, '0') || 'C'
               when p_ticket_no is null then null
               else 'E26-' || lpad(p_ticket_no::text, 3, '0') end $function$
+
+--- _transfer_block_reason(t tickets, b bookings) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._transfer_block_reason(t tickets, b bookings)
+ RETURNS text
+ LANGUAGE sql
+AS $function$
+  select case
+    when b.status <> 'paid' then 'NOT_PAID'
+    when t.kind = 'guest' and t.ticket_no is null then 'NOT_PAID'
+    when t.checked_in_at is not null then 'ALREADY_CHECKED_IN'
+  end $function$
+
+--- admin_clear_comment(p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_clear_comment(p_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  update ticket_listings set comment = null where id = p_id;
+  if not found then raise exception 'NO_ACTIVE_LISTING'; end if;
+end $function$
+
+--- admin_confirm_amount(p_id uuid, p_amount integer) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_confirm_amount(p_id uuid, p_amount integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status not in ('awaiting_buyer', 'pending_admin') then raise exception 'NOT_PENDING'; end if;
+  if x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  if x.buyer_paid_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  if p_amount is null or p_amount < 0 or p_amount > s.max_resale_price then raise exception 'INVALID_AMOUNT'; end if;
+  update ticket_transfers set agreed_amount = p_amount, amount_confirmed_at = now(), amount_confirmed_by = auth.uid()
+  where id = x.id;
+end $function$
+
+--- admin_mark_payment_received(p_id uuid, p_received boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_mark_payment_received(p_id uuid, p_received boolean DEFAULT true)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status <> 'pending_admin' then raise exception 'NOT_PENDING'; end if;
+  if x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  if x.amount_confirmed_at is null then raise exception 'AMOUNT_NOT_CONFIRMED'; end if;
+  if coalesce(p_received, true) then
+    update ticket_transfers set payment_received_at = coalesce(payment_received_at, now()),
+      buyer_paid_at = coalesce(buyer_paid_at, now()), payment_received_by = auth.uid() where id = x.id;
+  else
+    -- also forget the "paid" mark if it only came from the admin's tick (the buyer never uploaded proof)
+    update ticket_transfers set payment_received_at = null, payment_received_by = null,
+      buyer_paid_at = case when buyer_screenshot_path is null then null else buyer_paid_at end
+    where id = x.id;
+  end if;
+end $function$
+
+--- admin_mark_refunded(p_id uuid, p_ref text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_mark_refunded(p_id uuid, p_ref text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.mode <> 'public' or x.status not in ('declined', 'withdrawn') or x.payment_received_at is null
+  then raise exception 'NOT_PENDING'; end if;
+  update ticket_transfers set refunded_at = coalesce(refunded_at, now()),
+    refund_ref = nullif(left(btrim(coalesce(p_ref, '')), 100), '') where id = x.id;
+end $function$
+
+--- admin_mark_seller_paid(p_id uuid, p_ref text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_mark_seller_paid(p_id uuid, p_ref text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status <> 'done' or x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  update ticket_transfers set seller_paid_at = coalesce(seller_paid_at, now()),
+    seller_paid_ref = nullif(left(btrim(coalesce(p_ref, '')), 100), '') where id = x.id;
+end $function$
 
 --- admin_registration_status() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_registration_status()
@@ -323,6 +627,21 @@ begin
     'grace_count', gc, 'grace_until', case when gc > 0 then gu else null end, 'server_now', now());
 end $function$
 
+--- admin_remove_listing(p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_remove_listing(p_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  update ticket_listings set status = 'removed', closed_at = now() where id = p_id and status = 'active';
+  get diagnostics n = row_count;
+  if n = 0 then raise exception 'NO_ACTIVE_LISTING'; end if;
+end $function$
+
 --- admin_set_event(p_event_at timestamp with time zone, p_venue text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_set_event(p_event_at timestamp with time zone, p_venue text)
  RETURNS void
@@ -334,6 +653,19 @@ begin
   if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
   if p_event_at is null or coalesce(btrim(p_venue), '') = '' then raise exception 'INVALID_EVENT'; end if;
   update settings set event_at = p_event_at, venue = btrim(p_venue) where id = 1;
+end $function$
+
+--- admin_set_transfer_settings(p_open boolean, p_max_price integer) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_transfer_settings(p_open boolean, p_max_price integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_open is null or p_max_price is null or p_max_price < 0 or p_max_price > 100000 then raise exception 'INVALID_SETTINGS'; end if;
+  update settings set transfers_open = p_open, max_resale_price = p_max_price where id = 1;
 end $function$
 
 --- admin_update_settings(p_cap integer, p_price integer, p_deadline timestamp with time zone, p_is_open boolean, p_pause_enabled boolean, p_pause_close time without time zone, p_pause_open time without time zone) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
@@ -385,9 +717,27 @@ begin
           'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
           'old_label', _ticket_label('coordinator', null, t.prev_coord_no));
       end if;
+      -- or a coordinator number retired by an approved transfer: show who holds the seat now
+      select tk.* into t from ticket_transfers x join tickets tk on tk.id = x.ticket_id
+       where x.from_coord_no = p_ticket_no and x.status = 'done';
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('coordinator', null, p_ticket_no));
+      end if;
     end if;
   else
     select * into t from tickets where ticket_no = p_ticket_no for update;
+    if not found and p_ticket_no is not null then
+      -- a number retired by an approved transfer: the QR is cancelled, show who holds the seat now
+      select tk.* into t from ticket_transfers x join tickets tk on tk.id = x.ticket_id
+       where x.from_ticket_no = p_ticket_no and x.status = 'done';
+      if found then
+        return jsonb_build_object('result', 'cancelled', 'name', t.name,
+          'label', coalesce(_ticket_label(t.kind, t.ticket_no, t.coord_no), 'not numbered yet'),
+          'old_label', _ticket_label('guest', p_ticket_no, null));
+      end if;
+    end if;
   end if;
   if not found then return jsonb_build_object('result', 'invalid'); end if;
 
@@ -424,6 +774,228 @@ begin
   return info || jsonb_build_object('result', 'ok');
 end $function$
 
+--- apply_receive(p_ticket text, p_code text, p_name text, p_phone text, p_location text, p_attendance text, p_food text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.apply_receive(p_ticket text, p_code text, p_name text, p_phone text, p_location text, p_attendance text, p_food text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; c text; v uuid; t tickets%rowtype; b bookings%rowtype; x ticket_transfers%rowtype;
+        r text; k text; n integer;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  c := _norm_code(p_code);
+  select kind, no into k, n from _parse_ticket(p_ticket);
+  if length(c) <> 10 or k is null then raise exception 'INVALID_TRANSFER'; end if;
+  select ticket_id into v from ticket_transfers where code = c;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  select * into t from tickets where id = v for update;           -- lock order: ticket first, then the application
+  select * into x from ticket_transfers where code = c for update;
+  if x.status not in ('awaiting_buyer','pending_admin')
+     or not ((k = 'guest' and t.kind = 'guest' and t.ticket_no = n) or (k = 'coordinator' and t.kind = 'coordinator' and t.coord_no = n))
+  then raise exception 'INVALID_TRANSFER'; end if;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if x.buyer_paid_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  if length(trim(coalesce(p_name, ''))) not between 1 and 80 then raise exception 'INVALID_NAME'; end if;
+  if coalesce(p_phone, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  if x.intended_phone is not null and x.intended_phone <> p_phone then raise exception 'WRONG_BUYER'; end if;
+  if coalesce(p_location, '') not in ('In Bengaluru', 'Outside Bengaluru') then raise exception 'INVALID_LOCATION'; end if;
+  if coalesce(p_attendance, '') not in ('Surely', 'Most probably') then raise exception 'INVALID_ATTENDANCE'; end if;
+  if coalesce(p_food, '') not in ('Veg', 'Non-veg') then raise exception 'INVALID_FOOD'; end if;
+  update ticket_transfers set new_name = trim(p_name), new_phone = p_phone, new_location = p_location,
+    new_attendance = p_attendance, new_food = p_food, buyer_applied_at = now(), status = 'pending_admin'
+  where id = x.id;
+  return lookup_transfer(c);
+end $function$
+
+--- approve_transfer(p_id uuid, p_payment_confirmed boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.approve_transfer(p_id uuid, p_payment_confirmed boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; x ticket_transfers%rowtype;
+        r text; new_no int; k text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into s from settings where id = 1 for update;          -- same lock order as the gate: settings, ticket, ...
+  select ticket_id into v from ticket_transfers where id = p_id;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  select * into t from tickets where id = v for update;
+  select * into x from ticket_transfers where id = p_id for update;
+  if x.status <> 'pending_admin' then raise exception 'NOT_PENDING'; end if;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);                                -- checked again now: it may have changed while waiting
+  if r is not null then raise exception '%', r; end if;
+  if x.mode = 'public' then
+    if x.amount_confirmed_at is null then raise exception 'AMOUNT_NOT_CONFIRMED'; end if;
+    if x.payment_received_at is null then raise exception 'PAYMENT_NOT_RECEIVED'; end if;
+  end if;
+  k := _seller_kind(t);
+  new_no := s.next_ticket;
+  update ticket_transfers set status = 'done',
+    from_name = t.name, from_phone = t.phone, from_location = t.location, from_attendance = t.attendance,
+    from_food = t.food, from_ticket_no = t.ticket_no, to_ticket_no = new_no,
+    from_kind = k,
+    from_coord_no = case k when 'coordinator' then t.coord_no when 'former_coordinator' then t.prev_coord_no end,
+    payment_confirmed = coalesce(p_payment_confirmed, false) or x.payment_received_at is not null,
+    decided_by = auth.uid(), decided_at = now()
+  where id = x.id;
+  update tickets set ticket_no = new_no, secret = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12),
+    kind = 'guest', coord_no = null, orig_secret = null, prev_coord_no = null, prev_coord_secret = null,
+    marked_by = null, marked_at = null,
+    name = x.new_name, phone = x.new_phone, location = x.new_location,
+    attendance = x.new_attendance, food = x.new_food
+  where id = t.id;
+  update settings set next_ticket = next_ticket + 1 where id = 1;
+  update ticket_listings set status = 'closed', closed_at = now() where ticket_id = t.id and status = 'active';
+  return jsonb_build_object('id', t.id, 'kind', k, 'mode', x.mode, 'agreed_amount', x.agreed_amount, 'payout', x.payout,
+    'old_label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'label', _ticket_label('guest', new_no, null), 'name', x.new_name);
+end $function$
+
+--- check_request(p_listing uuid, p_phone text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.check_request(p_listing uuid, p_phone text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare i ticket_interests%rowtype; l ticket_listings%rowtype; n ticket_listings%rowtype;
+        x ticket_transfers%rowtype; t tickets%rowtype;
+begin
+  if coalesce(p_phone, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  select * into i from ticket_interests where listing_id = p_listing and phone = p_phone;
+  if not found then return null; end if;
+  select * into l from ticket_listings where id = p_listing;
+  if l.status = 'active' then
+    return jsonb_build_object('state', 'waiting', 'price', l.price, 'mode', l.mode);
+  elsif l.status = 'edited' then
+    select * into n from ticket_listings where ticket_id = l.ticket_id and status = 'active';
+    if found then
+      return jsonb_build_object('state', 'price_changed', 'old_price', i.price_seen, 'new_price', n.price,
+                                'new_listing', n.id, 'mode', n.mode);
+    end if;
+    return jsonb_build_object('state', 'gone');
+  elsif l.status = 'closed' then
+    select * into x from ticket_transfers where listing_id = l.id order by created_at desc limit 1;
+    if not found or x.intended_phone is distinct from p_phone then
+      return jsonb_build_object('state', 'taken');
+    end if;
+    if x.status in ('awaiting_buyer', 'pending_admin') then
+      select * into t from tickets where id = x.ticket_id;
+      return jsonb_build_object('state', 'accepted', 'code', x.code, 'mode', x.mode, 'price', x.price,
+                                'ticket', _ticket_label(t.kind, t.ticket_no, t.coord_no));
+    elsif x.status = 'done' then
+      return jsonb_build_object('state', 'done', 'code', x.code);
+    end if;
+    return jsonb_build_object('state', 'ended');
+  elsif l.status = 'sold' then
+    return jsonb_build_object('state', 'sold');
+  end if;
+  return jsonb_build_object('state', 'gone');
+end $function$
+
+--- close_listing(p_code text, p_ticket text, p_sold boolean) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.close_listing(p_code text, p_ticket text, p_sold boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v uuid; n int;
+begin
+  v := _seller_ticket(p_code, p_ticket);
+  update ticket_listings set status = case when coalesce(p_sold, false) then 'sold' else 'withdrawn' end, closed_at = now()
+  where ticket_id = v and status = 'active';
+  get diagnostics n = row_count;
+  if n = 0 then raise exception 'NO_ACTIVE_LISTING'; end if;
+end $function$
+
+--- decline_transfer(p_id uuid, p_reason text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.decline_transfer(p_id uuid, p_reason text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare x ticket_transfers%rowtype;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into x from ticket_transfers where id = p_id for update;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  if x.status not in ('awaiting_buyer', 'pending_admin') then raise exception 'NOT_PENDING'; end if;
+  update ticket_transfers set status = 'declined', decided_by = auth.uid(), decided_at = now(),
+    decline_reason = nullif(left(btrim(coalesce(p_reason, '')), 200), '') where id = x.id;
+end $function$
+
+--- edit_listing(p_code text, p_ticket text, p_price integer, p_comment text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.edit_listing(p_code text, p_ticket text, p_price integer, p_comment text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; l ticket_listings%rowtype;
+        n ticket_listings%rowtype; r text; cm text;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v for update;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if exists (select 1 from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin'))
+  then raise exception 'ALREADY_IN_TRANSFER'; end if;
+  select * into l from ticket_listings where ticket_id = t.id and status = 'active' for update;
+  if not found then raise exception 'NO_ACTIVE_LISTING'; end if;
+  if p_price is null or p_price < 0 or p_price > s.max_resale_price then raise exception 'INVALID_PRICE'; end if;
+  cm := case when p_comment is null then l.comment else _clean_comment(p_comment) end;
+  if p_price = l.price then
+    update ticket_listings set comment = cm where id = l.id;
+    return jsonb_build_object('id', l.id, 'price', l.price, 'changed', false);
+  end if;
+  update ticket_listings set status = 'edited', closed_at = now() where id = l.id;
+  insert into ticket_listings (ticket_id, price, contact_phone, mode, comment)
+  values (t.id, p_price, l.contact_phone, l.mode, cm) returning * into n;
+  return jsonb_build_object('id', n.id, 'price', n.price, 'changed', true);
+end $function$
+
+--- express_interest(p_listing uuid, p_name text, p_phone text, p_choice text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.express_interest(p_listing uuid, p_name text, p_phone text, p_choice text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; l ticket_listings%rowtype; t tickets%rowtype; b bookings%rowtype; n int;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  select * into l from ticket_listings where id = p_listing and status = 'active';
+  if not found then raise exception 'LISTING_NOT_AVAILABLE'; end if;
+  select * into t from tickets where id = l.ticket_id;
+  select * into b from bookings where id = t.booking_id;
+  if _transfer_block_reason(t, b) is not null then raise exception 'LISTING_NOT_AVAILABLE'; end if;
+  if length(trim(coalesce(p_name, ''))) not between 1 and 80 then raise exception 'INVALID_NAME'; end if;
+  if coalesce(p_phone, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  if coalesce(p_choice, '') not in ('talk', 'agree') then raise exception 'INVALID_CHOICE'; end if;
+  select count(*) into n from ticket_interests where listing_id = l.id;
+  if n >= 50 and not exists (select 1 from ticket_interests where listing_id = l.id and phone = p_phone)
+  then raise exception 'TOO_MANY_INTERESTED'; end if;
+  insert into ticket_interests (listing_id, name, phone, choice, price_seen)
+  values (l.id, trim(p_name), p_phone, p_choice, l.price)
+  on conflict (listing_id, phone) do update set name = excluded.name, choice = excluded.choice, price_seen = excluded.price_seen;
+  return jsonb_build_object('choice', p_choice, 'price', l.price, 'mode', l.mode,
+                            'contact_phone', case when p_choice = 'talk' and l.mode = 'private' then l.contact_phone end);
+end $function$
+
 --- get_event_info() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.get_event_info()
  RETURNS jsonb
@@ -447,6 +1019,16 @@ begin
   return _public_state(s, p_session);
 end $function$
 
+--- get_transfer_status() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.get_transfer_status()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object('open', transfers_open, 'max_price', max_resale_price, 'price_per_head', price_per_head)
+  from settings where id = 1 $function$
+
 --- is_admin() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.is_admin()
  RETURNS boolean
@@ -463,6 +1045,21 @@ CREATE OR REPLACE FUNCTION public.is_staff()
  SET search_path TO 'public'
 AS $function$ select exists (select 1 from public.staff where user_id = auth.uid()) $function$
 
+--- list_board() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.list_board()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'price', l.price, 'mode', l.mode, 'comment', l.comment,
+                                               'posted_at', l.created_at) order by l.created_at desc), '[]'::jsonb)
+  from ticket_listings l
+  join tickets t on t.id = l.ticket_id
+  join bookings b on b.id = t.booking_id
+  where (select transfers_open from settings where id = 1)
+    and l.status = 'active' and t.checked_in_at is null and b.status = 'paid' $function$
+
 --- lookup_booking(p_code text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.lookup_booking(p_code text)
  RETURNS jsonb
@@ -477,6 +1074,113 @@ begin
   select * into b from bookings where booking_code = c;
   if not found then return null; end if;
   return _booking_json(b.id);
+end $function$
+
+--- lookup_transfer(p_code text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.lookup_transfer(p_code text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare c text; x ticket_transfers%rowtype; t tickets%rowtype; b bookings%rowtype; res jsonb;
+begin
+  c := _norm_code(p_code);
+  if length(c) <> 10 then return null; end if;
+  select * into x from ticket_transfers where code = c;
+  if not found then return null; end if;
+  select * into t from tickets where id = x.ticket_id;
+  select * into b from bookings where id = t.booking_id;
+  res := jsonb_build_object('status', x.status, 'mode', x.mode, 'price', x.price,
+    'agreed_amount', x.agreed_amount, 'amount_confirmed', x.amount_confirmed_at is not null,
+    'buyer_applied', x.new_name is not null,
+    'paid', x.buyer_paid_at is not null, 'payment_received', x.payment_received_at is not null,
+    'refund_due', (x.mode = 'public' and x.payment_received_at is not null and x.refunded_at is null
+                   and x.status in ('declined', 'withdrawn')),
+    'refunded', x.refunded_at is not null, 'decline_reason', x.decline_reason);
+  if x.status in ('awaiting_buyer', 'pending_admin') then
+    res := res || jsonb_build_object('old_label', _ticket_label(t.kind, t.ticket_no, t.coord_no));
+  elsif x.status = 'done' then
+    res := res || jsonb_build_object('old_label',
+      case when x.from_kind = 'coordinator' then _ticket_label('coordinator', null, x.from_coord_no)
+           else _ticket_label('guest', x.from_ticket_no, null) end);
+    -- show the ticket only while it is still the one issued by this transfer (never a later holder's)
+    if t.ticket_no is not distinct from x.to_ticket_no and t.kind = 'guest' and b.status = 'paid' then
+      res := res || jsonb_build_object('ticket', jsonb_build_object('label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+        'secret', t.secret, 'name', t.name, 'location', t.location, 'attendance', t.attendance, 'food', t.food));
+    end if;
+  end if;
+  return res;
+end $function$
+
+--- manage_ticket(p_code text, p_ticket text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.manage_ticket(p_code text, p_ticket text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v uuid; t tickets%rowtype; b bookings%rowtype; s settings%rowtype; l ticket_listings%rowtype;
+        x ticket_transfers%rowtype; li jsonb; xi jsonb; hist jsonb;
+begin
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v;
+  select * into b from bookings where id = t.booking_id;
+  select * into s from settings where id = 1;
+  select * into l from ticket_listings where ticket_id = t.id and status = 'active';
+  if found then
+    li := jsonb_build_object('id', l.id, 'price', l.price, 'mode', l.mode, 'comment', l.comment,
+      'contact_phone', l.contact_phone, 'created_at', l.created_at,
+      'interests', coalesce((select jsonb_agg(jsonb_build_object('id', i.id, 'name', i.name, 'phone', i.phone,
+                  'choice', i.choice, 'price_seen', i.price_seen, 'created_at', i.created_at) order by i.created_at)
+                  from ticket_interests i where i.listing_id = l.id), '[]'::jsonb));
+  end if;
+  select coalesce(jsonb_agg(h.j order by h.created_at desc), '[]'::jsonb) into hist
+  from (select jsonb_build_object('id', o.id, 'price', o.price, 'status', o.status, 'comment', o.comment,
+                                  'created_at', o.created_at, 'closed_at', o.closed_at) as j, o.created_at
+        from ticket_listings o where o.ticket_id = t.id and o.status <> 'active'
+        order by o.created_at desc limit 10) h;
+  select * into x from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin');
+  if found then
+    xi := jsonb_build_object('status', x.status, 'code', x.code, 'mode', x.mode, 'price', x.price,
+                             'agreed_amount', x.agreed_amount, 'amount_confirmed', x.amount_confirmed_at is not null,
+                             'created_at', x.created_at, 'buyer_name', x.new_name, 'buyer_phone', x.new_phone,
+                             'buyer_paid', x.buyer_paid_at is not null,
+                             'payment_received', x.payment_received_at is not null, 'payout', x.payout);
+  end if;
+  return jsonb_build_object('label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
+    'kind', _seller_kind(t), 'open', s.transfers_open, 'max_price', s.max_resale_price,
+    'blocked', _transfer_block_reason(t, b), 'listing', li, 'history', hist, 'transfer', xi);
+end $function$
+
+--- post_listing(p_code text, p_ticket text, p_price integer, p_contact text, p_mode text, p_comment text, p_ack boolean) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.post_listing(p_code text, p_ticket text, p_price integer, p_contact text, p_mode text DEFAULT 'private'::text, p_comment text DEFAULT NULL::text, p_ack boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; l ticket_listings%rowtype; r text; cm text;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v for update;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if coalesce(p_mode, '') not in ('private', 'public') then raise exception 'INVALID_MODE'; end if;
+  if _seller_kind(t) <> 'guest' and not coalesce(p_ack, false) then raise exception 'COORDINATOR_ACK_REQUIRED'; end if;
+  if p_price is null or p_price < 0 or p_price > s.max_resale_price then raise exception 'INVALID_PRICE'; end if;
+  if coalesce(p_contact, '') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
+  cm := _clean_comment(p_comment);
+  if exists (select 1 from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin'))
+  then raise exception 'ALREADY_IN_TRANSFER'; end if;
+  if exists (select 1 from ticket_listings where ticket_id = t.id and status = 'active')
+  then raise exception 'ALREADY_LISTED'; end if;
+  insert into ticket_listings (ticket_id, price, contact_phone, mode, comment)
+  values (t.id, p_price, p_contact, p_mode, cm) returning * into l;
+  return jsonb_build_object('id', l.id, 'price', l.price, 'mode', l.mode);
 end $function$
 
 --- registration_heartbeat(p_session uuid) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
@@ -613,6 +1317,57 @@ begin
                             'label', _ticket_label(t.kind, t.ticket_no, t.coord_no));
 end $function$
 
+--- start_transfer(p_code text, p_ticket text, p_price integer, p_mode text, p_payout text, p_buyer uuid, p_ack boolean) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.start_transfer(p_code text, p_ticket text, p_price integer DEFAULT NULL::integer, p_mode text DEFAULT NULL::text, p_payout text DEFAULT NULL::text, p_buyer uuid DEFAULT NULL::uuid, p_ack boolean DEFAULT false)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings%rowtype; v uuid; t tickets%rowtype; b bookings%rowtype; l ticket_listings%rowtype;
+        i ticket_interests%rowtype; x ticket_transfers%rowtype; r text; c text; price int; md text; po text;
+begin
+  select * into s from settings where id = 1;
+  if not s.transfers_open then raise exception 'TRANSFERS_CLOSED'; end if;
+  v := _seller_ticket(p_code, p_ticket);
+  select * into t from tickets where id = v for update;
+  select * into b from bookings where id = t.booking_id;
+  r := _transfer_block_reason(t, b);
+  if r is not null then raise exception '%', r; end if;
+  if _seller_kind(t) <> 'guest' and not coalesce(p_ack, false) then raise exception 'COORDINATOR_ACK_REQUIRED'; end if;
+  if exists (select 1 from ticket_transfers where ticket_id = t.id and status in ('awaiting_buyer','pending_admin'))
+  then raise exception 'ALREADY_IN_TRANSFER'; end if;
+  select * into l from ticket_listings where ticket_id = t.id and status = 'active' for update;
+  if found then
+    md := l.mode;
+    price := l.price;
+    if price > s.max_resale_price then raise exception 'INVALID_PRICE'; end if;
+    if p_buyer is not null then
+      select * into i from ticket_interests where id = p_buyer and listing_id = l.id;
+      if not found then raise exception 'INVALID_BUYER'; end if;
+    end if;
+    update ticket_listings set status = 'closed', closed_at = now() where id = l.id;
+  else
+    md := coalesce(p_mode, '');
+    if md not in ('private', 'public') then raise exception 'INVALID_MODE'; end if;
+    if p_buyer is not null then raise exception 'INVALID_BUYER'; end if;
+    price := p_price;
+    if price is not null and (price < 0 or price > s.max_resale_price) then raise exception 'INVALID_PRICE'; end if;
+    if md = 'public' and price is null then raise exception 'INVALID_PRICE'; end if;
+  end if;
+  if md = 'public' then po := _clean_payout(p_payout); end if;
+  loop
+    c := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10));
+    exit when not exists (select 1 from ticket_transfers where code = c);
+  end loop;
+  insert into ticket_transfers (ticket_id, code, price, listing_id, mode, payout, agreed_amount,
+                                intended_phone, buyer_interest_id)
+  values (t.id, c, price, l.id, md, po, case when md = 'public' then price end, i.phone, i.id)
+  returning * into x;
+  return jsonb_build_object('code', x.code, 'price', x.price, 'mode', x.mode,
+                            'label', _ticket_label(t.kind, t.ticket_no, t.coord_no), 'kind', _seller_kind(t));
+end $function$
+
 --- submit_booking(p_submission_id uuid, p_people jsonb, p_screenshot_path text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.submit_booking(p_submission_id uuid, p_people jsonb, p_screenshot_path text)
  RETURNS jsonb
@@ -671,6 +1426,35 @@ begin
   return _booking_json(b.id);
 end $function$
 
+--- submit_transfer_payment(p_ticket text, p_code text, p_screenshot_path text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.submit_transfer_payment(p_ticket text, p_code text, p_screenshot_path text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare c text; v uuid; t tickets%rowtype; x ticket_transfers%rowtype; k text; n integer;
+begin
+  c := _norm_code(p_code);
+  select kind, no into k, n from _parse_ticket(p_ticket);
+  if length(c) <> 10 or k is null then raise exception 'INVALID_TRANSFER'; end if;
+  select ticket_id into v from ticket_transfers where code = c;
+  if not found then raise exception 'INVALID_TRANSFER'; end if;
+  select * into t from tickets where id = v for update;
+  select * into x from ticket_transfers where code = c for update;
+  if x.status <> 'pending_admin'
+     or not ((k = 'guest' and t.kind = 'guest' and t.ticket_no = n) or (k = 'coordinator' and t.kind = 'coordinator' and t.coord_no = n))
+  then raise exception 'INVALID_TRANSFER'; end if;
+  if x.mode <> 'public' then raise exception 'NOT_PUBLIC'; end if;
+  if x.amount_confirmed_at is null then raise exception 'AMOUNT_NOT_CONFIRMED'; end if;
+  if x.payment_received_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  if p_screenshot_path is null or p_screenshot_path not like 'transfer-' || x.code || '%'
+     or not exists (select 1 from storage.objects where bucket_id = 'payment-proofs' and name = p_screenshot_path)
+  then raise exception 'SCREENSHOT_MISSING'; end if;
+  update ticket_transfers set buyer_screenshot_path = p_screenshot_path, buyer_paid_at = now() where id = x.id;
+  return lookup_transfer(c);
+end $function$
+
 --- undo_checkin(p_ticket_no integer, p_coord boolean, p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.undo_checkin(p_ticket_no integer DEFAULT NULL::integer, p_coord boolean DEFAULT false, p_id uuid DEFAULT NULL::uuid)
  RETURNS void
@@ -697,6 +1481,23 @@ begin
   if n = 0 then raise exception 'INVALID_TICKET'; end if;
 end $function$
 
+--- withdraw_transfer(p_code text, p_ticket text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.withdraw_transfer(p_code text, p_ticket text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare v uuid; x ticket_transfers%rowtype;
+begin
+  v := _seller_ticket(p_code, p_ticket);
+  perform 1 from tickets where id = v for update;
+  select * into x from ticket_transfers where ticket_id = v and status in ('awaiting_buyer','pending_admin') for update;
+  if not found then raise exception 'NO_ACTIVE_TRANSFER'; end if;
+  if x.buyer_paid_at is not null then raise exception 'PAYMENT_IN_PROGRESS'; end if;
+  update ticket_transfers set status = 'withdrawn' where id = x.id;
+end $function$
+
 === TRIGGERS ===
 === EVENT TRIGGERS ===
 ensure_rls | ddl_command_end | rls_auto_enable | enabled=O
@@ -714,6 +1515,9 @@ report : {postgres=arwdDxtm/postgres,anon=Dxtm/postgres,authenticated=rDxtm/post
 screenshot_scans : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 settings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 staff : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+ticket_interests : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+ticket_listings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+ticket_transfers : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 tickets : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 === STORAGE BUCKETS ===
 === END OF SNAPSHOT ===
