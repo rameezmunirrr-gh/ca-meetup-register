@@ -1,6 +1,6 @@
 # Ehsaas'26 Registration App: Project Notes
 
-Last updated: 14 Oct 2026 (after deciding who gets logins now, and the restyle direction)
+Last updated: 16 Oct 2026 (after Release 1 and a security audit of the transfer backend; new work order: build, then test and risk-proof, then restyle)
 
 **This repo is public.** Never put passwords, the Supabase service role key, database connection strings, UPI IDs, phone numbers or email addresses in this file or anywhere else in the repo. (The Supabase URL and the *publishable* key inside the HTML pages are safe by design.)
 
@@ -18,6 +18,7 @@ Last updated: 14 Oct 2026 (after deciding who gets logins now, and the restyle d
 - **For any code change, say exactly which file to open, which text to search for, and what to replace it with.** For anything longer than a few lines, prefer giving a **complete file** (sent as a file) so the owner pastes one thing. Warn the owner that the trash-can icon on a GitHub file page *deletes the file* (this already happened once on 14 Oct 2026; it was restored from a saved copy).
 - **Database changes:** in the **Supabase SQL editor**. Send SQL as a file when it is long.
 - **Check your work before handing it over.** For page changes, run the page in a headless browser with a mocked Supabase and check the rendered numbers (done on 14 Oct 2026 for the Overview). For database logic, read the real function source in `sql/schema_snapshot.txt` first.
+- **Work order set by the owner (16 Oct 2026): structure and safety first, looks last.** Build the remaining features, then test in every way, think deeply about risks and close all of them, and only when the app is completely foolproof and error-proof start the redesign. **Do not spend time on styling until then.** The owner said there is no deadline pressure for Claude: focus on building, accuracy and risks in the code. (Dates: registration was planned to open on 20 Oct; the owner later said the due date may be about 25 Oct or another date. It is not fixed, so ask before relying on any date.)
 - **Ask before changing behaviour.** When the owner says "don't change anything yet, just note it", only record it (in section 12) and do not edit code.
 
 **Staying accurate**
@@ -37,12 +38,12 @@ A custom registration, payment-verification and entry app for **Ehsaas'26**, a M
 - **Event:** Sunday 22 Nov 2026, 2 PM, Savoury Business Hotel, Madiwala, Bengaluru.
 - **Why not a Google Form:** custom look and feel, plus features a form can't do:
   - several people in one booking (up to 5)
-  - automatic UPI QR and a pay button, with the amount calculated from group size
+  - automatic UPI QR (scan-only) with the amount calculated from group size
   - OCR scan of payment screenshots to help admins catch fake or reused proofs
   - automatic ticket generation (JPG/PDF with QR)
   - QR scanning at the gate, with live present/confirmed counts
   - admin controls (cap, price, deadline, open/close)
-- **Payment:** there is **no payment gateway** (no business account is involved). The UPI QR on the Pay screen is generated for the exact total (number of people times the price), and there is a **Share QR** button that opens Google Pay, PhonePe or any UPI app with the amount pre-filled. The participant only confirms and enters their UPI PIN, then uploads a screenshot. Organisers verify manually, helped by OCR.
+- **Payment:** there is **no payment gateway** (no business account is involved). The UPI QR on the Pay screen is generated for the exact total (number of people times the price), and the participant can scan it, use **Share/Download QR** (then upload the screenshot of the QR inside their UPI app), or copy the UPI ID and pay to it. **Tapping the QR to open a UPI app was removed on 16 Oct 2026** (the apps refuse it, see section 13). The participant enters the UPI PIN in their own app, then uploads a payment screenshot. The UPI ID, payee name and WhatsApp number are read from the database, not the page code. Organisers verify manually, helped by OCR.
 - **Goal:** maximum simplicity for participants and coordinators, with as much automation as possible.
 
 **Key numbers (current settings, adjustable in Admin, Settings):**
@@ -53,7 +54,7 @@ A custom registration, payment-verification and entry app for **Ehsaas'26**, a M
 | Price per person | ₹250 (checked 14 Oct 2026); the final price is set by the budgeting team |
 | Max group per booking | 5 |
 | Registration deadline | 31 Oct 2026, 23:59:59 IST |
-| Registration opens | **20 Oct 2026** |
+| Registration opens | **20 Oct 2026** (planned; the owner said on 16 Oct it may move to about 25 Oct or another date, so confirm) |
 | Registration open flag | Off by default, and currently **off** (checked 14 Oct 2026, 3 PM). Switch it on in Admin, Settings only when testing needs it; only the owner has the link. No real person registers until the owner says the project is complete. |
 
 ---
@@ -113,11 +114,19 @@ Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "T
 
 ### Tables
 - **`settings`** (one row, `id = 1`): `cap`, `price_per_head`, `max_group` (1 to 5), `deadline`, `is_open`, `closed_at` (when registration was last switched off by hand), `pause_enabled`, `pause_close_time`, `pause_open_time` (daily pause, India time), `grace_minutes` (10, fixed), `next_ticket`, `next_coord` (the counters for the next guest and coordinator number).
+- **`settings` Release 1 columns (added 16 Oct 2026):** `event_at` and `venue` (edited with `admin_set_event`), `upi_id`, `payee_name`, `whatsapp_number` (null until the admin enters them; checked for format; edited with `admin_set_payment_info`), plus `transfers_open` and `max_resale_price` (see the transfer tables below).
+- **`settings_log`**: one row per setting or staff change (`at`, `changed_by`, `who`, `area` = `settings` or `staff`, `field`, `old_value`, `new_value`). Admin read only. Changes made directly in Supabase are logged as "database".
 - **`bookings`**: one row per payment. `booking_code` (8 hex characters, unique), `submission_id` (unique, prevents double submits), `people_count` (1 to 5), `amount_expected`, `status` (`pending` / `paid` / `rejected`), `screenshot_path`, `reviewed_by`, `reviewed_at`, `reviewed_via` (`admin` or `gate`), `created_at`.
 - **`tickets`**: one row per person. `booking_id`, `ticket_no` (unique, the guest number), `coord_no` (the current coordinator number), `kind` (`guest` / `coordinator`), `secret` (12 hex characters, goes in the QR), `orig_secret` (the guest QR secret kept while someone is a coordinator), **`prev_coord_no`** and **`prev_coord_secret`** (a retired coordinator number and its QR secret, kept on the same person), `name`, `phone` (exactly 10 digits), `location`, `attendance`, `food`, `checked_in_at`, `checked_in_by`, `marked_by`, `marked_at`, `reg_seq` (registration order), `created_at`.
 - **`screenshot_scans`**: one row per booking (primary key `booking_id`): `txn_ids`, `image_hash`, `read_ok`, `amounts`, `scanned_by`, `scanned_at`. Deleted with its booking.
 - **`staff`**: `user_id` (primary key, linked to the login), `name`, `role` (`admin` or `gate` only).
 - **`keepalive`**: tiny table for the ping (readable by anon).
+- **Transfer tables (exist in the database, deployed but unused; `settings.transfers_open` is false and the pages have no transfer screens):**
+  * **`ticket_listings`**: a seller's offer on the board. `ticket_id`, `price` (0 up to `max_resale_price`), `contact_phone`, `status` (`active` / `withdrawn` / `sold` / `closed` / `removed` / `edited`), `mode` (`private` or `public`), `comment` (up to 140 characters).
+  * **`ticket_interests`**: people interested in a listing. `listing_id`, `name`, `phone`, `choice` (`talk` / `agree`), `price_seen`. Unique per (listing, phone); at most 50 per listing.
+  * **`ticket_transfers`**: one row per transfer. `code` (10 characters), `status` (`awaiting_buyer` / `pending_admin` / `done` / `declined` / `withdrawn`), `mode`, `price`, `agreed_amount`, the buyer's details (`new_*`), the seller's old details (`from_*`, `from_kind`, `from_coord_no`), `to_ticket_no`, `payout` (the seller's UPI ID or phone, public mode), and the money steps (`amount_confirmed_at`, `buyer_paid_at`, `buyer_screenshot_path`, `payment_received_at`, `seller_paid_at`, `refunded_at`). Admin read only.
+  * `settings` also has `transfers_open` (false) and `max_resale_price` (250).
+  * Functions: `get_transfer_status`, `list_board`, `post_listing`, `edit_listing`, `close_listing`, `express_interest`, `check_request`, `manage_ticket`, `start_transfer`, `apply_receive`, `lookup_transfer`, `submit_transfer_payment`, `withdraw_transfer`, and for admins `approve_transfer`, `decline_transfer`, `admin_confirm_amount`, `admin_mark_payment_received`, `admin_mark_seller_paid`, `admin_mark_refunded`, `admin_remove_listing`, `admin_clear_comment`, `admin_set_transfer_settings`. Read their real source in `sql/schema_snapshot.txt`. **Do not turn `transfers_open` on until the audit items in section 12 are fixed and tested.**
 - **`reg_sessions`**: one row per registration attempt in progress (`id` = the page's submission ID, `started_at`, `last_seen`). No personal data. Written only by `registration_heartbeat`; nobody can read it directly. Rows older than a day are deleted automatically.
 
 ### Rules enforced by the database itself
@@ -147,6 +156,11 @@ All write paths are `SECURITY DEFINER` functions. Parameter names matter because
 | `admin_update_settings(p_cap, p_price, p_deadline, p_is_open, p_pause_enabled, p_pause_close, p_pause_open)` | admin | Updates settings (null means keep). Remembers `closed_at` when `is_open` goes from on to off, clears it when switched on. Raises `INVALID_PAUSE_TIMES` if close and reopen are the same. |
 | `admin_registration_status()` | staff | Live status for the dashboard banner: closed reason, reopen time, next pause, and how many people are still inside their grace minutes (`grace_count`, `grace_until`). |
 | `_pause_info(settings)`, `_grace_until(settings, session, slack)`, `_public_state(settings, session)` | internal only | The pause-window maths (India time), the grace check, and the shared status JSON. Execute rights revoked from everyone. |
+| `get_payment_info()` | public | Returns the UPI ID, payee name and WhatsApp number for the Pay screen (null parts mean "not set up yet"). The page calls it each time Pay opens and every 30 seconds. |
+| `admin_set_payment_info(p_upi, p_payee, p_whatsapp)` | admin | Saves the payment details (format-checked) and writes the change to `settings_log`. |
+| `admin_payment_alert()` | admin | Returns who last changed the payment details in the last 7 days, for the banner shown to the other admin. |
+| `get_event_info()` | public | Returns `event_at` and `venue`. |
+| `admin_set_event(p_event_at, p_venue)` | admin | Updates the event date and venue. |
 | `is_staff()`, `is_admin()`, `_ticket_label(kind, ticket_no, coord_no)` | internal | Helpers for rules and labels (`E26-007`, `E26-001C`). |
 | `_assign_numbers(p_booking)`, `_booking_json(p_booking)` | internal only | Execute rights were revoked from public, anon and authenticated (done 13 Oct 2026; confirmed 14 Oct 2026: the rights list shows only `postgres`; the `execute rights` line in `sql/schema_snapshot.txt` shows the same). |
 | `rls_auto_enable()` | event trigger | Turns on row-level security for any new table in `public`. |
@@ -170,7 +184,7 @@ Home has two buttons: Register and Tickets.
 3. **Done:** shows the **Booking ID**, saved on the device (also usable from any device). Status is `pending`. A WhatsApp contact button opens a chat with the organisers with the Booking ID pre-filled.
 4. If spots run out while someone is filling the form, they get a message and a smaller group limit, and no half-made booking is created (tested).
 5. **Tickets:** search by Booking ID (typed in any case, with or without dashes, letter O for zero), plus "On this device" for saved bookings. States: Pending verification, Not verified (rejected, with a contact button), Confirmed (paid), which opens **View Ticket**.
-6. **Ticket:** each person gets a ticket drawn on a canvas (event details, name, food mark, **ticket number**, **Booking ID**, QR with `E26-007|secret`). Download as JPG or PDF per person, or all tickets as one PDF. Coordinator tickets use a different colour and the word COORDINATOR.
+6. **Ticket:** each person gets a ticket drawn on a canvas (event details, name, food mark, **ticket number**, QR with `E26-007|secret`; the Booking ID is **not** drawn on the ticket since 16 Oct 2026). Download as JPG or PDF per person, or all tickets as one PDF. Coordinator tickets use a different colour and the word COORDINATOR.
 
 ### Admin dashboard (`admin/index.html`)
 Login with email and password. Tabs:
@@ -185,7 +199,7 @@ Login with email and password. Tabs:
 - **Bookings:** every booking with its people (with ticket numbers), amount, status, the OCR-read transaction ID, review flags, and buttons Screenshot / Paid / Reject / Pending. Review flags: same transaction ID on two bookings, near-identical image (only as a backup when an ID couldn't be read), unreadable ID, expected amount not found on the screenshot.
 - **People:** one row per person. Filters (search, payment, food, location, attendance, type), **Download Excel (CSV)**, **Make coordinator / Remove coordinator** buttons, notes such as "guest E26-004 cancelled" and "coordinator E26-001C cancelled", and **Present** with an **Undo** button (admin only, calls `undo_checkin` by ticket id).
 - **Scan screenshots:** runs OCR in the admin's browser (nothing leaves the computer), saves transaction IDs, an image hash and amounts through `save_scan`.
-- **Settings:** registration open switch; when it is on, a **daily pause** box (switch + close time + reopen time, India time, same every day until the deadline); cap, price, deadline, and a reminder checklist. A live status banner (open / paused / closed, and "A user is currently updating even though the registration is closed, using the 10 minutes grace time.") appears at the top of Overview and Settings and refreshes every 15 seconds. Empty deadline no longer causes an error.
+- **Settings:** registration open switch; when it is on, a **daily pause** box (switch + close time + reopen time, India time, same every day until the deadline); cap, price, deadline, and a reminder checklist. A live status banner (open / paused / closed, and "A user is currently updating even though the registration is closed, using the 10 minutes grace time.") appears at the top of Overview and Settings and refreshes every 15 seconds. Empty deadline no longer causes an error. **Payment details** (UPI ID, payee name, WhatsApp number) are locked until **Change** is pressed, and a **Settings log** lists every setting and staff change. The other admin sees a banner for 7 days after the payment details change. The event date and venue are also edited here.
 
 ### Gate scanner (`gate/index.html`)
 - Login. Live counters: **Present / Confirmed**, **Veg present / Veg confirmed**, **Non-veg present / Non-veg confirmed** (only people in paid bookings), refreshed every 30 seconds.
@@ -246,6 +260,11 @@ Participant submits, an admin opens Bookings, checks the screenshot and flags, t
 - No payment gateway (direct UPI with manual verification).
 - Pending people hold spots (otherwise registrations could exceed the number of seats).
 - Registration stays closed to real people until the owner says the project is complete.
+- **Do not bring back the tap-to-pay (`upi://`) link** on the Pay screen. It was tried twice and the UPI apps refuse it (16 Oct 2026).
+- The **Booking ID is not shown on the ticket image, the ticket page heading or the PDF file name** (16 Oct 2026).
+- For transfers the **organisers handle the money** (Public mode); the earlier "organisers never handle money" idea no longer applies to transfers (16 Oct 2026). Registration itself is still direct UPI with manual verification.
+- **Transfers stay off (`transfers_open` false) until the Release 2 audit items are fixed and tested.**
+- Build order (owner, 16 Oct 2026): features first, then deep testing and risk-proofing, then restyle.
 
 ---
 
@@ -265,11 +284,18 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 
 **Test lessons:** the cancelled-ticket messages only appear when a QR is scanned with the camera (not when a person is picked from search). Download each ticket *before* changing it if it will be scanned later. Confirm the cap and price are what the test expects before starting. The test plan was a Markdown checklist kept outside the repo; ask Claude to recreate it from this section if needed.
 
+**Release 2 test plan (to do, after the hardening SQL is built).** Run on a scratch Postgres with a fake clock first, then in the browser with a mocked server, then on the real site with test data:
+1. Every audit item in section 12 as a deliberate attack (wrong or missing second check, guessing codes, repeated tries and lockout, fake interests, overwriting an application, re-selling a transferred ticket, the old holder still seeing the new ticket).
+2. Both modes (private and public) end to end, including price rules, the money checklist, decline and refund.
+3. Races: two buyers applying together, two admins approving together, the seller withdrawing while the buyer pays, a transfer while the person is being checked in at the gate.
+4. Gate after a transfer: the old QR never admits and shows the right message (also for a seat transferred twice); the new QR admits once; counts and numbering rules (section 7) stay correct; cap and live counts are unchanged.
+5. Everything is switched off cleanly when `transfers_open` is false, and the registration flow is unaffected.
+
 ---
 
 ## 11. Before registration opens (20 Oct 2026)
 
-1. **Finish the restyle (gate scanner, admin dashboard, ticket image) and re-test the pages** (section 12).
+1. **Decide transfers:** either finish, test and risk-proof Release 2 first (section 12), or leave `transfers_open` off for launch. Restyling (gate scanner, admin dashboard, ticket image) comes only after the app is risk-proof; then re-test the pages.
 2. In **Admin > Settings > Payment details**, press Change and type the real UPI ID, payee name and organiser WhatsApp number (with country code). (Do not copy them into this file.) Check the Settings log shows the change.
 3. Budgeting team sets the **final price** in Admin, Settings. Confirm the cap (150) and deadline (31 Oct 2026, 23:59:59 IST).
 4. Do a small real test payment (for example ₹1) and scan it in two UPI apps.
@@ -284,7 +310,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
    delete from bookings;
    update settings set next_ticket = 1, next_coord = 1 where id = 1;
    ```
-   Then **empty the `payment-proofs` bucket** in the Storage section of the dashboard (SQL cannot delete stored files). Check again: all counts 0 and staff 2 (the owner and the friend admin; use the real number of people added so far), and `select next_ticket, next_coord from settings;` shows `1, 1`. Do not delete `staff`.
+   (Transfer rows go with their tickets automatically; `settings_log` is not cleared, which is fine.) Then **empty the `payment-proofs` bucket** in the Storage section of the dashboard (SQL cannot delete stored files). Check again: all counts 0 and staff 2 (the owner and the friend admin; use the real number of people added so far), and `select next_ticket, next_coord from settings;` shows `1, 1`. Do not delete `staff`.
 6. The cap reads 150 and the deadline is correct (confirmed 14 Oct 2026). Make sure the **price is final** (currently ₹250) and the cap is still 150 after any further testing.
 7. In Supabase Authentication, **"Allow new users to sign up" is off** (confirmed 14 Oct 2026). Re-check it before launch in case it was changed.
 8. **Create the remaining organiser logins** (the two gate members and anyone else; the owner and the friend admin already exist) as in section 2, then test each login, and check that gate users cannot open the admin page.
@@ -295,16 +321,45 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 
 ## 12. Status and next steps
 
-**Done (as of 14 Oct 2026):**
+**Done (as of 16 Oct 2026):**
 - The three pages, the database and all functions, OCR scanning, coordinator handling, keep-alive, nightly schema snapshot.
 - Security hardening: `report` view follows staff-only access, internal helper functions locked down, bucket size and type limits, read-only `snapshot_reader` for the snapshot.
 - `undo_checkin` supports coordinators (by ticket id) and the **Undo** button exists in the People tab.
 - Numbering rule "a number stays with its person" (coordinator numbers are also kept), with the gate showing TICKET CANCELLED for retired coordinator numbers.
 - Overview redesigned (Active tickets, Spots used, Present matching the gate).
 - Full test passed (section 10).
+- **Release 1 (16 Oct 2026):** payment details now live in Admin Settings (locked until Change is pressed), the Pay screen reads them fresh and re-checks every 30 seconds, a Settings log and a 7-day alert banner exist, the `staff.role` default was removed, the Booking ID was removed from the ticket image, page heading and PDF name, and the tap-to-pay link was removed (UPI apps refuse it). Details in section 13.
+- Restyle: only the **public page** is done (ivory and green, light). The gate and admin pages still have the old colours.
 - Daily pause with 10-minute grace: SQL tested on a scratch Postgres with a fake clock, and both pages tested in a headless browser with a mocked server. **Still to be tested by the owner on the real site** (see the test steps given with the update).
 
-**Immediate task:**
+**Immediate task (owner's order, 16 Oct 2026): build Release 2 (ticket transfers), then test and risk-proof everything, then restyle.**
+
+1. **Release 2, step 1: hardening SQL (Part 3b)**, written and tested on a scratch Postgres before it touches Supabase, then pasted into `sql/changes.sql`. See the audit below.
+2. Step 2: admin **Transfers** tab with the money checklist.
+3. Step 3: public transfer screens (the board, sell, apply, pay, status) and a **Sell or transfer** button on confirmed bookings.
+4. Step 4: a full test pass, including deliberate attacks (every item in the audit below), before any redesign.
+5. Only then: the **restyle** (kept below; the decisions already made still stand).
+
+### Release 2: security audit of the transfer backend (16 Oct 2026, read from `sql/schema_snapshot.txt`)
+
+Status: the database has a first version of the transfer functions, but **no page uses them and `transfers_open` is false**. The planned hardening (buyer PIN with lockout, the seller's phone as a second check, one transfer per seat, the Booking ID no longer exposing a transferred ticket) is **not applied**. Holes found, all to be fixed and tested before transfers are switched on:
+
+1. **Booking ID is the only seller credential.** `_seller_ticket` takes the 8-character Booking ID plus a ticket label. Anyone holding the ID can list, sell or withdraw any ticket in that booking. No second check, no rate limit.
+2. **A sold ticket stays visible to the seller.** `lookup_booking` (via `_booking_json`) returns every ticket in the booking, including the buyer's new name and new QR secret, so the seller can keep the buyer's QR.
+3. **The seller can re-sell the buyer's ticket.** After a transfer the ticket keeps the same `booking_id` and gets a new number, so the old Booking ID plus the new label passes `_seller_ticket` again.
+4. **A phone number acts as a password.** `check_request(listing, phone)` returns the transfer code to anyone who types the phone number the seller chose as buyer (`intended_phone`), and `express_interest` overwrites the name for an existing (listing, phone) pair with no proof that the phone belongs to the person typing. So someone who knows or fakes a victim's number can get the code.
+5. **A transfer code holder can overwrite the buyer's application.** While a transfer is `pending_admin`, `apply_receive` replaces the details until the payment is marked. In private mode there is no intended buyer.
+6. **Spam and phone harvesting.** `list_board` is public, so listing ids are public; `express_interest` needs no proof, so 50 fake interests can fill a listing and block real buyers, and in private mode "talk" reveals the seller's phone to anyone.
+7. **Weak audit trail.** `settings_log` covers settings and staff only. Transfer money steps (confirm amount, mark received, mark seller paid, refund, approve, decline) are not logged, and an admin can mark "payment received" without a screenshot.
+8. **Still to test:** the gate's cancelled-ticket message when the same seat is transferred twice, and that an old QR never admits.
+
+**Already in the database (verified in the snapshot):** only one active listing per ticket, only one open transfer per ticket, a ticket number or coordinator number can be transferred away only once (unique `from_ticket_no` and `from_coord_no`), every transfer table is readable by admins only, and the transfer functions refuse to run while `transfers_open` is false. A seat can still change hands again after a transfer (the new ticket can be sold), which the planned "one transfer per seat" rule will limit.
+
+**Planned fixes (Part 3b):** the seller must also prove the phone number on the ticket; a buyer PIN with attempt limit and lockout; attempt counters on Booking ID and transfer-code lookups; `lookup_booking` stops showing a ticket after it has been transferred and the transferred ticket is detached from the seller's access; interests cannot be overwritten without proof; every transfer money action goes to a log. All tested on a scratch Postgres with the attack cases above.
+
+**Open decision (asked of the owner on 16 Oct, not yet answered):** which phone counts as the seller's second check? Recommended: the phone the ticket holder entered for that ticket on the registration form (so in a booking of five, a friend sells their own seat). Alternative: the first person's phone in the booking, so the booker can sell any seat. Record the answer here once given.
+
+**Restyle (postponed until Release 2 is built and risk-proof; text kept from 14 Oct 2026):**
 1. **Finish the restyle.** Decisions so far (14 Oct 2026): keep the **Kerala green and gold** look but refresh it; the **public registration page is already restyled** (light theme: ivory with green); next are the **gate scanner** and the **admin dashboard**, which will both be **dark themed with the same colour theme** (one shared set of dark colours, so the two staff pages look like a pair. **Chosen palette: "Midnight Emerald"**: page `#0a1612`, card `#11231c`, border `#21392f`, text `#efe9d8` (warm ivory, never pure white), soft text `#98a99e`, green accent `#3fb98d`, gold accent `#d4af5a`. Use gold sparingly, never pure black, and keep the paid/pending/rejected labels and the gate's green/red/amber result screens bright and clearly different on the dark background; today they follow the device's light/dark setting, and the plan is to make them dark always); the **ticket image** (drawn in JavaScript on a canvas, colours written in the code) should be restyled to **match the new look**. Keep the existing behaviour; only change look and feel. The look lives in each page's `<style>` block (colours are named values such as `--green` and `--gold` at the top), plus the colour values inside `drawTicket` in `index.html` for tickets. Keep the gate's big green/red/amber result screens clearly colour-coded. Test again afterwards.
 
 **Ideas and known gaps (none are blockers):**
@@ -312,8 +367,8 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - Saving settings with an empty deadline field throws an error in the browser.
 - The cap can be set below the number already registered (harmless; new bookings just stop).
 - The People table and the CSV still show "Present" for people from rejected bookings. Only the Overview card and the gate counters exclude them.
-- Booking codes are 8 hex characters and lookups are not rate-limited (fine for this size of event).
-- The `staff.role` column defaults to `admin` (always set the role explicitly).
+- Booking codes are 8 hex characters and lookups are not rate-limited. Acceptable for viewing tickets, **but not once transfers exist** (the Booking ID would then control selling tickets): rate limiting and a second check are part of the Release 2 hardening.
+- ~~The `staff.role` column defaults to `admin`~~ Fixed on 16 Oct 2026: the default was removed, so an insert without a role is refused. Still write the role explicitly.
 - Gate search finds a person by guest number digits, by name, phone, current label or Booking ID. A retired coordinator number is not searchable.
 - `rejected: N` on the Present card counts people in rejected bookings, including test leftovers until the cleanup.
 
@@ -327,6 +382,8 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - **14 Oct 2026 (end of day):** Decided that the owner and one friend (admin) get logins now, and everyone else is added at the end (section 2). Restyle direction agreed (section 12): public page light (ivory and green), gate and admin dark with one shared colour theme, "Midnight Emerald" (details in section 12). Explained to the owner how an admin is added (create the Supabase login, copy the User UID, insert a `staff` row with the role written explicitly).
 
 - **16 Oct 2026 (Release 1, Part 3a):** Payment details moved from the page code into Settings (`upi_id`, `payee_name`, `whatsapp_number`; `get_payment_info`, `admin_set_payment_info`). The Pay screen loads them fresh when opened, re-checks every 30 seconds, and shows a notice if they change, plus loading/failed/not-set-up states. The QR is scan-only (amount filled in). **Tapping the QR to open a UPI app was tried twice on 16 Oct 2026 (with and without the amount) and removed**: PhonePe, Google Pay and BHIM all refuse payments started from a `upi://` link to a personal UPI ID, while scanning, Share/Download QR and paying to a copied UPI ID work. Do not bring the tap link back. The caption now says: scan the QR, or on this phone take a screenshot and upload it in the UPI app, or pay to the UPI ID. The screenshot box shows "File uploaded · Tap to view · Change" once a file is chosen (the page used to show "No file chosen" next to "Selected"). New `settings_log` table (admin read only; logs settings and staff changes, including ones made directly in Supabase as "database"); Admin shows the Settings log and a 7-day banner to the other admin when payment details change (`admin_payment_alert`). `staff.role` default removed. The Booking ID is no longer drawn on the ticket image, the ticket page heading or the PDF file name. Event date/venue SQL recorded in `sql/changes.sql`. Tests: 151 earlier checks + 49 new database checks, and browser tests of both pages passed. **Transfers stay OFF** (`transfers_open` false); the transfer screens and the hardening SQL (Part 3b) are Release 2. **Decision reversed:** the organisers now handle money for transfers (Public mode), so "never handles money" no longer applies to transfers.
+
+- **16 Oct 2026 (review and audit):** Notes brought up to date with the repo: Release 1 added to Done, stale lines fixed. The transfer backend (tables and about 20 functions) was found already deployed but unused and switched off, and was audited from the schema snapshot: eight issues found, written up in section 12 (Release 2 audit). The owner set the work order: build Release 2, then test and risk-proof, then restyle only afterwards; no deadline pressure on Claude. The restyle of the gate, admin and ticket image is therefore postponed. Stale lines corrected in the same pass: the Pay description (no tap-to-pay, no Share-QR-opens-an-app), the ticket description (no Booking ID on the ticket), the missing Release 1 tables, columns and functions in section 5 and the Admin Settings description, and the known gap about unlimited Booking ID lookups. Decisions, a Release 2 test plan and the verified list of protections already in the database were added. Nothing was changed in code or in the database in this step.
 
 ---
 
