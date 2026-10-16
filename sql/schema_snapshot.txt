@@ -56,9 +56,20 @@ settings|14|event_at|timestamp with time zone|t|'2026-11-22 08:30:00+00'::timest
 settings|15|venue|text|t|'Savoury Business Hotel, Madiwala'::text
 settings|16|transfers_open|boolean|t|false
 settings|17|max_resale_price|integer|t|250
+settings|18|upi_id|text|f|
+settings|19|payee_name|text|f|
+settings|20|whatsapp_number|text|f|
+settings_log|1|id|bigint|t|
+settings_log|2|at|timestamp with time zone|t|now()
+settings_log|3|changed_by|uuid|f|
+settings_log|4|who|text|t|
+settings_log|5|area|text|t|
+settings_log|6|field|text|t|
+settings_log|7|old_value|text|f|
+settings_log|8|new_value|text|f|
 staff|1|user_id|uuid|t|
 staff|2|name|text|t|
-staff|3|role|text|t|'admin'::text
+staff|3|role|text|t|
 ticket_interests|1|id|uuid|t|gen_random_uuid()
 ticket_interests|2|listing_id|uuid|t|
 ticket_interests|3|name|text|t|
@@ -156,9 +167,14 @@ settings | settings_id_check | CHECK ((id = 1))
 settings | settings_max_group_check | CHECK (((max_group >= 1) AND (max_group <= 5)))
 settings | settings_max_resale_price_check | CHECK ((max_resale_price >= 0))
 settings | settings_pause_times_check | CHECK ((pause_close_time <> pause_open_time))
+settings | settings_payee_name_check | CHECK (((payee_name IS NULL) OR ((char_length(payee_name) >= 1) AND (char_length(payee_name) <= 60))))
 settings | settings_pkey | PRIMARY KEY (id)
 settings | settings_price_per_head_check | CHECK ((price_per_head > 0))
+settings | settings_upi_id_check | CHECK (((upi_id IS NULL) OR (upi_id ~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$'::text)))
 settings | settings_venue_len | CHECK (((char_length(btrim(venue)) >= 1) AND (char_length(btrim(venue)) <= 120)))
+settings | settings_whatsapp_check | CHECK (((whatsapp_number IS NULL) OR (whatsapp_number ~ '^[0-9]{11,15}$'::text)))
+settings_log | settings_log_area_check | CHECK ((area = ANY (ARRAY['settings'::text, 'staff'::text])))
+settings_log | settings_log_pkey | PRIMARY KEY (id)
 staff | staff_pkey | PRIMARY KEY (user_id)
 staff | staff_role_check | CHECK ((role = ANY (ARRAY['admin'::text, 'gate'::text])))
 staff | staff_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
@@ -209,6 +225,8 @@ keepalive | CREATE UNIQUE INDEX keepalive_pkey ON public.keepalive USING btree (
 reg_sessions | CREATE UNIQUE INDEX reg_sessions_pkey ON public.reg_sessions USING btree (id)
 screenshot_scans | CREATE UNIQUE INDEX screenshot_scans_pkey ON public.screenshot_scans USING btree (booking_id)
 settings | CREATE UNIQUE INDEX settings_pkey ON public.settings USING btree (id)
+settings_log | CREATE INDEX settings_log_at_idx ON public.settings_log USING btree (at DESC)
+settings_log | CREATE UNIQUE INDEX settings_log_pkey ON public.settings_log USING btree (id)
 staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
 ticket_interests | CREATE UNIQUE INDEX ticket_interests_listing_id_phone_key ON public.ticket_interests USING btree (listing_id, phone)
 ticket_interests | CREATE UNIQUE INDEX ticket_interests_pkey ON public.ticket_interests USING btree (id)
@@ -254,6 +272,7 @@ keepalive : rls=true
 reg_sessions : rls=true
 screenshot_scans : rls=true
 settings : rls=true
+settings_log : rls=true
 staff : rls=true
 ticket_interests : rls=true
 ticket_listings : rls=true
@@ -264,6 +283,7 @@ public.bookings | staff_read_bookings | SELECT | {authenticated} | using: is_sta
 public.keepalive | anon can read keepalive | SELECT | {anon} | using: true | check: -
 public.screenshot_scans | staff_read_scans | SELECT | {authenticated} | using: is_staff() | check: -
 public.settings | staff_read_settings | SELECT | {authenticated} | using: is_staff() | check: -
+public.settings_log | admin_read_log | SELECT | {authenticated} | using: is_admin() | check: -
 public.staff | staff_read_staff | SELECT | {authenticated} | using: ((user_id = auth.uid()) OR is_admin()) | check: -
 public.ticket_interests | admin_read_interests | SELECT | {authenticated} | using: is_admin() | check: -
 public.ticket_listings | admin_read_listings | SELECT | {authenticated} | using: is_admin() | check: -
@@ -369,6 +389,57 @@ begin
   if not found or r.started_at >= cm or r.last_seen < cm - interval '10 minutes' then return null; end if;
   if exists (select 1 from bookings where submission_id = p_session) then return null; end if;
   return cm + make_interval(mins => s.grace_minutes);
+end $function$
+
+--- _log_settings_change() | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._log_settings_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare k text; o jsonb := to_jsonb(old); n jsonb := to_jsonb(new); uid uuid := auth.uid(); nm text;
+begin
+  select name into nm from staff where user_id = uid;
+  for k in select jsonb_object_keys(n) loop
+    if k in ('next_ticket', 'next_coord', 'closed_at') then continue; end if;
+    if o -> k is distinct from n -> k then
+      insert into settings_log (changed_by, who, area, field, old_value, new_value)
+      values (uid, coalesce(nm, case when uid is null then 'database' else 'unknown login' end),
+              'settings', k, o ->> k, n ->> k);
+    end if;
+  end loop;
+  return null;
+end $function$
+
+--- _log_staff_change() | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._log_staff_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare uid uuid := auth.uid(); nm text; w text;
+begin
+  select name into nm from staff where user_id = uid;
+  w := coalesce(nm, case when uid is null then 'database' else 'unknown login' end);
+  if tg_op = 'INSERT' then
+    insert into settings_log (changed_by, who, area, field, old_value, new_value)
+    values (uid, w, 'staff', 'added', null, new.name || ' (' || new.role || ')');
+  elsif tg_op = 'DELETE' then
+    insert into settings_log (changed_by, who, area, field, old_value, new_value)
+    values (uid, w, 'staff', 'removed', old.name || ' (' || old.role || ')', null);
+  else
+    if old.role is distinct from new.role then
+      insert into settings_log (changed_by, who, area, field, old_value, new_value)
+      values (uid, w, 'staff', 'role of ' || new.name, old.role, new.role);
+    end if;
+    if old.name is distinct from new.name then
+      insert into settings_log (changed_by, who, area, field, old_value, new_value)
+      values (uid, w, 'staff', 'name', old.name, new.name);
+    end if;
+  end if;
+  return null;
 end $function$
 
 --- _norm_code(p text) | execute rights: {postgres=X/postgres}
@@ -603,6 +674,26 @@ begin
     seller_paid_ref = nullif(left(btrim(coalesce(p_ref, '')), 100), '') where id = x.id;
 end $function$
 
+--- admin_payment_alert() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_payment_alert()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare r record;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select at, changed_by, who into r from settings_log
+   where area = 'settings' and field in ('upi_id', 'payee_name', 'whatsapp_number') and at > now() - interval '7 days'
+   order by at desc, id desc limit 1;
+  if not found then return null; end if;
+  return jsonb_build_object('at', r.at, 'who', r.who,
+    'by_me', r.changed_by is not null and r.changed_by = auth.uid(),
+    'fields', (select coalesce(jsonb_agg(l.field order by l.field), '[]'::jsonb) from settings_log l
+               where l.area = 'settings' and l.at = r.at and l.field in ('upi_id', 'payee_name', 'whatsapp_number')));
+end $function$
+
 --- admin_registration_status() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_registration_status()
  RETURNS jsonb
@@ -653,6 +744,25 @@ begin
   if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
   if p_event_at is null or coalesce(btrim(p_venue), '') = '' then raise exception 'INVALID_EVENT'; end if;
   update settings set event_at = p_event_at, venue = btrim(p_venue) where id = 1;
+end $function$
+
+--- admin_set_payment_info(p_upi text, p_payee text, p_whatsapp text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_payment_info(p_upi text, p_payee text, p_whatsapp text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare u text; n text; w text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  u := btrim(coalesce(p_upi, ''));
+  n := btrim(regexp_replace(coalesce(p_payee, ''), '\s+', ' ', 'g'));
+  w := regexp_replace(coalesce(p_whatsapp, ''), '[^0-9]', '', 'g');       -- allows "+91 62352 02168"
+  if u !~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$' then raise exception 'INVALID_UPI'; end if;
+  if char_length(n) not between 1 and 60 then raise exception 'INVALID_PAYEE'; end if;
+  if w !~ '^[0-9]{11,15}$' then raise exception 'INVALID_WHATSAPP'; end if;
+  update settings set upi_id = u, payee_name = n, whatsapp_number = w where id = 1;
 end $function$
 
 --- admin_set_transfer_settings(p_open boolean, p_max_price integer) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
@@ -1003,8 +1113,17 @@ CREATE OR REPLACE FUNCTION public.get_event_info()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select jsonb_build_object('event_at', event_at, 'venue', venue) from settings where id = 1
-$function$
+  select jsonb_build_object('event_at', event_at, 'venue', venue) from settings where id = 1 $function$
+
+--- get_payment_info() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.get_payment_info()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object('upi_id', upi_id, 'payee_name', payee_name, 'whatsapp', whatsapp_number)
+  from settings where id = 1 $function$
 
 --- get_public_status(p_session uuid) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.get_public_status(p_session uuid DEFAULT NULL::uuid)
@@ -1499,6 +1618,8 @@ begin
 end $function$
 
 === TRIGGERS ===
+settings | CREATE TRIGGER settings_log_trg AFTER UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION _log_settings_change()
+staff | CREATE TRIGGER staff_log_trg AFTER INSERT OR DELETE OR UPDATE ON public.staff FOR EACH ROW EXECUTE FUNCTION _log_staff_change()
 === EVENT TRIGGERS ===
 ensure_rls | ddl_command_end | rls_auto_enable | enabled=O
 issue_graphql_placeholder | sql_drop | extensions.set_graphql_placeholder | enabled=O
@@ -1514,6 +1635,7 @@ reg_sessions : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}
 report : {postgres=arwdDxtm/postgres,anon=Dxtm/postgres,authenticated=rDxtm/postgres,service_role=Dxtm/postgres}
 screenshot_scans : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 settings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+settings_log : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 staff : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 ticket_interests : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 ticket_listings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
