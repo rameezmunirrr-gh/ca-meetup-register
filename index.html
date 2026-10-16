@@ -54,6 +54,7 @@ th{font-size:.8rem;font-weight:500;color:var(--mute)}tr:last-child td{border-bot
 .qr{display:block;margin:18px auto;width:min(260px,100%);height:auto;border-radius:14px;border:8px solid #fff;background:#fff;box-shadow:0 0 0 1px var(--line2),0 16px 30px -16px rgba(14,90,67,.4)}
 .upi{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap}
 .upi code{padding:9px 12px;border:1px dashed var(--line2);border-radius:10px;background:#fffcf3}
+a#qrlink{display:block;text-decoration:none;-webkit-tap-highlight-color:transparent}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--green-d);color:var(--on);padding:11px 18px;border-radius:999px;z-index:9;box-shadow:0 10px 24px -10px rgba(0,0,0,.4)}
 .note{font-size:.9rem;color:var(--mute)}
 [hidden]{display:none!important}
@@ -109,20 +110,18 @@ const CONFIG={
   ticketVenue:"Savoury Business Hotel, Madiwala",  // shown on the ticket
   organiserName:"Mallu Articles Bengaluru",        // shown on the ticket
   ticketTagline:"MALAYALEE CA MEETUP · BENGALURU", // small line at the top of the ticket
-  organiserWhatsApp:"916235202168",                // TEST NUMBER: country code + digits, no + or spaces. Swap before launch.
-  upiId:"mramizmuneer@okhdfcbank",
-  payeeName:"Ramiz Muneer",
+  // The UPI ID, the payee name and the organisers' WhatsApp number are NOT here any more:
+  // they are set in Admin > Settings > Payment details and read from the database.
   supabaseUrl:"https://jddrwajazpsdrqpwlncu.supabase.co",
   supabaseKey:"sb_publishable_W3tJTLdbCOuwkUwkjLW1Iw_9m1zGHFT"   // publishable key: safe to be public
 };
-const PLACEHOLDER_UPI=CONFIG.upiId==="yourname@upi";
 let db=null;try{db=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}})}catch(_){}
 
 function uuid(){if(crypto.randomUUID)return crypto.randomUUID();
   return"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15;return(c==="x"?r:(r&3|8)).toString(16)})}
 function blank(){return{name:"",phone:"",loc:"",att:"",food:""}}
 const S={step:"home",status:null,friends:false,n:1,people:[blank()],file:null,sid:uuid(),errs:[],payErr:"",busy:false,result:null,
-  tk:{data:{},search:null,q:"",msg:"",busy:false},cur:null,cv:[]};
+  tk:{data:{},search:null,q:"",msg:"",busy:false},cur:null,cv:[],pay:null,payLoading:false,payFail:false,payChanged:false};
 const $=s=>document.querySelector(s);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const price=()=>S.status?S.status.price_per_head:0;
@@ -149,11 +148,15 @@ function evVenue(){return(S.ev&&S.ev.venue)||CONFIG.ticketVenue}
 function evLine(){const p=evParts({weekday:"short",day:"numeric",month:"short",year:"numeric"});return p?p.weekday+" "+p.day+" "+p.month+" "+p.year+", "+evTime()+" · "+evVenue():CONFIG.eventLine}
 function head(t,s){return `<h1>${t}</h1><p class="sub">${s}</p>`}
 function closeDate(){try{return new Date(S.status.deadline).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kolkata"})}catch(_){return""}}
-function waLink(text){return "https://wa.me/"+CONFIG.organiserWhatsApp+"?text="+encodeURIComponent(text)}
-function contactBtn(text,label){return `<a class="btn ghost" href="${esc(waLink(text))}" target="_blank" rel="noopener">${label||"Contact the organisers"}</a>`}
+/* payment details (UPI ID, payee name) and the organisers' WhatsApp number come from the database (Admin > Settings) */
+function payFrom(d){d=d||{};return{upi:String(d.upi_id||""),payee:String(d.payee_name||""),wa:String(d.whatsapp||"")}}
+async function loadPay(){if(!db)return false;try{const{data,error}=await db.rpc("get_payment_info");if(error)throw error;S.pay=payFrom(data);return true}catch(_){return false}}
+function waLink(text){return S.pay&&S.pay.wa?"https://wa.me/"+S.pay.wa+"?text="+encodeURIComponent(text):""}
+function contactBtn(text,label){const l=waLink(text);return l?`<a class="btn ghost" href="${esc(l)}" target="_blank" rel="noopener">${label||"Contact the organisers"}</a>`:""}
 
 async function load(){
   await loadEvent();
+  if(!S.pay)await loadPay();
   try{
     if(!db)throw new Error("no client");
     const{data,error}=await db.rpc("get_public_status",{p_session:S.sid});if(error)throw error;
@@ -183,6 +186,7 @@ async function beat(){
     if(!data.accepting&&!data.grace_until&&inFill()&&!S.busy){S.graceLost=true;S.step="closed";render()}
   }catch(_){}
   paintBar();
+  checkPay();
 }
 function paintBar(){
   const el=$("#gbar");if(!el)return;
@@ -198,13 +202,34 @@ function paintBar(){
 }
 setInterval(beat,30000);setInterval(paintBar,1000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)beat()});
+/* ===== payment details: always fresh when the Pay step opens, and re-checked every 30 seconds while it is open ===== */
+async function goPay(){
+  S.step="pay";S.payErr="";S.payFail=false;S.payChanged=false;S.payLoading=true;render();
+  const ok=await loadPay();
+  S.payLoading=false;S.payFail=!ok;
+  if(S.step==="pay")render();
+}
+async function checkPay(){
+  if(S.step!=="pay"||S.busy||S.payLoading||S.payFail||!db)return;
+  try{
+    const{data,error}=await db.rpc("get_payment_info");if(error)throw error;
+    const p=payFrom(data);if(S.step!=="pay"||S.busy)return;
+    const changed=p.upi!==(S.pay&&S.pay.upi)||p.payee!==(S.pay&&S.pay.payee);
+    S.pay=p;
+    if(changed){S.payChanged=true;const y=window.scrollY;render();window.scrollTo(0,y)}
+  }catch(_){}
+}
+/* tapping the QR opens the UPI app on a phone. If nothing opens, say what to do instead. */
+let qrT=0;
+function qrWait(){clearTimeout(qrT);qrT=setTimeout(()=>{if(!document.hidden)toast("Nothing opened? Scan the QR from another phone, or copy the UPI ID below.",5000)},2500)}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)clearTimeout(qrT)});
 function stepBar(){const i=({form:1,summary:2,pay:3})[S.step];if(!i)return"";
   return `<ol class="steps" aria-label="Progress">`+["Details","Review","Payment"].map((n,j)=>`<li class="${j+1<i?"done":j+1===i?"cur":""}"${j+1===i?' aria-current="step"':""}><i>${j+1<i?"✓":j+1}</i><span>${n}</span></li>`).join("")+`</ol>`}
 function foot(){return S.step==="home"?"":`<p class="foot">${esc(CONFIG.organiserName)}</p>`}
 function render(){
   const a=$("#app");
   a.innerHTML=stepBar()+({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket})[S.step]()+foot();
-  if(S.step==="pay")drawQR($("#qr"),upiLink());
+  if(S.step==="pay"&&$("#qr"))drawQR($("#qr"),upiLink());
   if(S.step==="ticket")drawTickets().catch(()=>{});
   window.scrollTo(0,0);
 }
@@ -269,13 +294,19 @@ function vSummary(){
   `</table></div><div class="card"><b>${S.n} × ₹${price()} = ₹${total()}</b> payable</div>
   <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to payment</button></div>`;
 }
-function upiLink(){return `upi://pay?pa=${encodeURIComponent(CONFIG.upiId)}&pn=${encodeURIComponent(CONFIG.payeeName)}&am=${total().toFixed(2)}&cu=INR&tn=${encodeURIComponent("Meetup "+S.n+" reg")}`}
+function upiLink(){return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&am=${total().toFixed(2)}&cu=INR&tn=${encodeURIComponent("Meetup "+S.n+" reg")}`}
+const isMobile=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Mac/.test(navigator.platform));
 function vPay(){
+  if(S.payLoading)return head("Payment","Loading the payment details…");
+  if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="back">Back</button><button id="payretry">Try again</button></div>`;
+  if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers haven't finished setting up payments. Please try again a little later.")+`<div class="row"><button class="ghost" id="back">Back</button>${contactBtn("Hi, I couldn't pay for my "+CONFIG.eventName+" registration because the payment details are missing.","Contact the organisers")}</div>`;
+  const mob=isMobile(),qrc=`<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${total()}"></canvas>`;
   return head("Pay ₹"+total(),S.n+" registration"+(S.n>1?"s":"")+" × ₹"+price())+
-  (PLACEHOLDER_UPI?`<div class="card errbox" role="alert"><b>Test mode:</b> the UPI ID is still a placeholder. Do not pay.</div>`:"")+
+  (S.payChanged?`<div class="card errbox" role="alert"><b>The organisers have just updated the payment details.</b> Please use the QR below. If you have already paid, do not pay again: continue, upload your screenshot, and tell the organisers.</div>`:"")+
   (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
-  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div><canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${total()}"></canvas>
-  <div class="upi"><code id="uid">${esc(CONFIG.upiId)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
+  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${mob?`<a id="qrlink" href="${esc(upiLink())}" aria-label="Pay ₹${total()} in your UPI app">${qrc}</a>`:qrc}
+  <p class="note" style="margin:0 0 6px">${mob?"Tap the QR to pay in your UPI app, or scan it with another phone.":"Scan this QR with your phone's UPI app."}</p>
+  <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
   <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
   <div class="card"><label for="shot">Upload payment screenshot</label><input type="file" id="shot" accept="image/*">
@@ -337,10 +368,10 @@ async function doSearch(raw){
   }catch(_){S.tk.search=null;S.tk.msg="Could not reach the server. Check your internet and try again."}
   S.tk.busy=false;render();
 }
-function openTickets(){S.step="tickets";S.tk.search=null;S.tk.msg="";S.tk.q="";render();loadMine()}
+function openTickets(){S.step="tickets";S.tk.search=null;S.tk.msg="";S.tk.q="";render();(S.pay?Promise.resolve():loadPay()).then(loadMine)}
 function vTicket(){
   const r=S.cur,n=r.tickets.length;
-  let h=head("Your ticket"+(n>1?"s":""),"Booking ID <b>"+esc(r.booking_code)+"</b>. Show the QR code at the entry.");
+  let h=head("Your ticket"+(n>1?"s":""),"Show the QR code at the entry.");
   r.tickets.forEach((t,i)=>{
     h+=`<div class="card"><canvas id="tc${i}" class="tk" width="900" height="1480" role="img" aria-label="Ticket ${esc(t.label||"")} for ${esc(t.name)}"></canvas>
     <div class="row"><button data-dl="jpg" data-i="${i}">Download JPG</button><button class="ghost" data-dl="pdf" data-i="${i}">Download PDF</button></div></div>`;
@@ -387,9 +418,8 @@ function drawTicket(c,t,code){
   // stub
   txt(x,"Ticket number",90,1196,30,"italic 500",GI,"left",0,FD);
   const tl=t.label||"—",ls=fit(x,tl,420,84,40,"600");txt(x,tl,90,1278,ls,"600",P.acc,"left",1);
-  txt(x,"Booking ID",90,1334,30,"italic 500",GI,"left",0,FD);
-  txt(x,code,90,1384,38,"600",P.ink,"left",5);
-  txt(x,"Show this QR at the entry",90,1424,24,"400",P.mute,"left",0);
+  txt(x,"Admits one person, one entry",90,1352,30,"italic 500",GI,"left",0,FD);
+  txt(x,"Show this QR at the entry",90,1396,24,"400",P.mute,"left",0);
   // QR
   x.fillStyle="#fff";rr(x,556,1148,280,280,24);x.fill();x.lineWidth=2;x.strokeStyle=GOLD;x.globalAlpha=.7;x.stroke();x.globalAlpha=1;
   if(t.secret&&t.label){
@@ -435,7 +465,7 @@ async function downloadTicket(kind,i){
 }
 async function downloadAll(kind){
   const r=S.cur,idx=r.tickets.map((_,i)=>i);if(idx.some(i=>!S.cv[i]))return toast("Tickets are still loading, try again");
-  if(kind==="pdf")saveBlob(await pdfOf(idx),"Ehsaas26-"+r.booking_code+"-tickets.pdf");
+  if(kind==="pdf")saveBlob(await pdfOf(idx),"Ehsaas26-"+(r.tickets[0].label||"tickets")+"-tickets.pdf");
   else for(const i of idx){saveBlob(await jpegBlob(S.cv[i]),fname(r.tickets[i])+".jpg");await sleep(500)}
 }
 
@@ -444,7 +474,7 @@ function drawQR(c,text){
   c.width=c.height=m*k+pad*2;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.fillStyle="#000";
   for(let r=0;r<m;r++)for(let col=0;col<m;col++)if(q.isDark(r,col))x.fillRect(pad+col*k,pad+r*k,k,k);
 }
-function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2200)}
+function toast(t,ms){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),ms||2200)}
 const blobQR=()=>new Promise(r=>$("#qr").toBlob(r,"image/png"));
 async function download(){const b=await blobQR(),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="meetup-upi-"+total()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
@@ -512,9 +542,11 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="retry"||id==="recheck"){S.graceLost=false;S.step="loading";render();load()}
   if(id==="review"){S.errs=validate();if(S.errs.length)render();else{S.step="summary";render()}}
   if(id==="edit"){S.step="form";S.errs=[];render()}
-  if(id==="topay"){S.step="pay";S.payErr="";render()}
+  if(id==="topay")goPay();
+  if(id==="payretry")goPay();
+  if(id==="qrlink")qrWait();
   if(id==="back"&&!S.busy){S.step="summary";render()}
-  if(id==="copy"){try{await navigator.clipboard.writeText(CONFIG.upiId);toast("UPI ID copied")}catch(_){toast("Press and hold the UPI ID to copy")}}
+  if(id==="copy"){try{await navigator.clipboard.writeText(S.pay.upi);toast("UPI ID copied")}catch(_){toast("Press and hold the UPI ID to copy")}}
   if(id==="copyid"){try{await navigator.clipboard.writeText(S.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
   if(id==="dl")download();
   if(id==="share"){const b=await blobQR(),f=new File([b],"meetup-upi-"+total()+".png",{type:"image/png"});
@@ -524,4 +556,5 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;S.file=null;S.result=null;S.errs=[];S.step="loading";render();load()}
 });
 render();loadEvent().then(()=>{if(S.step==="home")render()});
+loadPay().then(()=>{if(["home","closed","done"].includes(S.step))render()});
 </script></body></html>
