@@ -75,7 +75,7 @@ Intended rule: gate-scan access is requested by the person and must be approved 
 2. Copy the new user's **User UID**.
 3. In the SQL editor: `insert into staff (user_id, name, role) values ('<UID>', '<Name>', '<role>');`
 
-The database only accepts the role values **`admin`** and **`gate`**. **Always write the role explicitly: the column default is `admin`**, so leaving it out would give full admin access. To remove someone's access, **delete their row from `staff`** (do not delete their Supabase login: that fails if they have ever reviewed or scanned anything). As of 14 Oct 2026 only the owner (admin) is in the table; the friend (admin) is to be added next, so expect **two** rows (both `admin`) from then on until the end-of-project additions. Sign-ups in Supabase Auth are **off** (confirmed 14 Oct 2026; manual linking and anonymous sign-ins are off too, and email confirmation is on).
+The database only accepts the role values **`admin`** and **`gate`**. **Always write the role explicitly: since 16 Oct 2026 the column has no default**, so an insert without a role is refused. To remove someone's access, **delete their row from `staff`** (do not delete their Supabase login: that fails if they have ever reviewed or scanned anything). As of 14 Oct 2026 only the owner (admin) is in the table; the friend (admin) is to be added next, so expect **two** rows (both `admin`) from then on until the end-of-project additions. Sign-ups in Supabase Auth are **off** (confirmed 14 Oct 2026; manual linking and anonymous sign-ins are off too, and email confirmation is on).
 
 Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "This page is for admins". Admins can use both pages.
 
@@ -97,7 +97,7 @@ Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "T
 
 | Path | Purpose |
 |---|---|
-| `index.html` | Public page: home, register (form, summary, pay with UPI QR, screenshot upload), Tickets (search by Booking ID, view and download tickets as JPG/PDF). A `CONFIG` block at the top holds event text, ticket text, UPI ID, payee name, organiser WhatsApp number and the Supabase URL and key. |
+| `index.html` | Public page: home, register (form, summary, pay with UPI QR, screenshot upload), Tickets (search by Booking ID, view and download tickets as JPG/PDF). A `CONFIG` block at the top holds event text, ticket text and the Supabase URL and key. The UPI ID, payee name and organiser WhatsApp number are **not** in the code: they come from the database (`get_payment_info`), set in Admin > Settings > Payment details. |
 | `admin/index.html` | Admin dashboard (admins only), see section 6. |
 | `gate/index.html` | Gate scanner (any staff), see section 6. |
 | `.github/workflows/supabase-keepalive.yml` | Keep-alive ping. |
@@ -270,7 +270,7 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 ## 11. Before registration opens (20 Oct 2026)
 
 1. **Finish the restyle (gate scanner, admin dashboard, ticket image) and re-test the pages** (section 12).
-2. In the `CONFIG` block of `index.html`, replace the **test** values with the real ones: UPI ID, payee name, organiser WhatsApp number. (Do not copy them into this file.)
+2. In **Admin > Settings > Payment details**, press Change and type the real UPI ID, payee name and organiser WhatsApp number (with country code). (Do not copy them into this file.) Check the Settings log shows the change.
 3. Budgeting team sets the **final price** in Admin, Settings. Confirm the cap (150) and deadline (31 Oct 2026, 23:59:59 IST).
 4. Do a small real test payment (for example ₹1) and scan it in two UPI apps.
 5. **Delete all test data** (do this once, right before launch, after all testing). In the Supabase SQL editor, in this order:
@@ -325,6 +325,8 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - **14 Oct 2026:** Nightly schema snapshot added (`schema-snapshot.yml`, read-only `snapshot_reader`). Numbering rule extended so coordinator numbers also stay with their person (`prev_coord_no`, `prev_coord_secret`, updated `set_coordinator` and `admit_ticket`). Full test passed. Overview changed (Active tickets, Spots used, Present). Admin page accidentally deleted on GitHub and restored from a saved copy with the Overview edits applied. Afternoon checks: helper functions locked, sign-ups off, cap 150, price 250, deadline correct, registration currently closed.
 - **14 Oct 2026 (later):** Daily pause + 10-minute grace added: new `settings` columns, `reg_sessions` table, `registration_heartbeat`, `admin_registration_status`, updated `get_public_status`, `submit_booking` and `admin_update_settings`; pause options and live banner in Admin; countdown, paused message and heartbeat on the public page. Run `daily-pause.sql` first, then upload both pages.
 - **14 Oct 2026 (end of day):** Decided that the owner and one friend (admin) get logins now, and everyone else is added at the end (section 2). Restyle direction agreed (section 12): public page light (ivory and green), gate and admin dark with one shared colour theme, "Midnight Emerald" (details in section 12). Explained to the owner how an admin is added (create the Supabase login, copy the User UID, insert a `staff` row with the role written explicitly).
+
+- **16 Oct 2026 (Release 1, Part 3a):** Payment details moved from the page code into Settings (`upi_id`, `payee_name`, `whatsapp_number`; `get_payment_info`, `admin_set_payment_info`). The Pay screen loads them fresh when opened, re-checks every 30 seconds, and shows a notice if they change, plus loading/failed/not-set-up states. The QR is scan-only (amount filled in). **Tapping the QR to open a UPI app was tried twice on 16 Oct 2026 (with and without the amount) and removed**: PhonePe, Google Pay and BHIM all refuse payments started from a `upi://` link to a personal UPI ID, while scanning, Share/Download QR and paying to a copied UPI ID work. Do not bring the tap link back. New `settings_log` table (admin read only; logs settings and staff changes, including ones made directly in Supabase as "database"); Admin shows the Settings log and a 7-day banner to the other admin when payment details change (`admin_payment_alert`). `staff.role` default removed. The Booking ID is no longer drawn on the ticket image, the ticket page heading or the PDF file name. Event date/venue SQL recorded in `sql/changes.sql`. Tests: 151 earlier checks + 49 new database checks, and browser tests of both pages passed. **Transfers stay OFF** (`transfers_open` false); the transfer screens and the hardening SQL (Part 3b) are Release 2. **Decision reversed:** the organisers now handle money for transfers (Public mode), so "never handles money" no longer applies to transfers.
 
 ---
 
