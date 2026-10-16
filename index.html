@@ -304,8 +304,8 @@ function vPay(){
   <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
   <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
-  <div class="card"><label for="shot">Upload payment screenshot</label><input type="file" id="shot" accept="image/*">
-  <div class="note">${S.file?"Selected: "+esc(S.file.name):"Required. Images only."}</div><div class="err" id="ferr"></div></div>
+  <div class="card"><label for="shot">Upload payment screenshot</label><input type="file" id="shot" accept="image/*" ${S.file?'style="display:none"':""}>
+  ${S.file&&S.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(S.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="shot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Images only.</div>`}<div class="err" id="ferr"></div></div>
   <div class="row"><button class="ghost" id="back" ${S.busy?"disabled":""}>Back</button><button id="submit">Submit registration</button></div>`;
 }
 function vDone(){
@@ -521,7 +521,7 @@ document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="fr"){S.friends=t.checked;setN(t.checked?2:1);render()}
   else if(t.name==="cnt"){setN(+t.value);render()}
   else if(t.id==="shot"){const f=t.files[0];
-    if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){$("#ferr").textContent="Choose an image file (a screenshot or photo).";t.value="";S.file=null}else{S.file=f||null;S.payErr="";render()}}});
+    if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){$("#ferr").textContent="Choose an image file (a screenshot or photo).";t.value="";S.file=null;S.fileUrl=null}else{try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}S.file=f||null;S.fileUrl=f?URL.createObjectURL(f):null;S.payErr="";render()}}});
 document.addEventListener("click",async e=>{const el=e.target.closest("button,a"),id=el?el.id:"",ds=el?el.dataset:{};
   if(id==="go-home"){S.step="home";render()}
   if(id==="go-register"){S.step="loading";render();load()}
@@ -547,7 +547,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
     if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Pay ₹"+total()})}catch(_){}}
     else{await download();toast("Sharing isn't supported here, so the QR was downloaded")}}
   if(id==="submit")submit();
-  if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;S.file=null;S.result=null;S.errs=[];S.step="loading";render();load()}
+  if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}S.file=null;S.fileUrl=null;S.result=null;S.errs=[];S.step="loading";render();load()}
 });
 render();loadEvent().then(()=>{if(S.step==="home")render()});
 loadPay().then(()=>{if(["home","closed","done"].includes(S.step))render()});
