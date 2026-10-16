@@ -42,7 +42,7 @@ const SIMILAR_BITS=8;                // images differing by <= this many of 1024
 const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true}});
 const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
-const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",type:"",review:false},msg:"",charts:[],scanning:false};
+const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",type:"",review:false},msg:"",charts:[],scanning:false,alert:null,log:[],payOpen:false};
 function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
 
 /* ---------- boot / auth ---------- */
@@ -58,6 +58,8 @@ async function load(){
   const e=b.error||t.error||sc.error||st.error;if(e){S.msg="Could not load data: "+e.message;return}
   S.bookings=b.data;S.tickets=t.data;S.scans=sc.data;S.settings=st.data;
   try{const r=await db.rpc("admin_registration_status");S.reg=r.error?null:r.data}catch(_){S.reg=null}
+  try{const r=await db.rpc("admin_payment_alert");S.alert=r.error?null:r.data}catch(_){S.alert=null}
+  try{const r=await db.from("settings_log").select("*").order("id",{ascending:false}).limit(200);S.log=r.error?[]:r.data}catch(_){S.log=[]}
 }
 /* ===== live registration status banner (daily pause + 10-minute grace) ===== */
 function fmtIST(iso){try{const d=new Date(iso),day=x=>x.toLocaleDateString("en-IN",{day:"numeric",month:"short",timeZone:"Asia/Kolkata"});
@@ -114,7 +116,7 @@ function view(){
   if(S.staff.role!=="admin"){a.innerHTML=`<h1>Hello, ${esc(S.staff.name)}</h1><div class="card">This page is for admins. <a href="../gate/">Open the gate scanner</a>.</div><button class="ghost" id="logout">Sign out</button>`;return}
   const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],["scan","Scan screenshots"],["settings","Settings"]];
   a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--green);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--green)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
-  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div><div id="v"></div>`;
+  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner():""}<div id="v"></div>`;
   ({overview:vOverview,bookings:vBookings,people:vPeople,scan:vScan,settings:vSettings})[S.tab]();
 }
 function vOverview(){
@@ -242,6 +244,25 @@ function evCard(s){
   <label for="svenue">Venue</label><input id="svenue" type="text" maxlength="120" style="width:100%" value="${esc(s.venue||"")}">
   <p class="mute">Tickets already downloaded keep the details they were made with, so settle these before tickets are issued.</p>
   <p><button id="evsave">Save event details</button></p></div>`}
+
+/* ---------- payment details, change banner, settings log ---------- */
+const FIELD_NAMES={upi_id:"UPI ID",payee_name:"payee name",whatsapp_number:"WhatsApp number"};
+function alertBanner(){const a=S.alert;if(!a)return"";
+  const f=(a.fields||[]).map(x=>FIELD_NAMES[x]||x).join(", ");
+  return `<div class="card" role="alert" style="border:2px solid ${a.by_me?"var(--line)":"#b45309"};background:${a.by_me?"#fff":"#fff7ed"}"><b>${a.by_me?"You changed":esc(a.who)+" changed"} the payment details</b> (${esc(f)}) on ${esc(new Date(a.at).toLocaleString("en-IN",{timeZone:"Asia/Calcutta",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}.${a.by_me?"":" If this was not agreed, check Settings now: payments go to the UPI ID shown there."}</div>`}
+function payCard(s){const set=s.upi_id&&s.payee_name&&s.whatsapp_number,ro=!S.payOpen;
+  return `<div class="card" style="max-width:520px"><h2>Payment details</h2>
+  ${set?"":`<p class="err">Not set up yet. The registration page cannot take payments until all three are filled in.</p>`}
+  <p class="mute" style="margin-top:0">Shown to participants on the pay screen and used for the QR code and the WhatsApp buttons. They are locked: press Change to edit.</p>
+  <label for="pupi">UPI ID</label><input id="pupi" value="${esc(s.upi_id||"")}" ${ro?"readonly":""} autocomplete="off" placeholder="name@bank">
+  <label for="ppayee">Payee name (shown on the pay screen)</label><input id="ppayee" value="${esc(s.payee_name||"")}" ${ro?"readonly":""} maxlength="60">
+  <label for="pwa">Organisers' WhatsApp number (with country code)</label><input id="pwa" value="${esc(s.whatsapp_number||"")}" ${ro?"readonly":""} inputmode="tel" placeholder="91XXXXXXXXXX">
+  <p>${ro?`<button id="pchange">Change</button>`:`<button id="psave">Save payment details</button> <button class="ghost" id="pcancel">Cancel</button>`}</p></div>`}
+function logCard(){
+  const rows=S.log.map(l=>`<tr><td>${esc(new Date(l.at).toLocaleString("en-IN",{timeZone:"Asia/Calcutta",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}</td><td>${esc(l.who)}</td><td>${esc(l.field)}</td><td>${l.area==="settings"&&["upi_id","whatsapp_number"].includes(l.field)?esc(l.old_value||"–"):esc(l.old_value||"–")}</td><td>${esc(l.new_value||"–")}</td></tr>`).join("");
+  return `<div class="card" style="max-width:720px;overflow-x:auto"><h2>Settings log</h2><p class="mute" style="margin-top:0">Every change to the settings and the organiser list. It cannot be edited or deleted. "database" means someone changed it directly in Supabase.</p>
+  ${rows?`<table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="mute">Nothing logged yet.</p>`}</div>`}
+const PAY_ERR={INVALID_UPI:"That UPI ID doesn't look right. It should look like name@bank.",INVALID_PAYEE:"Type the payee name (up to 60 letters).",INVALID_WHATSAPP:"The WhatsApp number needs the country code, for example 91XXXXXXXXXX.",NOT_ALLOWED:"Only admins can change this."};
 function vSettings(){const s=S.settings;
   const hm=x=>String(x||"").slice(0,5);
   $("#v").innerHTML=regBar()+`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
@@ -260,15 +281,16 @@ function vSettings(){const s=S.settings;
   <label for="sdl">Deadline (India time)</label><input id="sdl" type="datetime-local" value="${istInput(s.deadline)}">
   <p class="mute">The form closes at the deadline or when the cap is reached, whichever comes first. Changing the price affects new bookings only.</p>
   <p><button id="ssave">Save settings</button></p></div>
+  ${payCard(s)}
   ${evCard(s)}
   <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
   <p class="mute">A reminder list. Nothing here is checked automatically.</p>
-  <label style="font-weight:400"><input type="checkbox"> UPI ID and payee name in the participant page are the final ones (not Ramiz's test ones)</label>
-  <label style="font-weight:400"><input type="checkbox"> WhatsApp number in the participant page is the organisers' number (not the test number)</label>
+  <label style="font-weight:400"><input type="checkbox"> Payment details above (UPI ID, payee name) are the final ones, and a test payment reached the right account</label>
+  <label style="font-weight:400"><input type="checkbox"> WhatsApp number above is the organisers' number</label>
   <label style="font-weight:400"><input type="checkbox"> A ₹1 test payment was scanned in two UPI apps</label>
   <label style="font-weight:400"><input type="checkbox"> All test bookings deleted and the payment-proofs storage emptied</label>
   <label style="font-weight:400"><input type="checkbox"> "Allow new users to sign up" is off in Supabase</label>
-  <label style="font-weight:400"><input type="checkbox"> The other organiser logins are created</label></div>`}
+  <label style="font-weight:400"><input type="checkbox"> The other organiser logins are created</label></div>${logCard()}`}
 
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{const t=e.target,id=t.id;
@@ -300,6 +322,14 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
     if(!vn)return toast("Type the venue");
     const r=await db.rpc("admin_set_event",{p_event_at:new Date(v+":00+05:30").toISOString(),p_venue:vn});
     if(r.error)return toast("Failed: "+r.error.message);await load();view();toast("Event details saved")}
+  if(id==="pchange"){S.payOpen=true;view();setTimeout(()=>$("#pupi")&&$("#pupi").focus(),0)}
+  if(id==="pcancel"){S.payOpen=false;view()}
+  if(id==="psave"){
+    const u=$("#pupi").value.trim(),n=$("#ppayee").value.trim(),w=$("#pwa").value.trim(),o=S.settings;
+    if(!confirm("Change the payment details?\n\nUPI ID: "+(o.upi_id||"(none)")+"  →  "+u+"\nPayee: "+(o.payee_name||"(none)")+"  →  "+n+"\nWhatsApp: "+(o.whatsapp_number||"(none)")+"  →  "+w+"\n\nNew payments will go to this UPI ID straight away. The other admin will be shown a notice."))return;
+    const r=await db.rpc("admin_set_payment_info",{p_upi:u,p_payee:n,p_whatsapp:w});
+    if(r.error){const m=(r.error.message||"").match(/[A-Z_]{6,}/);return toast(PAY_ERR[m&&m[0]]||("Failed: "+r.error.message))}
+    S.payOpen=false;await load();view();toast("Payment details saved")}
   if(id==="ssave"){
     if($("#sclose").value&&$("#sclose").value===$("#sreopen").value)return toast("Close time and reopen time must be different");
     const r=await db.rpc("admin_update_settings",{p_cap:+$("#scap").value,p_price:+$("#sprice").value,p_deadline:$("#sdl").value?new Date($("#sdl").value+":59+05:30").toISOString():null,p_is_open:$("#sopen").checked,
