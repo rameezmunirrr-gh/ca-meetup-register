@@ -1714,3 +1714,177 @@ grant execute on function approve_transfer(uuid, boolean) to authenticated;
 grant execute on function decline_transfer(uuid, text) to authenticated;
 grant execute on function admin_remove_listing(uuid) to authenticated;
 grant execute on function admit_ticket(integer, text, boolean, boolean, uuid) to authenticated;
+
+
+-- =====================================================================
+-- PART 3a  (16 Oct 2026): payment details in Settings, settings log, staff role default
+-- Run it in the Supabase SQL editor, after the two transfer scripts. Safe to run more than once.
+--
+-- What this does
+--   1. The UPI ID, the payee name and the organiser WhatsApp number now live in the database
+--      (Settings), so they can be changed from the Admin page and are no longer written in the
+--      public page's code. THIS FILE CONTAINS NO REAL VALUES (the repo is public): after running
+--      it, open Admin > Settings > Payment details and type them in.
+--   2. A log of every change to the settings and to the staff list (who, when, old and new value).
+--      Changes typed straight into the Supabase SQL editor are logged too, as "database".
+--   3. The staff.role column no longer has a default, so a login added without a role is refused
+--      instead of silently becoming an admin.
+--   4. (record only) The event date and venue setup, which was run earlier but never saved here.
+--
+-- Error messages the Admin page translates:
+--   INVALID_UPI, INVALID_PAYEE, INVALID_WHATSAPP, NOT_ALLOWED
+-- =====================================================================
+
+-- 1. PAYMENT DETAILS ---------------------------------------------------------------------------------
+alter table settings add column if not exists upi_id text;
+alter table settings add column if not exists payee_name text;
+alter table settings add column if not exists whatsapp_number text;
+
+alter table settings drop constraint if exists settings_upi_id_check;
+alter table settings add constraint settings_upi_id_check
+  check (upi_id is null or upi_id ~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$');
+alter table settings drop constraint if exists settings_payee_name_check;
+alter table settings add constraint settings_payee_name_check
+  check (payee_name is null or char_length(payee_name) between 1 and 60);
+alter table settings drop constraint if exists settings_whatsapp_check;
+alter table settings add constraint settings_whatsapp_check
+  check (whatsapp_number is null or whatsapp_number ~ '^[0-9]{11,15}$');   -- country code + number, digits only
+
+-- What the public pages read. Empty (null) until an admin has typed the values in.
+create or replace function get_payment_info() returns jsonb
+language sql stable security definer set search_path to 'public' as $$
+  select jsonb_build_object('upi_id', upi_id, 'payee_name', payee_name, 'whatsapp', whatsapp_number)
+  from settings where id = 1 $$;
+
+-- Admins only. All three values are required each time.
+create or replace function admin_set_payment_info(p_upi text, p_payee text, p_whatsapp text) returns void
+language plpgsql security definer set search_path to 'public' as $$
+declare u text; n text; w text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  u := btrim(coalesce(p_upi, ''));
+  n := btrim(regexp_replace(coalesce(p_payee, ''), '\s+', ' ', 'g'));
+  w := regexp_replace(coalesce(p_whatsapp, ''), '[^0-9]', '', 'g');       -- allows "+91 62352 02168"
+  if u !~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$' then raise exception 'INVALID_UPI'; end if;
+  if char_length(n) not between 1 and 60 then raise exception 'INVALID_PAYEE'; end if;
+  if w !~ '^[0-9]{11,15}$' then raise exception 'INVALID_WHATSAPP'; end if;
+  update settings set upi_id = u, payee_name = n, whatsapp_number = w where id = 1;
+end $$;
+
+-- 2. THE LOG -------------------------------------------------------------------------------------------
+create table if not exists settings_log (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  changed_by uuid,                    -- empty = made directly in the database (SQL editor)
+  who text not null,
+  area text not null check (area in ('settings', 'staff')),
+  field text not null,
+  old_value text,
+  new_value text);
+create index if not exists settings_log_at_idx on settings_log (at desc);
+
+alter table settings_log enable row level security;
+revoke all on table settings_log from anon, authenticated;
+grant select on table settings_log to authenticated;
+drop policy if exists admin_read_log on settings_log;
+create policy admin_read_log on settings_log for select to authenticated using (is_admin());
+
+-- Settings: one line per changed value. The automatic counters and the "closed at" stamp are not logged.
+create or replace function _log_settings_change() returns trigger
+language plpgsql security definer set search_path to 'public' as $$
+declare k text; o jsonb := to_jsonb(old); n jsonb := to_jsonb(new); uid uuid := auth.uid(); nm text;
+begin
+  select name into nm from staff where user_id = uid;
+  for k in select jsonb_object_keys(n) loop
+    if k in ('next_ticket', 'next_coord', 'closed_at') then continue; end if;
+    if o -> k is distinct from n -> k then
+      insert into settings_log (changed_by, who, area, field, old_value, new_value)
+      values (uid, coalesce(nm, case when uid is null then 'database' else 'unknown login' end),
+              'settings', k, o ->> k, n ->> k);
+    end if;
+  end loop;
+  return null;
+end $$;
+drop trigger if exists settings_log_trg on settings;
+create trigger settings_log_trg after update on settings for each row execute function _log_settings_change();
+
+-- Staff list: added, removed, role or name changed.
+create or replace function _log_staff_change() returns trigger
+language plpgsql security definer set search_path to 'public' as $$
+declare uid uuid := auth.uid(); nm text; w text;
+begin
+  select name into nm from staff where user_id = uid;
+  w := coalesce(nm, case when uid is null then 'database' else 'unknown login' end);
+  if tg_op = 'INSERT' then
+    insert into settings_log (changed_by, who, area, field, old_value, new_value)
+    values (uid, w, 'staff', 'added', null, new.name || ' (' || new.role || ')');
+  elsif tg_op = 'DELETE' then
+    insert into settings_log (changed_by, who, area, field, old_value, new_value)
+    values (uid, w, 'staff', 'removed', old.name || ' (' || old.role || ')', null);
+  else
+    if old.role is distinct from new.role then
+      insert into settings_log (changed_by, who, area, field, old_value, new_value)
+      values (uid, w, 'staff', 'role of ' || new.name, old.role, new.role);
+    end if;
+    if old.name is distinct from new.name then
+      insert into settings_log (changed_by, who, area, field, old_value, new_value)
+      values (uid, w, 'staff', 'name', old.name, new.name);
+    end if;
+  end if;
+  return null;
+end $$;
+drop trigger if exists staff_log_trg on staff;
+create trigger staff_log_trg after insert or update or delete on staff for each row execute function _log_staff_change();
+
+-- For the banner on the Admin Overview: the latest change to the payment details in the last 7 days.
+create or replace function admin_payment_alert() returns jsonb
+language plpgsql stable security definer set search_path to 'public' as $$
+declare r record;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select at, changed_by, who into r from settings_log
+   where area = 'settings' and field in ('upi_id', 'payee_name', 'whatsapp_number') and at > now() - interval '7 days'
+   order by at desc, id desc limit 1;
+  if not found then return null; end if;
+  return jsonb_build_object('at', r.at, 'who', r.who,
+    'by_me', r.changed_by is not null and r.changed_by = auth.uid(),
+    'fields', (select coalesce(jsonb_agg(l.field order by l.field), '[]'::jsonb) from settings_log l
+               where l.area = 'settings' and l.at = r.at and l.field in ('upi_id', 'payee_name', 'whatsapp_number')));
+end $$;
+
+-- 3. STAFF ROLE: NO DEFAULT ---------------------------------------------------------------------------------
+-- (the role must now always be written: 'admin' or 'gate'. Existing rows are not changed.)
+alter table staff alter column role drop default;
+
+-- 4. WHO MAY CALL WHAT -----------------------------------------------------------------------------------
+revoke all on function get_payment_info() from public, anon, authenticated;
+revoke all on function admin_set_payment_info(text, text, text) from public, anon, authenticated;
+revoke all on function admin_payment_alert() from public, anon, authenticated;
+revoke all on function _log_settings_change() from public, anon, authenticated;
+revoke all on function _log_staff_change() from public, anon, authenticated;
+grant execute on function get_payment_info() to anon, authenticated;                 -- website visitors
+grant execute on function admin_set_payment_info(text, text, text) to authenticated; -- admins (checked inside)
+grant execute on function admin_payment_alert() to authenticated;                    -- admins (checked inside)
+
+-- 5. RECORD ONLY: event date and venue (already live since 15 Oct; kept here so the history is complete) --------
+alter table settings add column if not exists event_at timestamptz not null default '2026-11-22 08:30:00+00';
+alter table settings add column if not exists venue text not null default 'Savoury Business Hotel, Madiwala';
+alter table settings drop constraint if exists settings_venue_len;
+alter table settings add constraint settings_venue_len check (char_length(btrim(venue)) between 1 and 120);
+
+create or replace function get_event_info() returns jsonb
+language sql stable security definer set search_path to 'public' as $$
+  select jsonb_build_object('event_at', event_at, 'venue', venue) from settings where id = 1 $$;
+
+create or replace function admin_set_event(p_event_at timestamptz, p_venue text) returns void
+language plpgsql security definer set search_path to 'public' as $$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_event_at is null or coalesce(btrim(p_venue), '') = '' then raise exception 'INVALID_EVENT'; end if;
+  update settings set event_at = p_event_at, venue = btrim(p_venue) where id = 1;
+end $$;
+
+revoke all on function get_event_info() from public, anon, authenticated;
+revoke all on function admin_set_event(timestamptz, text) from public, anon, authenticated;
+grant execute on function get_event_info() to anon, authenticated;
+grant execute on function admin_set_event(timestamptz, text) to authenticated;
