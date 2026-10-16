@@ -93,7 +93,6 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 2
 .idcard .amt{font:600 2.4rem/1.1 "Jost",system-ui,sans-serif;letter-spacing:.1em;font-variant-numeric:lining-nums}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.invite,.seal{animation:none}}
-a#qrlink{display:block;text-decoration:none;-webkit-tap-highlight-color:transparent}
 </style></head>
 <body>
 <div class="kasavu"></div>
@@ -292,22 +291,16 @@ function vSummary(){
   <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to payment</button></div>`;
 }
 function upiLink(){return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&am=${total().toFixed(2)}&cu=INR&tn=${encodeURIComponent("Meetup "+S.n+" reg")}`}
-const isMobile=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Mac/.test(navigator.platform));
-/* tap link: NO amount (apps refused the pre-filled one). The QR itself still carries the amount. */
-function upiTapLink(){return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&cu=INR`}
-let qrT=0;
-function qrWait(){clearTimeout(qrT);qrT=setTimeout(()=>{if(!document.hidden)toast("Nothing opened? Scan the QR from another phone, or copy the UPI ID below.",5000)},2500)}
-document.addEventListener("visibilitychange",()=>{if(document.hidden)clearTimeout(qrT)});
 function vPay(){
   if(S.payLoading)return head("Payment","Loading the payment details…");
   if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="back">Back</button><button id="payretry">Try again</button></div>`;
   if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers haven't finished setting up payments. Please try again a little later.")+`<div class="row"><button class="ghost" id="back">Back</button>${contactBtn("Hi, I couldn't pay for my "+CONFIG.eventName+" registration because the payment details are missing.","Contact the organisers")}</div>`;
-  const mob=isMobile(),qrc=`<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${total()}"></canvas>`;
+  const qrc=`<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${total()}"></canvas>`;
   return head("Pay ₹"+total(),S.n+" registration"+(S.n>1?"s":"")+" × ₹"+price())+
   (S.payChanged?`<div class="card errbox" role="alert"><b>The organisers have just updated the payment details.</b> Please use the QR below. If you have already paid, do not pay again: continue, upload your screenshot, and tell the organisers.</div>`:"")+
   (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
-  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${mob?`<a id="qrlink" href="${esc(upiTapLink())}" aria-label="Open your UPI app">${qrc}</a>`:qrc}
-  <p class="note" style="margin:0 0 6px">${mob?`Tap the QR to open your UPI app, then <b>type ₹${total()}</b>. Or scan it with another phone. If tapping doesn't work, copy the UPI ID below and pay inside your app.`:`Scan this QR with your UPI app.`}</p>
+  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${qrc}
+  <p class="note" style="margin:0 0 6px">Scan this QR with your UPI app. Paying from this phone? Copy the UPI ID below, open your UPI app, choose pay to UPI ID, and type ₹${total()}.</p>
   <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
   <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
@@ -546,7 +539,6 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="edit"){S.step="form";S.errs=[];render()}
   if(id==="topay")goPay();
   if(id==="payretry")goPay();
-  if(id==="qrlink")qrWait();
   if(id==="back"&&!S.busy){S.step="summary";render()}
   if(id==="copy"){try{await navigator.clipboard.writeText(S.pay.upi);toast("UPI ID copied")}catch(_){toast("Press and hold the UPI ID to copy")}}
   if(id==="copyid"){try{await navigator.clipboard.writeText(S.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
