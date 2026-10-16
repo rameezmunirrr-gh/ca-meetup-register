@@ -300,7 +300,7 @@ function vPay(){
   (S.payChanged?`<div class="card errbox" role="alert"><b>The organisers have just updated the payment details.</b> Please use the QR below. If you have already paid, do not pay again: continue, upload your screenshot, and tell the organisers.</div>`:"")+
   (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
   `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${qrc}
-  <p class="note" style="margin:0 0 6px">Scan this QR with your UPI app. Paying from this phone? Copy the UPI ID below, open your UPI app, choose pay to UPI ID, and type ₹${total()}.</p>
+  <p class="note" style="margin:0 0 6px">Scan this QR with your UPI app.<br>Pay using this phone? Take a screenshot and upload it in your UPI app, or pay using the UPI ID below.</p>
   <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
   <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
