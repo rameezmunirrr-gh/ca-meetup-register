@@ -54,7 +54,6 @@ th{font-size:.8rem;font-weight:500;color:var(--mute)}tr:last-child td{border-bot
 .qr{display:block;margin:18px auto;width:min(260px,100%);height:auto;border-radius:14px;border:8px solid #fff;background:#fff;box-shadow:0 0 0 1px var(--line2),0 16px 30px -16px rgba(14,90,67,.4)}
 .upi{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap}
 .upi code{padding:9px 12px;border:1px dashed var(--line2);border-radius:10px;background:#fffcf3}
-a#qrlink{display:block;text-decoration:none;-webkit-tap-highlight-color:transparent}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--green-d);color:var(--on);padding:11px 18px;border-radius:999px;z-index:9;box-shadow:0 10px 24px -10px rgba(0,0,0,.4)}
 .note{font-size:.9rem;color:var(--mute)}
 [hidden]{display:none!important}
@@ -94,6 +93,7 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 2
 .idcard .amt{font:600 2.4rem/1.1 "Jost",system-ui,sans-serif;letter-spacing:.1em;font-variant-numeric:lining-nums}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.invite,.seal{animation:none}}
+a#qrlink{display:block;text-decoration:none;-webkit-tap-highlight-color:transparent}
 </style></head>
 <body>
 <div class="kasavu"></div>
@@ -219,10 +219,7 @@ async function checkPay(){
     if(changed){S.payChanged=true;const y=window.scrollY;render();window.scrollTo(0,y)}
   }catch(_){}
 }
-/* tapping the QR opens the UPI app on a phone. If nothing opens, say what to do instead. */
-let qrT=0;
-function qrWait(){clearTimeout(qrT);qrT=setTimeout(()=>{if(!document.hidden)toast("Nothing opened? Scan the QR from another phone, or copy the UPI ID below.",5000)},2500)}
-document.addEventListener("visibilitychange",()=>{if(document.hidden)clearTimeout(qrT)});
+
 function stepBar(){const i=({form:1,summary:2,pay:3})[S.step];if(!i)return"";
   return `<ol class="steps" aria-label="Progress">`+["Details","Review","Payment"].map((n,j)=>`<li class="${j+1<i?"done":j+1===i?"cur":""}"${j+1===i?' aria-current="step"':""}><i>${j+1<i?"✓":j+1}</i><span>${n}</span></li>`).join("")+`</ol>`}
 function foot(){return S.step==="home"?"":`<p class="foot">${esc(CONFIG.organiserName)}</p>`}
@@ -296,6 +293,11 @@ function vSummary(){
 }
 function upiLink(){return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&am=${total().toFixed(2)}&cu=INR&tn=${encodeURIComponent("Meetup "+S.n+" reg")}`}
 const isMobile=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Mac/.test(navigator.platform));
+/* tap link: NO amount (apps refused the pre-filled one). The QR itself still carries the amount. */
+function upiTapLink(){return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&cu=INR`}
+let qrT=0;
+function qrWait(){clearTimeout(qrT);qrT=setTimeout(()=>{if(!document.hidden)toast("Nothing opened? Scan the QR from another phone, or copy the UPI ID below.",5000)},2500)}
+document.addEventListener("visibilitychange",()=>{if(document.hidden)clearTimeout(qrT)});
 function vPay(){
   if(S.payLoading)return head("Payment","Loading the payment details…");
   if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="back">Back</button><button id="payretry">Try again</button></div>`;
@@ -304,8 +306,8 @@ function vPay(){
   return head("Pay ₹"+total(),S.n+" registration"+(S.n>1?"s":"")+" × ₹"+price())+
   (S.payChanged?`<div class="card errbox" role="alert"><b>The organisers have just updated the payment details.</b> Please use the QR below. If you have already paid, do not pay again: continue, upload your screenshot, and tell the organisers.</div>`:"")+
   (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
-  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${mob?`<a id="qrlink" href="${esc(upiLink())}" aria-label="Pay ₹${total()} in your UPI app">${qrc}</a>`:qrc}
-  <p class="note" style="margin:0 0 6px">${mob?"Tap the QR to pay in your UPI app, or scan it with another phone.":"Scan this QR with your phone's UPI app."}</p>
+  `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${mob?`<a id="qrlink" href="${esc(upiTapLink())}" aria-label="Open your UPI app">${qrc}</a>`:qrc}
+  <p class="note" style="margin:0 0 6px">${mob?`Tap the QR to open your UPI app, then <b>type ₹${total()}</b>. Or scan it with another phone. If tapping doesn't work, copy the UPI ID below and pay inside your app.`:`Scan this QR with your UPI app.`}</p>
   <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
   <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
