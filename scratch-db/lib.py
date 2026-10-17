@@ -75,3 +75,28 @@ def seed():
     book([('Asha','9000000001'),('Ben','9000000002')], 'A')
     book([('Carl','9000000003')], 'B')
     return out
+
+def call_new(role, q, params=(), uid=None):
+    """Same as call() but on its own connection (for parallel tests)."""
+    c = psycopg2.connect(DSN); c.autocommit = True; cur = c.cursor()
+    try:
+        cur.execute("begin")
+        if role != 'postgres': cur.execute(f"set local role {role}")
+        if uid: cur.execute("select set_config('request.jwt.claim.sub', %s, true)", (str(uid),))
+        cur.execute(q, params)
+        rows = cur.fetchall() if cur.description else []
+        cur.execute("commit"); return ('ok', rows)
+    except Exception as e:
+        try: cur.execute("rollback")
+        except Exception: pass
+        return ('err', str(e).strip().split('\n')[0])
+    finally:
+        c.close()
+def par(fns):
+    """Run callables at the same time, return their results in order."""
+    import threading
+    out = [None]*len(fns)
+    def run(i, f): out[i] = f()
+    th = [threading.Thread(target=run, args=(i,f)) for i,f in enumerate(fns)]
+    [x.start() for x in th]; [x.join() for x in th]
+    return out
