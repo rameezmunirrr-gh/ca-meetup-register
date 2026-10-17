@@ -1,6 +1,6 @@
 # Ehsaas'26 Registration App: Project Notes
 
-Last updated: 16 Oct 2026 (after Release 1 and a security audit of the transfer backend; new work order: build, then test and risk-proof, then restyle)
+Last updated: 17 Oct 2026 (Release 1 done; Release 2 (transfers, new ticket lookup, email, +91) designed with the owner and written down in section 12; not built yet; order: build, test and risk-proof, then restyle)
 
 **This repo is public.** Never put passwords, the Supabase service role key, database connection strings, UPI IDs, phone numbers or email addresses in this file or anywhere else in the repo. (The Supabase URL and the *publishable* key inside the HTML pages are safe by design.)
 
@@ -121,7 +121,7 @@ Gate staff sign in on `/gate/`. If a gate user opens the admin page, they see "T
 - **`screenshot_scans`**: one row per booking (primary key `booking_id`): `txn_ids`, `image_hash`, `read_ok`, `amounts`, `scanned_by`, `scanned_at`. Deleted with its booking.
 - **`staff`**: `user_id` (primary key, linked to the login), `name`, `role` (`admin` or `gate` only).
 - **`keepalive`**: tiny table for the ping (readable by anon).
-- **Transfer tables (exist in the database, deployed but unused; `settings.transfers_open` is false and the pages have no transfer screens):**
+- **OLD transfer tables (to be DROPPED and replaced in R2-1, see section 12; exist in the database, deployed but unused; `settings.transfers_open` is false and the pages have no transfer screens):**
   * **`ticket_listings`**: a seller's offer on the board. `ticket_id`, `price` (0 up to `max_resale_price`), `contact_phone`, `status` (`active` / `withdrawn` / `sold` / `closed` / `removed` / `edited`), `mode` (`private` or `public`), `comment` (up to 140 characters).
   * **`ticket_interests`**: people interested in a listing. `listing_id`, `name`, `phone`, `choice` (`talk` / `agree`), `price_seen`. Unique per (listing, phone); at most 50 per listing.
   * **`ticket_transfers`**: one row per transfer. `code` (10 characters), `status` (`awaiting_buyer` / `pending_admin` / `done` / `declined` / `withdrawn`), `mode`, `price`, `agreed_amount`, the buyer's details (`new_*`), the seller's old details (`from_*`, `from_kind`, `from_coord_no`), `to_ticket_no`, `payout` (the seller's UPI ID or phone, public mode), and the money steps (`amount_confirmed_at`, `buyer_paid_at`, `buyer_screenshot_path`, `payment_received_at`, `seller_paid_at`, `refunded_at`). Admin read only.
@@ -262,7 +262,8 @@ Participant submits, an admin opens Bookings, checks the screenshot and flags, t
 - Registration stays closed to real people until the owner says the project is complete.
 - **Do not bring back the tap-to-pay (`upi://`) link** on the Pay screen. It was tried twice and the UPI apps refuse it (16 Oct 2026).
 - The **Booking ID is not shown on the ticket image, the ticket page heading or the PDF file name** (16 Oct 2026).
-- For transfers the **organisers handle the money** (Public mode); the earlier "organisers never handle money" idea no longer applies to transfers (16 Oct 2026). Registration itself is still direct UPI with manual verification.
+- **Transfers (owner, 17 Oct 2026):** private transfers move no money through the organisers; public transfers do (buyer pays the organisers, the organisers pay the seller's UPI after the transfer). The admin's phone call to the seller's registered number is the final identity check for every transfer (before Transfer in private ones, before listing in public ones). Registration itself is still direct UPI with manual verification.
+- **Ticket status lookup is Booking ID + phone** (owner, 17 Oct 2026); a Booking ID alone shows nothing.
 - **Transfers stay off (`transfers_open` false) until the Release 2 audit items are fixed and tested.**
 - Build order (owner, 16 Oct 2026): features first, then deep testing and risk-proofing, then restyle.
 
@@ -291,11 +292,13 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 4. Gate after a transfer: the old QR never admits and shows the right message (also for a seat transferred twice); the new QR admits once; counts and numbering rules (section 7) stay correct; cap and live counts are unchanged.
 5. Everything is switched off cleanly when `transfers_open` is false, and the registration flow is unaffected.
 
+**Scratch database for testing SQL (set up 17 Oct 2026).** Claude's container resets between chats, so the tools are saved in the repo in the `scratch-db/` folder at the top of the repo (`build.py`, `lib.py`, `baseline.py`; add them if missing). `build.py` rebuilds an empty copy of the real database (tables, constraints, indexes, all functions with their execute rights, triggers) from `sql/schema_snapshot.txt` into a local Postgres 16 (`apt-get install postgresql`, a private server on port 5544), with stand-ins for Supabase's `auth.users`, `auth.uid()`, roles `anon`/`authenticated`/`service_role` and a `storage.objects` table. Known differences from production, patched in `lib.py`: `settings_log.id` and `tickets.reg_seq` are identity columns in production but the snapshot does not show that. `lib.py` has `seed()` (an open event, one admin, booking A with two people, booking B with one) and `call(role, sql)` to run a function as anon or as an admin. `baseline.py` reproduces the old transfer holes (8 of 10 checks failed). `gen_r2_01.py` builds `sql/r2_01_prep.sql` from the real snapshot and `test_r2_01.py` tests it; each later piece gets the same pair. Replica detail: `report` is a view in production, so `build.py` creates it as a view. **Always run new SQL here first**, then keep the real snapshot as the truth: run `sql/schema_snapshot.txt` again after applying changes to Supabase and compare.
+
 ---
 
 ## 11. Before registration opens (20 Oct 2026)
 
-1. **Decide transfers:** either finish, test and risk-proof Release 2 first (section 12), or leave `transfers_open` off for launch. Restyling (gate scanner, admin dashboard, ticket image) comes only after the app is risk-proof; then re-test the pages.
+1. **Finish Release 2 (section 12), test and risk-proof it**, with `transfers_open` off until R2-5 passes. Restyling (gate scanner, admin dashboard, ticket image) comes only after the app is risk-proof; then re-test the pages. Note: Release 2 also changes the Tickets lookup (Booking ID + phone), adds email and +91, so the registration page must be re-tested end to end before opening.
 2. In **Admin > Settings > Payment details**, press Change and type the real UPI ID, payee name and organiser WhatsApp number (with country code). (Do not copy them into this file.) Check the Settings log shows the change.
 3. Budgeting team sets the **final price** in Admin, Settings. Confirm the cap (150) and deadline (31 Oct 2026, 23:59:59 IST).
 4. Do a small real test payment (for example ₹1) and scan it in two UPI apps.
@@ -332,15 +335,93 @@ Two things found by the test were fixed in `admin/index.html`: "Present at event
 - Restyle: only the **public page** is done (ivory and green, light). The gate and admin pages still have the old colours.
 - Daily pause with 10-minute grace: SQL tested on a scratch Postgres with a fake clock, and both pages tested in a headless browser with a mocked server. **Still to be tested by the owner on the real site** (see the test steps given with the update).
 
-**Immediate task (owner's order, 16 Oct 2026): build Release 2 (ticket transfers), then test and risk-proof everything, then restyle.**
+**Immediate task (owner's order, 17 Oct 2026): build Release 2 as designed below, then test and risk-proof it, then restyle.** Nothing in Release 2 is built yet except the scratch-database test setup (section 10). Work happens in small steps; the owner approves each step before the next.
 
-1. **Release 2, step 1: hardening SQL (Part 3b)**, written and tested on a scratch Postgres before it touches Supabase, then pasted into `sql/changes.sql`. See the audit below.
-2. Step 2: admin **Transfers** tab with the money checklist.
-3. Step 3: public transfer screens (the board, sell, apply, pay, status) and a **Sell or transfer** button on confirmed bookings.
-4. Step 4: a full test pass, including deliberate attacks (every item in the audit below), before any redesign.
-5. Only then: the **restyle** (kept below; the decisions already made still stand).
+### Release 2: build steps
 
-### Release 2: security audit of the transfer backend (16 Oct 2026, read from `sql/schema_snapshot.txt`)
+1. **R2-0 Notes:** this section (done 17 Oct 2026).
+2. **R2-1 Database (in progress).** Done so far: **piece 1** (17 Oct 2026), `sql/r2_01_prep.sql`, written and passing 43 scratch-database tests but **not yet applied to Supabase**. It adds `tickets.email` (required for new bookings, checked for format, stored lower-case), `tickets.transferred_out_at` and `tickets.transferred_from`, `bookings.kind` (`registration` or `transfer`), the settings `transfer_cutoff_at`, `resale_min_price`, `transfer_food_locked`, `private_code_hours`, `reservation_minutes` (`max_resale_price` already existed), makes the two cap counters ignore transferred-out tickets, makes `submit_booking` require an email per person, and adds email, `transferred_out_at` and `booking_kind` to the end of the `report` view. Phones were already stored as exactly 10 digits, so +91 is display only. Next: piece 2 (the Booking ID + phone lookup). Written and tested on a scratch Postgres (rebuilt from `sql/schema_snapshot.txt`) before anything touches Supabase, then pasted into `sql/changes.sql`:
+   - email column (per person, required, format-checked) and the phone rule (10 digits stored, "+91" only displayed);
+   - the new **Booking ID + phone** ticket lookup, replacing `lookup_booking`;
+   - the new transfer tables and functions below; the **old** transfer tables and functions are dropped (nothing uses them);
+   - new `settings` columns, the `bookings.kind` column and the cap/revenue exclusion for transfer bookings;
+   - an audit log trigger for every transfer step (extend `settings_log`, area `transfer`);
+   - the IP column on bookings and the admin flag (flag only, see "Other agreed items").
+3. **R2-2 Admin:** the **Transfers** tab (queues, original-vs-entered summary, call ticks, money panel) and the new settings.
+4. **R2-3 Public pages:** Tickets page (new lookup, cached Booking IDs), Transfer tickets screens (private and public, sell and buy), Transfer Form, Contact now buttons.
+5. **R2-4 Registration changes:** email field, fixed +91 prefix, logo placeholders, About placeholder link.
+6. **R2-5 Full test and risk review** (attack list below), fix everything found, re-test.
+7. **R2-6 Restyle** (kept further down), then a final re-test.
+
+### Release 2: agreed design (owner, 17 Oct 2026)
+
+**A. Ticket status check (changed).** The person enters **Booking ID + phone** (phone is always typed; "+91" is fixed in front). The result is only the tickets in that booking whose phone matches (normally one; several if the same number was used for several people). A wrong combination gives one generic message ("No ticket found for these details") that never says which part was wrong. Booking IDs the device has used stay cached as a history list; tapping one fills in the Booking ID, the phone must still be typed. Booking ID alone shows nothing, not even the QR secret. A booker with several different phones does one lookup per phone (intended). No attempt counting is needed: Booking IDs are no longer shared with anyone, and guessing needs both the Booking ID and the phone.
+
+**B. Rules for both kinds of transfer.**
+- Only a **confirmed (paid)** ticket that is not checked in, not cancelled and has no other open transfer can be sold. One open transfer per ticket (database-enforced).
+- The seller proves identity with **Booking ID + ticket number + the phone entered for that seat**; all three must match the same ticket. Any mismatch shows "Submission failed due to details mismatch" (never which part).
+- The seller's details are never shown to the buyer except the seller's **name** (private form sub-heading, public listing). No ticket number, phone or Booking ID is ever shared between buyer and seller. A listing page has a short consent line that the name is shown publicly.
+- The **admin's phone call to the number registered on the original ticket is the final identity check** (it works like a password: the caller is the person who booked). For a **private** transfer the admin must tick "Seller confirmed by phone" before **Transfer** is enabled. For a **public** transfer that call happens earlier, when the listing is approved (D2), and **Transfer** is enabled as soon as the buyer's payment is verified; the seller is not contacted again until the payout.
+- The buyer gets a **new Booking ID** at submit, like a normal registration. That booking is `kind = transfer`: it holds **no seat and no ticket number**, is not counted in the cap, in Active/Pending counts or in revenue, and shows "Pending verification".
+- **Approval (Transfer button) is one database transaction:** re-check the seller's ticket is still active and not checked in and the transfer is still valid; cancel the seller's ticket (its number is retired and never given to anyone else, section 7); issue the buyer a **new guest number and a new QR secret** (next `next_ticket`); the buyer's booking becomes paid. It is a seat swap, so it **must not fail because the cap is reached** (that is exactly when transfers happen) and it leaves the cap, Active and revenue totals unchanged.
+- The old QR must show TICKET CANCELLED at the gate and the new QR must admit once (tested, also for a seat transferred twice).
+- If an admin rejects or cancels the seller's booking or ticket while a transfer is open, the transfer closes automatically.
+- Food: when the admin turns on `transfer_food_locked` (after the food order is placed), the buyer's food choice is fixed to the seller's original and the form says so.
+
+**C. Private transfer (the two people already know each other; no money passes through the organisers).**
+1. Seller: Tickets, Transfer tickets, Private transfer, **Sell**. Enters ticket number, Booking ID, phone. If all match, the system shows a random **6-character code** (uppercase letters and digits without look-alikes such as 0/O and 1/I), valid for **2 hours** (`private_code_hours`). A new code for the same ticket cancels the old one.
+2. Seller checks later: Booking ID (from the device list) + phone shows the status: code and time left, buyer submitted (the buyer's name only, never the phone), approved, rejected, expired.
+3. Buyer: Tickets, Transfer tickets, Private transfer, **Buy**. Types the code. Wrong: "Invalid code". Right: the **Transfer Form** opens (heading "Transfer Form", sub-heading "Buying <seller name>'s ticket"). The code stays valid until a buyer **submits** or the 2 hours end, so a buyer who closes the page can simply type it again and is not blocked. The first submission wins; anyone else sees "already used".
+4. Form: name, email, phone (+91), attending, food (locked if the setting is on) and a consent tick that payment between the two people is their own business and the organisers are not responsible. No payment step.
+5. Submit: the buyer sees the new Booking ID (cached), "Pending verification", the message "The organizers (admins) will be notified of this request, and will take necessary actions soon" and a **Contact now** button (WhatsApp to the number in Settings).
+6. Admin sees a summary: **original ticket** (name, phone, ticket number, booking) beside the **seller's entered details** and the **buyer's details**. The admin calls the seller's registered phone: "Shall I transfer this ticket to Mr. B as per our records? We assume the payment is settled between you two, as you opted for a private transfer." After the tick, **Transfer** (or Reject with a reason).
+
+**D. Public transfer (the seller has no buyer; money passes through the organisers).**
+1. Seller: Tickets, Transfer tickets, Public transfer, **Sell**. Enters Booking ID, ticket number, phone, **reason** (admin-only, never shown publicly), **asking price** (must be within `resale_min_price` to `max_resale_price`) and **UPI ID for payout**. If all match: "The organizers will be notified of this request, and will take necessary actions soon" + Contact now. It is **not listed yet**.
+2. Admin queue "Listing requests": calls the seller ("Are you sure you want to list your ticket in the marketplace?", reads back the price and UPI ID), ticks the call, **Approve** or Reject. Only then does the listing appear.
+3. Seller side shows "Your listed ticket". **Editing** price, UPI or reason creates a new **pending request** that needs admin approval (same as withdrawing and listing again). Edits are blocked while a buyer has reserved or submitted. **Withdrawing** is done by contacting the admin, only before any buyer has reserved or submitted.
+4. Buyer side: the board shows listings (seller name and price). Click a listing, **Interested**, "Are you sure you are interested to buy?" **Yes**. The buyer first gives name and phone; the listing is then **reserved for that buyer for 30 minutes** (`reservation_minutes`) and shows "Reserved" to others. One active reservation per phone. The reservation id is kept on the buyer's device, so closing and reopening the page **resumes the form with the time left** (a buyer on another device cannot resume; the reservation just expires). **Expiry only frees the listing for others**: if nobody else reserved it, the original buyer can still submit and pay. Admin has a **Release reservation** button for abuse.
+5. The buyer fills the Transfer Form, pays the listing price by UPI (QR from Settings), uploads the screenshot and submits. A new transfer booking is created ("Pending verification") and the listing becomes **Pending** (not available to others).
+6. Admin (Transfer money panel): checks the bank, ticks **Payment verified**, then clicks **Transfer** (enabled once the payment is verified). The seller is **not** contacted at this step; the call was at listing approval (owner's plan, 17 Oct 2026).
+7. After Transfer, the admin contacts the seller **only to pay out**: the **full buyer-paid amount** goes to the seller's UPI ID and is marked **Seller paid** with a reference. Money flow: buyer's payment goes up, the payout brings it down again, so the organisers' collected total ends where it started.
+
+**E. Settings (new, all admin-editable, all logged):** `transfers_open` (off until R2-5 passes), `transfer_cutoff_at` (no new transfer or listing can start after it; already submitted ones can still be approved or rejected by the admin; a seller whose transfer is not completed keeps the ticket), `resale_min_price`, `max_resale_price`, `transfer_food_locked`, `private_code_hours` (2), `reservation_minutes` (30).
+
+**F. Money.** Transfer payments never go into `bookings.amount` or the revenue and Overview totals. A separate **Transfer money** panel shows: received and pending verification, verified and waiting for Transfer, paid out to sellers, still to pay out. Every money step is logged with who and when.
+
+**G. Planned data model (final SQL is written in R2-1).** Replace the old tables with: `transfers` (one sale per seat: kind private or public, seller ticket and booking, seller snapshot, code and expiry, price, seller UPI, reason, status, call and payment ticks with admin and time, payout reference, result ticket) and `transfer_buyers` (reservation or application: buyer details, reservation expiry, screenshot path, the new booking id). Plus `bookings.kind`, `tickets.email`, `tickets.transferred_from`, the settings columns above, and an audit trigger. All transfer tables are admin-read-only; the public reaches them only through `SECURITY DEFINER` functions that return generic failures.
+
+**H. Other agreed items.**
+- **Email** is asked after name (and the other fields) at registration and in the Transfer Form: required, format-checked, stored per person, readable by admins only, with a line on why it is collected. Nothing sends email yet.
+- **Phone:** a fixed, uneditable "+91" is shown at every phone field. The database stores only the 10 digits (keeps old data valid and WhatsApp links working).
+- **Mallu Articles Bengaluru logo:** placeholders now at the places the owner wants; the owner will send the file (SVG or transparent PNG).
+- **About Mallu Articles Bengaluru:** a new link beside Register for meetup and Tickets. Content (text, last year's reels as links with thumbnails, photos, permission for faces) is discussed later; a placeholder page for now.
+- **Anti-spam (owner's decision on IP):** record the visitor's IP on each booking (prefer `cf-connecting-ip`; Supabase docs say to read `x-forwarded-for`, but a reported test shows a client can fake it, so **test on our project first**). **Flag only, never block**: the admin sees a flag when one address has 5 or more bookings (the number is adjustable). Admin-only, deleted after the event. IP is not a device: shared WiFi and mobile networks can share one address. Not yet decided: one open booking per phone, a limit on spots held by pending bookings, a minimum time on the form, a "reject all pending from this phone" button, and storage cleanup of rejected screenshots.
+
+### Release 2: attack tests (must all pass in R2-5)
+
+1. Wrong or partial seller details (wrong ticket, phone of another seat, another booking's ID): refused with the generic message, nothing created.
+2. A booking ID alone returns nothing; a phone alone returns nothing; right ID with another seat's phone returns only that phone's tickets.
+3. Private: wrong code, expired code, reused code, two buyers submitting at once (first wins), old code after a new one is made, the seller never sees the buyer's phone, the buyer never sees the seller's ticket number or phone.
+4. Public: two buyers reserving the same listing at once; reservation expiry and late submit (with and without another reserver); one reservation per phone; edit blocked while reserved; seller price outside the min/max refused; price fixed at reserve time.
+5. Approval: seller checked in meanwhile; seller's ticket cancelled by admin meanwhile; two admins approving at once; cap full (swap must still work); counts, revenue and Overview unchanged; numbering rules of section 7 (old number never reused, buyer gets the next guest number); transfer booking holds no seat and has no ticket before approval.
+6. Gate: old QR shows TICKET CANCELLED, new QR admits once, a seat transferred twice, no ticket secret ever returned for a pending transfer booking.
+7. Cut-off: no new listing or private code after `transfer_cutoff_at`; pending ones can still be approved or rejected.
+8. Transfers off (`transfers_open` false): every transfer function refuses, registration is unaffected.
+9. Audit log has a row for every admin and money step; transfer tables are not readable by anon.
+10. Food lock: buyer gets the seller's food, cannot change it through the API either.
+
+### Release 2: open items (owner to confirm; recommended defaults are in use until then)
+
+1. **Rare cases where a public buyer has paid and the transfer cannot complete.** Under the owner's plan the transfer happens when the payment is verified, so this only happens if (a) the seller's ticket became invalid after listing (checked in at the gate, or cancelled by an admin), (b) the amount received is wrong or partial, or (c) the buyer paid after the 30-minute reservation ended and someone else had taken the listing. Recommended: the organisers **return the buyer's money** (or the buyer chooses another listing), recorded as a "transfer return". This fits the owner's model: money in, money out, total unchanged. Normal registrations stay no-refund.
+2. **Coordinator and free tickets:** recommended that they **cannot be sold through the website** (message "contact the admin"), because numbering and cost rules differ.
+3. **Resolved (owner, 17 Oct 2026):** no second phone call to the seller before a public Transfer. The seller is called when the listing is approved and again only for the payout.
+4. **What the private seller sees after the buyer applies:** recommended the buyer's **name only**, so the seller can spot a stranger who got the code.
+5. **Private code length:** 6 characters as asked. A stranger who guesses a live code is stopped by the admin's phone call to the seller, so this is accepted; if wrong-code guessing is ever seen in the log, lengthen to 8.
+6. The anti-spam options listed under H that are still undecided.
+7. Logo file and the About page content (owner will send later).
+
+### Old transfer backend: security audit (16 Oct 2026, read from `sql/schema_snapshot.txt`). SUPERSEDED by the design above; kept because each hole is a test case
 
 Status: the database has a first version of the transfer functions, but **no page uses them and `transfers_open` is false**. The planned hardening (buyer PIN with lockout, the seller's phone as a second check, one transfer per seat, the Booking ID no longer exposing a transferred ticket) is **not applied**. Holes found, all to be fixed and tested before transfers are switched on:
 
@@ -355,9 +436,7 @@ Status: the database has a first version of the transfer functions, but **no pag
 
 **Already in the database (verified in the snapshot):** only one active listing per ticket, only one open transfer per ticket, a ticket number or coordinator number can be transferred away only once (unique `from_ticket_no` and `from_coord_no`), every transfer table is readable by admins only, and the transfer functions refuse to run while `transfers_open` is false. A seat can still change hands again after a transfer (the new ticket can be sold), which the planned "one transfer per seat" rule will limit.
 
-**Planned fixes (Part 3b):** the seller must also prove the phone number on the ticket; a buyer PIN with attempt limit and lockout; attempt counters on Booking ID and transfer-code lookups; `lookup_booking` stops showing a ticket after it has been transferred and the transferred ticket is detached from the seller's access; interests cannot be overwritten without proof; every transfer money action goes to a log. All tested on a scratch Postgres with the attack cases above.
-
-**Open decision (asked of the owner on 16 Oct, not yet answered):** which phone counts as the seller's second check? Recommended: the phone the ticket holder entered for that ticket on the registration form (so in a booking of five, a friend sells their own seat). Alternative: the first person's phone in the booking, so the booker can sell any seat. Record the answer here once given.
+**What replaced the planned fixes:** the old buyer-PIN and seller-second-check plan was dropped on 17 Oct 2026. The new design (Booking ID + ticket + phone for sellers, the admin's phone call, a new Booking ID for the buyer, no secret ever returned for a pending transfer) closes holes 1 to 6; hole 7 is closed by the audit trigger; hole 8 is test 6. The old tables (`ticket_listings`, `ticket_interests`, `ticket_transfers`) and about 20 functions are dropped in R2-1.
 
 **Restyle (postponed until Release 2 is built and risk-proof; text kept from 14 Oct 2026):**
 1. **Finish the restyle.** Decisions so far (14 Oct 2026): keep the **Kerala green and gold** look but refresh it; the **public registration page is already restyled** (light theme: ivory with green); next are the **gate scanner** and the **admin dashboard**, which will both be **dark themed with the same colour theme** (one shared set of dark colours, so the two staff pages look like a pair. **Chosen palette: "Midnight Emerald"**: page `#0a1612`, card `#11231c`, border `#21392f`, text `#efe9d8` (warm ivory, never pure white), soft text `#98a99e`, green accent `#3fb98d`, gold accent `#d4af5a`. Use gold sparingly, never pure black, and keep the paid/pending/rejected labels and the gate's green/red/amber result screens bright and clearly different on the dark background; today they follow the device's light/dark setting, and the plan is to make them dark always); the **ticket image** (drawn in JavaScript on a canvas, colours written in the code) should be restyled to **match the new look**. Keep the existing behaviour; only change look and feel. The look lives in each page's `<style>` block (colours are named values such as `--green` and `--gold` at the top), plus the colour values inside `drawTicket` in `index.html` for tickets. Keep the gate's big green/red/amber result screens clearly colour-coded. Test again afterwards.
@@ -367,7 +446,7 @@ Status: the database has a first version of the transfer functions, but **no pag
 - Saving settings with an empty deadline field throws an error in the browser.
 - The cap can be set below the number already registered (harmless; new bookings just stop).
 - The People table and the CSV still show "Present" for people from rejected bookings. Only the Overview card and the gate counters exclude them.
-- Booking codes are 8 hex characters and lookups are not rate-limited. Acceptable for viewing tickets, **but not once transfers exist** (the Booking ID would then control selling tickets): rate limiting and a second check are part of the Release 2 hardening.
+- Booking codes are 8 hex characters and lookups are not rate-limited. Today a Booking ID alone shows tickets; **Release 2 changes this** to Booking ID + phone, which makes guessing impractical, so no attempt counting is planned (owner's decision, 17 Oct 2026).
 - ~~The `staff.role` column defaults to `admin`~~ Fixed on 16 Oct 2026: the default was removed, so an insert without a role is refused. Still write the role explicitly.
 - Gate search finds a person by guest number digits, by name, phone, current label or Booking ID. A retired coordinator number is not searchable.
 - `rejected: N` on the Present card counts people in rejected bookings, including test leftovers until the cleanup.
@@ -384,6 +463,10 @@ Status: the database has a first version of the transfer functions, but **no pag
 - **16 Oct 2026 (Release 1, Part 3a):** Payment details moved from the page code into Settings (`upi_id`, `payee_name`, `whatsapp_number`; `get_payment_info`, `admin_set_payment_info`). The Pay screen loads them fresh when opened, re-checks every 30 seconds, and shows a notice if they change, plus loading/failed/not-set-up states. The QR is scan-only (amount filled in). **Tapping the QR to open a UPI app was tried twice on 16 Oct 2026 (with and without the amount) and removed**: PhonePe, Google Pay and BHIM all refuse payments started from a `upi://` link to a personal UPI ID, while scanning, Share/Download QR and paying to a copied UPI ID work. Do not bring the tap link back. The caption now says: scan the QR, or on this phone take a screenshot and upload it in the UPI app, or pay to the UPI ID. The screenshot box shows "File uploaded · Tap to view · Change" once a file is chosen (the page used to show "No file chosen" next to "Selected"). New `settings_log` table (admin read only; logs settings and staff changes, including ones made directly in Supabase as "database"); Admin shows the Settings log and a 7-day banner to the other admin when payment details change (`admin_payment_alert`). `staff.role` default removed. The Booking ID is no longer drawn on the ticket image, the ticket page heading or the PDF file name. Event date/venue SQL recorded in `sql/changes.sql`. Tests: 151 earlier checks + 49 new database checks, and browser tests of both pages passed. **Transfers stay OFF** (`transfers_open` false); the transfer screens and the hardening SQL (Part 3b) are Release 2. **Decision reversed:** the organisers now handle money for transfers (Public mode), so "never handles money" no longer applies to transfers.
 
 - **16 Oct 2026 (review and audit):** Notes brought up to date with the repo: Release 1 added to Done, stale lines fixed. The transfer backend (tables and about 20 functions) was found already deployed but unused and switched off, and was audited from the schema snapshot: eight issues found, written up in section 12 (Release 2 audit). The owner set the work order: build Release 2, then test and risk-proof, then restyle only afterwards; no deadline pressure on Claude. The restyle of the gate, admin and ticket image is therefore postponed. Stale lines corrected in the same pass: the Pay description (no tap-to-pay, no Share-QR-opens-an-app), the ticket description (no Booking ID on the ticket), the missing Release 1 tables, columns and functions in section 5 and the Admin Settings description, and the known gap about unlimited Booking ID lookups. Decisions, a Release 2 test plan and the verified list of protections already in the database were added. Nothing was changed in code or in the database in this step.
+
+- **17 Oct 2026 (Release 2 design):** The owner replaced the earlier transfer plan with a simpler one: ticket status by Booking ID + phone; private transfer with a 6-character code valid 2 hours and a Transfer Form; public transfer with admin-approved listings, 30-minute reservations and a separate Transfer money panel; a new Booking ID for every buyer; the admin's phone call to the seller as the final check; plus email, a fixed +91, logo placeholders, an About page (later) and IP flagging only. Written into section 12 with build steps, attack tests and open items. Clarified the same day: in a public transfer the seller is called when the listing is approved, the Transfer happens when the buyer's payment is verified, and the seller is contacted again only to be paid. A scratch Postgres rebuilt from the snapshot was set up and the 16 Oct holes were reproduced against the current code (8 of 10 checks failed, which is why the old backend is being replaced). Nothing was changed in the real code or database.
+
+- **17 Oct 2026 (R2-1 piece 1):** `sql/r2_01_prep.sql` written (email, transfer markers, booking kind, new settings, cap counters ignore transferred-out tickets, email required in `submit_booking`, report view extended). 43 tests pass on the scratch database, including running it twice and real-world email formats. Not applied to Supabase yet; the registration page must send an `email` for every person before this is applied, otherwise every booking will be refused with INVALID_EMAIL.
 
 ---
 
