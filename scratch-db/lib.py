@@ -1,6 +1,13 @@
 import psycopg2, psycopg2.extras, subprocess, json, uuid, sys
 DSN = "host=/tmp port=5544 dbname=postgres user=postgres"
+def ensure_server():
+    """Start the private test Postgres if it is not running (it stops between chat steps)."""
+    ok = subprocess.run(["psql","-h","/tmp","-p","5544","-U","postgres","-d","postgres","-At","-c","select 1"],capture_output=True,text=True).returncode == 0
+    if not ok:
+        subprocess.run("su postgres -c \"/usr/lib/postgresql/16/bin/pg_ctl -D /tmp/pgdata -o '-p 5544 -k /tmp' -l /tmp/pg.log start\"", shell=True, capture_output=True)
+        import time; time.sleep(2)
 def fresh(extra_sql_files=()):
+    ensure_server()
     r = subprocess.run(["psql","-h","/tmp","-p","5544","-q","-d","postgres","-U","postgres","-f","/home/claude/scratch/build.sql"],
                        capture_output=True, text=True)
     c = psycopg2.connect(DSN); c.autocommit = True; cur = c.cursor()
