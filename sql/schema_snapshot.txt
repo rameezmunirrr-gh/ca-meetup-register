@@ -884,7 +884,7 @@ begin
   return info || jsonb_build_object('result', 'ok');
 end $function$
 
---- apply_receive(p_ticket text, p_code text, p_name text, p_phone text, p_location text, p_attendance text, p_food text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- apply_receive(p_ticket text, p_code text, p_name text, p_phone text, p_location text, p_attendance text, p_food text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.apply_receive(p_ticket text, p_code text, p_name text, p_phone text, p_location text, p_attendance text, p_food text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -969,7 +969,7 @@ begin
     'label', _ticket_label('guest', new_no, null), 'name', x.new_name);
 end $function$
 
---- check_request(p_listing uuid, p_phone text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- check_request(p_listing uuid, p_phone text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.check_request(p_listing uuid, p_phone text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1011,7 +1011,7 @@ begin
   return jsonb_build_object('state', 'gone');
 end $function$
 
---- close_listing(p_code text, p_ticket text, p_sold boolean) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- close_listing(p_code text, p_ticket text, p_sold boolean) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.close_listing(p_code text, p_ticket text, p_sold boolean DEFAULT false)
  RETURNS void
  LANGUAGE plpgsql
@@ -1044,7 +1044,7 @@ begin
     decline_reason = nullif(left(btrim(coalesce(p_reason, '')), 200), '') where id = x.id;
 end $function$
 
---- edit_listing(p_code text, p_ticket text, p_price integer, p_comment text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- edit_listing(p_code text, p_ticket text, p_price integer, p_comment text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.edit_listing(p_code text, p_ticket text, p_price integer, p_comment text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1077,7 +1077,7 @@ begin
   return jsonb_build_object('id', n.id, 'price', n.price, 'changed', true);
 end $function$
 
---- express_interest(p_listing uuid, p_name text, p_phone text, p_choice text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- express_interest(p_listing uuid, p_name text, p_phone text, p_choice text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.express_interest(p_listing uuid, p_name text, p_phone text, p_choice text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1138,7 +1138,7 @@ begin
   return _public_state(s, p_session);
 end $function$
 
---- get_transfer_status() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- get_transfer_status() | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.get_transfer_status()
  RETURNS jsonb
  LANGUAGE sql
@@ -1164,7 +1164,7 @@ CREATE OR REPLACE FUNCTION public.is_staff()
  SET search_path TO 'public'
 AS $function$ select exists (select 1 from public.staff where user_id = auth.uid()) $function$
 
---- list_board() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- list_board() | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.list_board()
  RETURNS jsonb
  LANGUAGE sql
@@ -1195,7 +1195,7 @@ begin
   return _booking_json(b.id);
 end $function$
 
---- lookup_transfer(p_code text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- lookup_transfer(p_code text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.lookup_transfer(p_code text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1232,7 +1232,7 @@ begin
   return res;
 end $function$
 
---- manage_ticket(p_code text, p_ticket text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- manage_ticket(p_code text, p_ticket text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.manage_ticket(p_code text, p_ticket text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1272,7 +1272,7 @@ begin
     'blocked', _transfer_block_reason(t, b), 'listing', li, 'history', hist, 'transfer', xi);
 end $function$
 
---- post_listing(p_code text, p_ticket text, p_price integer, p_contact text, p_mode text, p_comment text, p_ack boolean) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- post_listing(p_code text, p_ticket text, p_price integer, p_contact text, p_mode text, p_comment text, p_ack boolean) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.post_listing(p_code text, p_ticket text, p_price integer, p_contact text, p_mode text DEFAULT 'private'::text, p_comment text DEFAULT NULL::text, p_ack boolean DEFAULT false)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1436,7 +1436,7 @@ begin
                             'label', _ticket_label(t.kind, t.ticket_no, t.coord_no));
 end $function$
 
---- start_transfer(p_code text, p_ticket text, p_price integer, p_mode text, p_payout text, p_buyer uuid, p_ack boolean) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- start_transfer(p_code text, p_ticket text, p_price integer, p_mode text, p_payout text, p_buyer uuid, p_ack boolean) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.start_transfer(p_code text, p_ticket text, p_price integer DEFAULT NULL::integer, p_mode text DEFAULT NULL::text, p_payout text DEFAULT NULL::text, p_buyer uuid DEFAULT NULL::uuid, p_ack boolean DEFAULT false)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1545,7 +1545,7 @@ begin
   return _booking_json(b.id);
 end $function$
 
---- submit_transfer_payment(p_ticket text, p_code text, p_screenshot_path text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- submit_transfer_payment(p_ticket text, p_code text, p_screenshot_path text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.submit_transfer_payment(p_ticket text, p_code text, p_screenshot_path text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -1600,7 +1600,7 @@ begin
   if n = 0 then raise exception 'INVALID_TICKET'; end if;
 end $function$
 
---- withdraw_transfer(p_code text, p_ticket text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+--- withdraw_transfer(p_code text, p_ticket text) | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public.withdraw_transfer(p_code text, p_ticket text)
  RETURNS void
  LANGUAGE plpgsql
