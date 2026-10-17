@@ -1,0 +1,70 @@
+import psycopg2, psycopg2.extras, subprocess, json, uuid, sys
+DSN = "host=/tmp port=5544 dbname=postgres user=postgres"
+def fresh(extra_sql_files=()):
+    r = subprocess.run(["psql","-h","/tmp","-p","5544","-q","-d","postgres","-U","postgres","-f","/home/claude/scratch/build.sql"],
+                       capture_output=True, text=True)
+    c = psycopg2.connect(DSN); c.autocommit = True; cur = c.cursor()
+    cur.execute("create schema if not exists storage; create table if not exists storage.objects(bucket_id text, name text)")
+    cur.execute("alter table public.settings_log alter column id add generated always as identity")
+    cur.execute("alter table public.tickets alter column reg_seq add generated always as identity")
+    cur.execute("grant usage on schema storage to anon, authenticated")
+    cur.execute("grant select on storage.objects to anon, authenticated")
+    c.close()
+    for f in extra_sql_files:
+        r = subprocess.run(["psql","-h","/tmp","-p","5544","-q","-d","postgres","-U","postgres","-v","ON_ERROR_STOP=1","-f",f],
+                           capture_output=True, text=True)
+        if r.returncode != 0: print("SQL FILE FAILED:", f, r.stderr[-1500:]); sys.exit(1)
+conn = None
+def db():
+    global conn
+    if conn is None or conn.closed:
+        conn = psycopg2.connect(DSN); conn.autocommit = True
+    return conn
+def call(role, sql, params=(), uid=None):
+    """Run one statement as role (anon/authenticated/postgres). Returns ('ok', rows) or ('err', message)."""
+    c = db(); cur = c.cursor()
+    try:
+        cur.execute("begin")
+        if role != 'postgres': cur.execute(f"set local role {role}")
+        if uid: cur.execute("select set_config('request.jwt.claim.sub', %s, true)", (str(uid),))
+        cur.execute(sql, params)
+        rows = cur.fetchall() if cur.description else []
+        cur.execute("commit")
+        return ('ok', rows)
+    except Exception as e:
+        cur.execute("rollback")
+        return ('err', str(e).strip().split('\n')[0])
+def val(res):
+    return res[1][0][0] if res[0]=='ok' and res[1] else None
+def sql(q, params=()):  # superuser
+    r = call('postgres', q, params)
+    if r[0]=='err': raise Exception(q[:100] + ' -> ' + r[1])
+    return r[1]
+class T:
+    def __init__(s): s.passed=0; s.failed=0; s.lines=[]
+    def check(s, name, cond, detail=''):
+        if cond: s.passed+=1; s.lines.append(f"  PASS  {name}")
+        else: s.failed+=1; s.lines.append(f"  FAIL  {name}  {detail}")
+    def report(s, title):
+        print(title); print('\n'.join(s.lines)); print(f"  => {s.passed} passed, {s.failed} failed")
+def seed():
+    """One open event, one admin, booking A (Asha 9000000001, Ben 9000000002), booking B (Carl 9000000003), all paid."""
+    admin = uuid.uuid4()
+    sql("insert into auth.users (id,email) values (%s,'admin@test')", (str(admin),))
+    sql("insert into staff (user_id,name,role) values (%s,'Admin One','admin')", (str(admin),))
+    sql("update settings set is_open=true, deadline=now()+interval '30 days', cap=150, price_per_head=250, pause_enabled=false, transfers_open=true, max_resale_price=250, upi_id='test@upi', payee_name='Test', whatsapp_number='919999999999' where id=1")
+    out = {'admin': admin}
+    def book(name_phones, tag):
+        sid = uuid.uuid4(); path = f'{sid}.jpg'
+        sql("insert into storage.objects values ('payment-proofs', %s)", (path,))
+        people = [dict(name=n, phone=p, email=f'{n.lower()}@example.com', loc='In Bengaluru', att='Surely', food='Veg') for n,p in name_phones]
+        r = call('anon', "select submit_booking(%s,%s::jsonb,%s)", (str(sid), json.dumps(people), path))
+        assert r[0]=='ok', r
+        j = r[1][0][0]
+        code = j['booking_code'] if isinstance(j, dict) and 'booking_code' in j else None
+        bid = sql("select id, booking_code from bookings order by created_at desc limit 1")[0]
+        call('authenticated', "select set_booking_status(%s,'paid')", (str(bid[0]),), uid=admin)
+        out[tag] = bid[1]
+    book([('Asha','9000000001'),('Ben','9000000002')], 'A')
+    book([('Carl','9000000003')], 'B')
+    return out
