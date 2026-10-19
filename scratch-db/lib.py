@@ -48,12 +48,21 @@ def sql(q, params=()):  # superuser
     if r[0]=='err': raise Exception(q[:100] + ' -> ' + r[1])
     return r[1]
 class T:
-    def __init__(s): s.passed=0; s.failed=0; s.lines=[]
+    def __init__(s):
+        import atexit
+        s.passed=0; s.failed=0; s.lines=[]; s.reported=False
+        atexit.register(s._final)
     def check(s, name, cond, detail=''):
         if cond: s.passed+=1; s.lines.append(f"  PASS  {name}")
         else: s.failed+=1; s.lines.append(f"  FAIL  {name}  {detail}")
     def report(s, title):
+        s.reported=True
         print(title); print('\n'.join(s.lines)); print(f"  => {s.passed} passed, {s.failed} failed")
+    def _final(s):
+        # a test script that stops early (an exception) must count as a FAILURE and still show what ran
+        if not s.reported and (s.lines):
+            print("TEST SCRIPT STOPPED EARLY (counts as a failure)"); print('\n'.join(s.lines))
+            print(f"  => {s.passed} passed, {s.failed + 1} failed (script crashed)")
 def seed():
     """One open event, one admin, booking A (Asha 9000000001, Ben 9000000002), booking B (Carl 9000000003), all paid."""
     admin = uuid.uuid4()
