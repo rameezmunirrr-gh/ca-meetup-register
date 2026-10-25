@@ -311,6 +311,7 @@ function vSettings(){const s=S.settings;
   ${evCard(s)}
   ${trCard(s)}
   ${ipCard(s)}
+  ${aboutCard(s)}
   <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
   <p class="mute">A reminder list. Nothing here is checked automatically.</p>
   <label style="font-weight:400"><input type="checkbox"> Payment details above (UPI ID, payee name) are the final ones, and a test payment reached the right account</label>
@@ -409,6 +410,12 @@ function trCard(s){
   <label for="thours">How long a transfer code stays valid (hours, 1 to 168)</label><input id="thours" type="number" min="1" max="168" value="${s.private_code_hours}">
   <p class="mute" style="margin:4px 0">You can extend any code later from the Transfers tab. The price a public buyer is asked is the “Price per person” above.</p>
   <p><button id="tsave">Save transfer settings</button></p></div>`}
+function aboutCard(s){
+  if(s.show_about===undefined)return"";
+  return `<div class="card" style="max-width:520px"><h2>About link</h2>
+  <p class="mute" style="margin-top:0">Shows an "About" button on the home page of the registration site. For now it opens an "Under construction" page. Switch it off to hide the button completely.</p>
+  <label><input type="checkbox" id="aboutshow" ${s.show_about?"checked":""}> Show the About link on the home page</label>
+  <p><button id="aboutsave">Save</button></p></div>`}
 function ipCard(s){
   if(s.ip_flag_threshold===undefined)return"";
   return `<div class="card" style="max-width:520px"><h2>Repeat-registration flag</h2>
@@ -447,6 +454,7 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
     if(on&&!s0.transfers_open&&!confirm("Switch ticket transfers ON?\n\nPeople will be able to start transfers straight away. Only do this once the transfer system has been tested."))return;
     const r=await db.rpc("admin_set_transfer_settings",{p_open:on,p_food_locked:$("#tfood").checked,p_code_hours:h,p_clear_cutoff:!cv&&!!s0.transfer_cutoff_at,p_cutoff:cv?new Date(cv+":00+05:30").toISOString():null});
     if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Transfer settings saved")}
+  if(id==="aboutsave"){const r=await db.rpc("admin_set_show_about",{p_show:$("#aboutshow").checked});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("About link saved")}
   if(id==="ipsave"){const n=+$("#ipth").value;if(!(n>=2&&n<=1000))return toast("Use a number from 2 to 1000",4000);
     const r=await db.rpc("admin_set_transfer_settings",{p_ip_threshold:n});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Saved")}
   if(id==="ipclear"){if(!confirm("Delete every stored network address?\n\nDo this only after the event. It cannot be undone, and the repeat-registration flags will disappear."))return;

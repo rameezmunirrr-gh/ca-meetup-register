@@ -79,6 +79,15 @@ with sync_playwright() as p:
     c=[x for x in pg.evaluate('window.__CALLS') if x['name']=='admin_set_transfer_settings']
     check('saving transfer settings sends the right values (no cut-off, food locked, 12 h)', c and c[-1]['args'].get('p_code_hours')==12 and c[-1]['args'].get('p_food_locked') is True and c[-1]['args'].get('p_cutoff') is None and c[-1]['args'].get('p_clear_cutoff') is False, c)
     b.close()
+    # ---- 9b. About link switch
+    d = db(); d['tables']['settings']=dict(d['tables']['settings'], show_about=True); d['rpc']['admin_set_show_about']=None
+    b, pg, errs = open_page(p, d, 'settings')
+    check('About card shows, ticked', pg.query_selector('#aboutshow') and pg.is_checked('#aboutshow'))
+    pg.uncheck('#aboutshow'); pg.click('#aboutsave'); pg.wait_for_timeout(200)
+    c=[x for x in pg.evaluate('window.__CALLS') if x['name']=='admin_set_show_about']
+    check('saving sends show = false', c and c[-1]['args']=={'p_show':False}, c); b.close()
+    b, pg, errs = open_page(p, db(), 'settings')
+    check('About card is hidden before the database update (no crash)', pg.query_selector('#aboutshow') is None and not errs); b.close()
     # ---- 10. IP flag banner and booking flag
     d = db(rpc=dict(admin_ip_flags={'threshold':2,'ips':[{'ip':'203.0.113.9','bookings':2,'people':3,'pending':1,'paid':1,'rejected':0,'last_at':'2026-10-24T10:00:00Z'}],'by_booking':{'CODE0001':{'ip':'203.0.113.9','count':2},'CODE0002':{'ip':'203.0.113.9','count':2}}}))
     b, pg, errs = open_page(p, d)
