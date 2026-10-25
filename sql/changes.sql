@@ -1888,3 +1888,16 @@ revoke all on function get_event_info() from public, anon, authenticated;
 revoke all on function admin_set_event(timestamptz, text) from public, anon, authenticated;
 grant execute on function get_event_info() to anon, authenticated;
 grant execute on function admin_set_event(timestamptz, text) to authenticated;
+
+
+-- ============================================================================
+-- 25 Oct 2026 (evening): RELEASE 2 APPLIED TO THE REAL DATABASE by the owner in the Supabase SQL editor.
+-- The exact text that was run is kept in these files (each is a concatenation of the numbered pieces in this folder):
+--   1. sql/rollout_A_part1_APPLIED.sql   = r2_01_prep.sql + r2_02_lookup.sql
+--      (r2_02c_close_old_transfer_doors.sql had been run earlier)
+--   2. new pages published
+--   3. sql/rollout_A_part2_APPLIED.sql   = r2_02b_cutover + r2_03_private_transfer + r2_04_public_via_code
+--                                          + r2_05_cleanup_and_ip + r2_06_transfer_settings
+--   4. rehearsal with test data, then sql/r2_07_cleanup_test_data.sql (removes all bookings/tickets/transfers, restarts numbering)
+-- Verified afterwards by the Database Snapshot workflow compared with the scratch copy (identical, see HANDOVER_NEXT_SESSION.md).
+-- ============================================================================
