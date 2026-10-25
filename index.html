@@ -229,7 +229,7 @@ function stepBar(){const i=({form:1,summary:2,pay:3})[S.step];if(!i)return"";
 function foot(){return S.step==="home"?"":`<p class="foot">${esc(CONFIG.organiserName)}</p>`}
 function render(){
   const a=$("#app");
-  a.innerHTML=stepBar()+({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket,xmenu:vXMenu,xsell:vXSell,xcode:vXCode,xbuy:vXBuy,xform:vXForm,xdone:vXDone,tpay:vTPay})[S.step]()+foot();
+  a.innerHTML=stepBar()+({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket,about:vAbout,xmenu:vXMenu,xsell:vXSell,xcode:vXCode,xbuy:vXBuy,xform:vXForm,xdone:vXDone,tpay:vTPay})[S.step]()+foot();
   if(S.step==="pay"&&$("#qr"))drawQR($("#qr"),upiLink());
   if(S.step==="tpay"&&$("#qr"))drawQR($("#qr"),upiLink(S.xp.amount,"Meetup ticket transfer"));
   if(S.step==="ticket")drawTickets().catch(()=>{});
@@ -244,9 +244,11 @@ function vHome(){
   <dl class="when"><div><dt>Date</dt><dd>${esc(evDate())}</dd></div><div><dt>Time</dt><dd>${esc(evTime())}</dd></div><div><dt>Venue</dt><dd>${esc(evVenue())}</dd></div></dl>
   </div><div class="band"></div></section>
   <div class="row col" style="gap:12px"><button class="big" id="go-register">Register for the meet-up</button>
-  <button class="big ghost" id="go-tickets">Tickets</button></div>`+
+  <button class="big ghost" id="go-tickets">Tickets</button>${S.flags&&S.flags.show_about?`<button class="big ghost" id="go-about">About ${esc(CONFIG.organiserName)}</button>`:""}</div>`+
   (n?`<p class="note" style="text-align:center;margin-top:18px">You have ${n} booking${n===1?"":"s"} on this device. Open Tickets and enter your phone number to see ${n===1?"it":"them"}.</p>`:"");
 }
+function vAbout(){return head("About "+esc(CONFIG.organiserName),"Under construction")+`<div class="card"><p style="margin:0">This page is under construction. Please check back soon.</p></div><div class="row"><button class="ghost" id="go-home">Home</button></div>`}
+function loadFlags(){if(!db)return Promise.resolve();return db.rpc("get_site_flags").then(r=>{S.flags=r.error?null:r.data}).catch(()=>{S.flags=null})}
 function vError(){return head("Couldn't load registration","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
 function vClosed(){
   const st=S.status||{},r=st.closed_reason,re=st.reopen_at?fmtWhen(st.reopen_at):"";
@@ -707,6 +709,7 @@ document.addEventListener("change",e=>{const t=e.target;
     if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){$("#ferr").textContent="Choose an image file (a screenshot or photo).";t.value="";S.file=null;S.fileUrl=null}else{try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}S.file=f||null;S.fileUrl=f?URL.createObjectURL(f):null;S.payErr="";render()}}});
 document.addEventListener("click",async e=>{const el=e.target.closest("button,a"),id=el?el.id:"",ds=el?el.dataset:{};
   if(id==="go-home"){S.step="home";render()}
+  if(id==="go-about"){S.step="about";render()}
   if(id==="go-register"){S.step="loading";render();load()}
   if(id==="go-tickets")openTickets(S.step==="done"&&S.result?S.result.booking_code:S.step==="xdone"&&S.xb.result?S.xb.result.booking_code:"");
   if(id==="back-tickets"){S.step="tickets";render()}
@@ -751,4 +754,5 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
 });
 render();loadEvent().then(()=>{if(S.step==="home")render()});
 loadPay().then(()=>{if(["home","closed","done"].includes(S.step))render()});
+loadFlags().then(()=>{if(S.step==="home")render()});
 </script></body></html>
