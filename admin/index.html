@@ -379,7 +379,9 @@ async function tAction(act,id){
   if(act==="ask")return tcall("admin_transfer_request_payment",{p_transfer:id},"The buyer can now see the payment screen");
   if(act==="shot")return shots([{path:x.payment_screenshot_path,label:"Buyer payment"+(b?" · "+b.name:"")}]);
   if(act==="verify"){const v=+($("#amt-"+id)||{}).value;if(!(v>=1))return toast("Type the amount that actually arrived in the bank",4000);
-    if(!confirm("Confirm: ₹"+v+" has arrived in the bank account for this transfer?\n\nThe seller will be owed exactly ₹"+v+"."))return;
+    if(!Number.isInteger(v))return toast("Type whole rupees only (no paise or decimals)",4000);
+    const diff=x.amount_due!=null&&v!==x.amount_due;
+    if(!confirm((diff?"CHECK THE AMOUNT: you asked the buyer for ₹"+x.amount_due+" but you typed ₹"+v+".\n"+(v<x.amount_due?"That is LESS than asked, so the seller will be owed less.":"That is MORE than asked.")+"\nPress OK only if ₹"+v+" really arrived.\n\n":"")+"Confirm: ₹"+v+" has arrived in the bank account for this transfer?\n\nThe seller will be owed exactly ₹"+v+"."))return;
     return tcall("admin_transfer_verify_payment",{p_transfer:id,p_amount:v},"Payment verified")}
   if(act==="approve"){
     if(!confirm("Transfer ticket "+sellerLbl(x)+" ("+x.seller_name+") to "+(b?b.name:"the buyer")+"?\n\n"+x.seller_name+"'s ticket is cancelled for good and "+(b?b.name:"the buyer")+" receives a new ticket number. This cannot be undone."))return;
