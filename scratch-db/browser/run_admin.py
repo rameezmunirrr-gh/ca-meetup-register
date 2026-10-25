@@ -56,7 +56,9 @@ with sync_playwright() as p:
     check('public: shows screenshot and amount box once buyer uploaded', pg.query_selector('[data-tact="shot"]') and pg.query_selector('#amt-x4'))
     check('public: Transfer still disabled (payment not verified)', pg.query_selector('[data-tact="approve"]').is_disabled())
     check('public: payout UPI shown to read back', 's@upi' in t)
-    pg.fill('#amt-x4','230'); pg.once('dialog', lambda dlg: dlg.accept()); pg.click('[data-tact="verify"]'); pg.wait_for_timeout(200)
+    msgs=[]
+    pg.fill('#amt-x4','230'); pg.once('dialog', lambda dlg: (msgs.append(dlg.message), dlg.accept())); pg.click('[data-tact="verify"]'); pg.wait_for_timeout(200)
+    check('a typed amount different from the asked amount shows a strong warning with both figures', msgs and 'CHECK THE AMOUNT' in msgs[0] and '₹250' in msgs[0] and '₹230' in msgs[0] and 'LESS' in msgs[0], msgs)
     check('verify sends the typed amount', any(x['name']=='admin_transfer_verify_payment' and x['args'].get('p_amount')==230 for x in pg.evaluate('window.__CALLS')), pg.evaluate('window.__CALLS')[-2:])
     b.close()
     # ---- 8. the page still works on a database WITHOUT the Release 2 update
