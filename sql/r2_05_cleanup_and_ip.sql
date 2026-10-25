@@ -110,7 +110,7 @@ CREATE OR REPLACE FUNCTION public.submit_booking(p_submission_id uuid, p_people 
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text; pi jsonb;
+declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text; pi jsonb; tid uuid;
 begin
   select * into b from bookings where submission_id = p_submission_id;
   if found then return _booking_json(b.id); end if;
@@ -156,10 +156,14 @@ begin
   values (code, p_submission_id, n, n * s.price_per_head, p_screenshot_path) returning * into b;
   insert into booking_ips (booking_id, ip, raw) values (b.id, _client_ip(), _client_ip_raw());   -- flag only, never blocks
 
-  insert into tickets (secret, booking_id, name, phone, email, location, attendance, food)
-  select substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), b.id,
-         trim(value->>'name'), value->>'phone', lower(trim(value->>'email')), value->>'loc', value->>'att', value->>'food'
-  from jsonb_array_elements(p_people) with ordinality as e(value, ord) order by ord;
+  -- one ticket per person, in the order listed; the email goes to the admin-only table ticket_emails
+  for r in select value, ord from jsonb_array_elements(p_people) with ordinality as e(value, ord) order by ord loop
+    insert into tickets (secret, booking_id, name, phone, location, attendance, food)
+    values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), b.id,
+            trim(r.value->>'name'), r.value->>'phone', r.value->>'loc', r.value->>'att', r.value->>'food')
+    returning id into tid;
+    insert into ticket_emails (ticket_id, email) values (tid, lower(trim(r.value->>'email')));
+  end loop;
 
   return _booking_json(b.id);
 end $function$;

@@ -263,10 +263,11 @@ begin
   select * into bk from bookings where id = bu.booking_id for update;
   if bk.kind <> 'transfer' or bk.status <> 'pending' then raise exception 'BUYER_BOOKING_INVALID'; end if;
   old_lbl := _ticket_label(t.kind, t.ticket_no, t.coord_no);
-  insert into tickets (secret, booking_id, name, phone, email, location, attendance, food, kind, transferred_from)
-  values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), bk.id, bu.name, bu.phone, bu.email,
+  insert into tickets (secret, booking_id, name, phone, location, attendance, food, kind, transferred_from)
+  values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), bk.id, bu.name, bu.phone,
           bu.location, bu.attendance, bu.food, 'guest', t.id)
   returning * into nt;
+  insert into ticket_emails (ticket_id, email) values (nt.id, bu.email);   -- email stays in the admin-only table
   update tickets set transferred_out_at = now() where id = t.id;
   update bookings set status = 'paid', reviewed_by = auth.uid(), reviewed_at = now(), reviewed_via = 'admin' where id = bk.id;
   perform _assign_numbers(bk.id);

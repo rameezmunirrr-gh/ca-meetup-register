@@ -62,6 +62,11 @@ th{font-size:.8rem;font-weight:500;color:var(--mute)}tr:last-child td{border-bot
 .p-ok{color:#0f6a35;background:#e9f5ec;border-color:#bfe0c8}.p-wait{color:#7a4d00;background:#fdf3dc;border-color:#ecd49a}.p-bad{color:var(--err);background:#fcecea;border-color:#f0c2bd}
 ul.names{margin:12px 0 0;padding-left:20px}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
+.pf{display:flex;align-items:stretch;border:1px solid var(--line2);border-radius:12px;background:#fff;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.pf:focus-within{border-color:var(--green);box-shadow:0 0 0 4px rgba(14,90,67,.12)}
+.pf span{display:flex;align-items:center;padding:0 12px 0 16px;background:#f6f0de;color:var(--mute);font-weight:500;border-right:1px solid var(--line2);user-select:none}
+.pf input{border:0!important;box-shadow:none!important;border-radius:0!important;flex:1;min-width:0}
+input[type=text]:focus-visible,input[type=tel]:focus-visible{outline:none}
 button.chip{padding:8px 14px;border-radius:999px;background:var(--card);color:var(--ink);border:1px solid var(--line2);letter-spacing:.06em;font-weight:500;box-shadow:none}
 canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 22px 44px -20px rgba(14,90,67,.45)}
 /* invitation (home) */
@@ -118,9 +123,9 @@ let db=null;try{db=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supaba
 
 function uuid(){if(crypto.randomUUID)return crypto.randomUUID();
   return"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15;return(c==="x"?r:(r&3|8)).toString(16)})}
-function blank(){return{name:"",phone:"",loc:"",att:"",food:""}}
+function blank(){return{name:"",phone:"",email:"",loc:"",att:"",food:""}}
 const S={step:"home",status:null,friends:false,n:1,people:[blank()],file:null,sid:uuid(),errs:[],payErr:"",busy:false,result:null,
-  tk:{data:{},search:null,q:"",msg:"",busy:false},cur:null,cv:[],pay:null,payLoading:false,payFail:false,payChanged:false};
+  tk:{q:"",phone:"",msg:"",busy:false,res:null,nf:false,code:"",ph:""},ti:null,cur:null,cv:[],pay:null,payLoading:false,payFail:false,payChanged:false};
 const $=s=>document.querySelector(s);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const price=()=>S.status?S.status.price_per_head:0;
@@ -224,8 +229,9 @@ function stepBar(){const i=({form:1,summary:2,pay:3})[S.step];if(!i)return"";
 function foot(){return S.step==="home"?"":`<p class="foot">${esc(CONFIG.organiserName)}</p>`}
 function render(){
   const a=$("#app");
-  a.innerHTML=stepBar()+({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket})[S.step]()+foot();
+  a.innerHTML=stepBar()+({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket,xmenu:vXMenu,xsell:vXSell,xcode:vXCode,xbuy:vXBuy,xform:vXForm,xdone:vXDone,tpay:vTPay})[S.step]()+foot();
   if(S.step==="pay"&&$("#qr"))drawQR($("#qr"),upiLink());
+  if(S.step==="tpay"&&$("#qr"))drawQR($("#qr"),upiLink(S.xp.amount,"Meetup ticket transfer"));
   if(S.step==="ticket")drawTickets().catch(()=>{});
   window.scrollTo(0,0);
 }
@@ -239,7 +245,7 @@ function vHome(){
   </div><div class="band"></div></section>
   <div class="row col" style="gap:12px"><button class="big" id="go-register">Register for the meet-up</button>
   <button class="big ghost" id="go-tickets">Tickets</button></div>`+
-  (n?`<p class="note" style="text-align:center;margin-top:18px">You have ${n} booking${n===1?"":"s"} on this device. Open Tickets to see ${n===1?"it":"them"}.</p>`:"");
+  (n?`<p class="note" style="text-align:center;margin-top:18px">You have ${n} booking${n===1?"":"s"} on this device. Open Tickets and enter your phone number to see ${n===1?"it":"them"}.</p>`:"");
 }
 function vError(){return head("Couldn't load registration","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
 function vClosed(){
@@ -267,10 +273,12 @@ function vForm(){
   S.people.forEach((p,i)=>{
     h+=`<div class="card"><h2>${S.n>1?"Person "+(i+1):"Your details"}</h2>
     <label for="n${i}">Name</label><input type="text" id="n${i}" data-i="${i}" data-k="name" value="${esc(p.name)}" maxlength="80" autocomplete="${i?"off":"name"}">
-    <label for="t${i}">Phone number</label><input type="tel" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" maxlength="10" placeholder="10 digits" autocomplete="${i?"off":"tel-national"}">
+    <label for="t${i}">Phone number</label><div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" placeholder="10 digits" autocomplete="${i?"off":"tel-national"}" aria-label="Phone number, 10 digits, India +91"></div>
     <div class="lbl">Where are you currently?</div><div class="opts">${opt(i,"loc","In Bengaluru",p.loc)}${opt(i,"loc","Outside Bengaluru",p.loc)}</div>
     <div class="lbl">Will you attend?</div><div class="opts">${opt(i,"att","Surely",p.att)}${opt(i,"att","Most probably",p.att)}</div>
-    <div class="lbl">Food preference</div><div class="opts">${opt(i,"food","Veg",p.food)}${opt(i,"food","Non-veg",p.food)}</div></div>`;
+    <div class="lbl">Food preference</div><div class="opts">${opt(i,"food","Veg",p.food)}${opt(i,"food","Non-veg",p.food)}</div>
+    <label for="e${i}">Email</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
+    <p class="note" style="margin:6px 0 0">Used for event updates and to help recover your ticket. Only the organisers can see it.</p></div>`;
   });
   return h+`<div class="row"><button class="ghost" id="go-home">Home</button><button id="review">Review details</button></div>`;
 }
@@ -280,17 +288,18 @@ function validate(){
     if(!/^\d{10}$/.test(p.phone))e.push(w+"phone must be exactly 10 digits");
     if(!p.loc)e.push(w+"choose where you are currently");
     if(!p.att)e.push(w+"choose Surely or Most probably");
-    if(!p.food)e.push(w+"choose Veg or Non-veg")});
+    if(!p.food)e.push(w+"choose Veg or Non-veg");
+    if(!okMail(p.email))e.push(w+"enter a valid email address")});
   return e;
 }
 function vSummary(){
   return head("Check your details","Make sure everything is right. Food and hall numbers are planned from this.")+
   `<div class="card wrap"><table><tr><th></th><th>Name</th><th>Phone</th><th>Location</th><th>Attending</th><th>Food</th></tr>`+
-  S.people.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.name.trim())}</td><td>${p.phone}</td><td>${p.loc}</td><td>${p.att}</td><td>${p.food}</td></tr>`).join("")+
+  S.people.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.name.trim())}<div class="note">${esc(p.email.trim())}</div></td><td>+91 ${p.phone}</td><td>${p.loc}</td><td>${p.att}</td><td>${p.food}</td></tr>`).join("")+
   `</table></div><div class="card"><b>${S.n} × ₹${price()} = ₹${total()}</b> payable</div>
   <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to payment</button></div>`;
 }
-function upiLink(){return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&am=${total().toFixed(2)}&cu=INR&tn=${encodeURIComponent("Meetup "+S.n+" reg")}`}
+function upiLink(amt,note){amt=amt==null?total():amt;note=note||("Meetup "+S.n+" reg");return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&am=${Number(amt).toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`}
 function vPay(){
   if(S.payLoading)return head("Payment","Loading the payment details…");
   if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="back">Back</button><button id="payretry">Try again</button></div>`;
@@ -310,7 +319,7 @@ function vPay(){
 }
 function vDone(){
   const r=S.result;
-  return '<div class="seal" aria-hidden="true">✓</div>'+head("Registration received","Save your Booking ID. When the organisers confirm your payment, open Tickets on this page to download your tickets.")+
+  return '<div class="seal" aria-hidden="true">✓</div>'+head("Registration received","Save your Booking ID. When the organisers confirm your payment, open Tickets on this page and enter your Booking ID and phone number to download your tickets.")+
   `<div class="card idcard"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div>
   <div class="row"><button class="ghost" id="copyid">Copy Booking ID</button></div></div>
   <div class="card wrap"><table><tr><th>Name</th><th>Food</th></tr>`+
@@ -323,47 +332,210 @@ function vDone(){
 }
 
 /* ---------- Tickets page ---------- */
-function bookingCard(code){
-  const d=S.tk.data[code];
-  if(d==="err")return `<div class="card"><b>${esc(code)}</b><p class="note">Couldn't load this booking. Check your internet and tap Refresh status.</p></div>`;
-  if(!d)return `<div class="card"><b>${esc(code)}</b><p class="note">This Booking ID was not found.</p></div>`;
-  const names=`<ul class="names">`+d.tickets.map(t=>`<li>${esc(t.name)} <span class="note">· ${esc(t.food)}</span></li>`).join("")+`</ul>`;
-  const idl=`<b style="letter-spacing:.08em">${esc(d.booking_code)}</b>`;
+/* ---------- helpers for phone (fixed +91) and the transfer screens ---------- */
+const phoneBox=(id,attr,val,ph)=>`<div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="${id}" ${attr} value="${esc(val||"")}" inputmode="numeric" placeholder="${ph||"10 digits"}" autocomplete="off" aria-label="Phone number, 10 digits, India +91"></div>`;
+const optX=(k,v,cur)=>`<label><input type="radio" name="x_${k}" data-x="${k}" value="${v}" ${cur===v?"checked":""}><span>${v}</span></label>`;
+/* a pasted number such as "+91 98765-43210", "919876543210" or "09876543210" becomes the plain 10 digits */
+const cleanPhone=v=>{let d=String(v||"").replace(/\D/g,"");if(d.length===12&&d.startsWith("91"))d=d.slice(2);else if(d.length===11&&d[0]==="0")d=d.slice(1);return d.slice(0,10)};
+const okMail=e=>{e=String(e||"").trim();return e.length>=5&&e.length<=120&&/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)};
+const XERR={MISMATCH:"Submission failed due to details mismatch. Please check the Booking ID, the ticket number and the phone number of that ticket.",TRANSFERS_CLOSED:"Ticket transfers are not open right now.",CUTOFF_PASSED:"The last date for ticket transfers has passed.",NOT_CONFIRMED:"This ticket is not confirmed yet, so it cannot be transferred.",
+  COORDINATOR:"Coordinator tickets cannot be transferred here. Please contact the organisers.",ALREADY_CHECKED_IN:"This ticket has already been used at the entry.",ALREADY_TRANSFERRED:"This ticket has already been transferred.",ALREADY_PENDING:"A buyer has already applied for this ticket. The organisers are handling it. Please wait or contact them.",
+  TRY_AGAIN:"Something collided. Please tap the button again.",INVALID_UPI:"That payout UPI ID or phone number doesn't look right. Use name@bank or a 10-digit number.",INVALID_CODE:"Invalid code. Please check it, or ask for a new one. Codes stop working after a while.",NOT_AVAILABLE:"This ticket is no longer available for transfer.",
+  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Phone must be exactly 10 digits.",INVALID_EMAIL:"Please enter a valid email address.",INVALID_LOCATION:"Please choose where you are currently.",INVALID_ATTENDANCE:"Please choose Surely or Most probably.",INVALID_FOOD:"Please choose Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
+  CONTACT_ADMIN:"A buyer has already applied. Only the organisers can end this now. Please contact them.",NOTHING_TO_CANCEL:"There is no active code to cancel.",NOT_ACTIVE:"This transfer is no longer open.",PAYMENT_NOT_REQUESTED:"The organisers have not asked for payment yet.",ALREADY_SUBMITTED:"You have already uploaded a payment screenshot.",SCREENSHOT_MISSING:"The screenshot did not upload. Please select it again."};
+const xerr=r=>XERR[r&&r.error]||"Something went wrong. Please try again.";
+const waTxt=t=>contactBtn(t,"Contact the organisers");
+
+/* ---------- Tickets page: Booking ID + phone, every time ---------- */
+const savedIds=()=>{const a=getMine().concat(LS.get("mm_hist",[]));return a.filter((c,i)=>a.indexOf(c)===i).slice(0,12)};
+function loadTI(){if(!db)return Promise.resolve();return db.rpc("get_transfer_info").then(r=>{S.ti=r.error?null:r.data}).catch(()=>{S.ti=null})}
+const xOpen=()=>!!(S.ti&&S.ti.open&&!S.ti.cutoff_passed);
+const NF=`<div class="card"><b>No ticket found for these details.</b><p class="note">Check the Booking ID and use the phone number that was entered for that person. The letter O and the number 0 are treated the same.</p><div class="row">${"@@HELP@@"}</div></div>`;
+function pill(c,t){return `<span class="pill p-${c}">${t}</span>`}
+function transferNote(tr){
+  if(!tr||!tr.transfers||!tr.transfers.length)return"";
+  const L={code_active:"Code active",pending_admin:"A buyer has applied",done:"Transferred",rejected:"Not approved",withdrawn:"Closed",replaced:"Replaced by a newer code",expired:"Code expired"};
+  return `<div class="card"><b>Your transfers</b>`+tr.transfers.map(x=>{
+    let h=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><div class="sw"><span>${esc(x.ticket_label||"")} · ${x.mode==="public"?"Public":"Private"}</span>${pill(x.status==="done"?"ok":x.status==="rejected"||x.status==="withdrawn"||x.status==="expired"?"bad":"wait",L[x.status]||esc(x.status))}</div>`;
+    if(x.status==="code_active"&&x.code)h+=`<div class="note" style="margin-top:6px">Code <b style="letter-spacing:.15em;font-size:1.1rem">${esc(x.code)}</b> · valid until ${esc(fmtWhen(x.expires_at))}</div><div class="row"><button class="ghost" data-xcancel="${esc(x.ticket_label)}">Cancel this code</button></div>`;
+    if(x.status==="pending_admin")h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?esc(x.buyer_name)+" has applied. ":""}The organisers will call your registered number to confirm before anything changes. Your ticket stays valid until then.</p>`;
+    if(x.status==="done"){h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?"Your ticket now belongs to "+esc(x.buyer_name)+".":"Your ticket was transferred."}`;
+      if(x.mode==="public"&&x.amount_to_receive)h+=x.payout==="paid"?` You have been paid ₹${esc(x.amount_to_receive)}.`:` The organisers will pay you ₹${esc(x.amount_to_receive)} on the payout UPI ID / number you gave.`;
+      h+=`</p>`}
+    if(x.status==="rejected")h+=`<p class="note" style="margin:6px 0 0">The organisers did not approve this transfer. Your ticket is unchanged.</p>`;
+    return h+`</div>`}).join("")+`</div>`}
+function bookingCard(d){
   const msg="Hi, I'm checking on my "+CONFIG.eventName+" booking, ID "+d.booking_code+".";
-  if(d.status==="paid")return `<div class="card"><div class="sw">${idl}<span class="pill p-ok">Confirmed</span></div>${names}<div class="row"><button data-view="${esc(d.booking_code)}">View Ticket</button></div></div>`;
-  if(d.status==="rejected")return `<div class="card"><div class="sw">${idl}<span class="pill p-bad">Not verified</span></div>${names}<p class="err">Payment couldn't be verified. Please contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
-  return `<div class="card"><div class="sw">${idl}<span class="pill p-wait">Pending verification</span></div>${names}<p class="note">We're checking your payment. If it's taking long, contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
+  const idl=`<b style="letter-spacing:.08em">${esc(d.booking_code)}</b>`;
+  const live=d.tickets.filter(t=>!t.transferred),moved=d.tickets.filter(t=>t.transferred);
+  const names=d.tickets.length?`<ul class="names">`+d.tickets.map(t=>`<li>${esc(t.name)} <span class="note">· ${esc(t.food)}${t.label&&t.label!=="—"?" · "+esc(t.label):""}</span>${t.transferred?` ${pill("wait","Transferred")}`:""}</li>`).join("")+`</ul>`:"";
+  if(d.kind==="transfer"){
+    const tr=d.transfer||{},st=tr.state,w=(c,t)=>`<div class="sw">${idl}${pill(c,t)}</div>`;
+    if(d.status==="paid")return `<div class="card">${w("ok","Confirmed")}<p style="margin:10px 0 0">Your transfer is complete. This is now your ticket.</p>${names}<div class="row"><button data-view="1">View Ticket</button></div></div>`;
+    const T={pending:["wait","Pending verification","The organisers have been notified. They will call the seller to confirm"+(tr.type==="public"?", then ask you to pay the standard ticket price here":"")+". Please check back here."],
+      payment_due:["wait","Payment needed","The organisers confirmed with the seller. Please pay ₹"+esc(tr.amount_due)+" and upload the payment screenshot."],
+      payment_submitted:["wait","Payment received for checking","Your screenshot is with the organisers. They are checking it against the bank."],
+      payment_verified:["wait","Payment verified","Your payment is verified. The organisers will complete the transfer shortly."],
+      rejected:["bad","Not approved","This transfer was not approved. Please contact the organisers."],
+      return_due:["bad","Not approved · refund due","This transfer could not be completed. Your payment will be returned. Please contact the organisers if it takes long."],
+      returned:["ok","Payment returned","This transfer could not be completed and your payment has been returned."]}[st]||["wait","Pending verification",""];
+    return `<div class="card">${w(T[0],T[1])}<p style="margin:10px 0 0">${T[2]}</p><div class="row">${st==="payment_due"?`<button data-tpay="1">Pay ₹${esc(tr.amount_due)}</button>`:""}${contactBtn(msg)}</div></div>`}
+  if(d.status==="paid")return `<div class="card"><div class="sw">${idl}${pill("ok","Confirmed")}</div>${names}<div class="row">${live.length?`<button data-view="1">View Ticket${live.length>1?"s":""}</button>`:""}${live.length&&xOpen()?`<button class="ghost" data-xstart="1">Transfer a ticket</button>`:""}</div>${moved.length&&!live.length?`<p class="note">This ticket was transferred to someone else.</p>`:""}</div>`+transferNote(d.xstatus);
+  if(d.status==="rejected")return `<div class="card"><div class="sw">${idl}${pill("bad","Not verified")}</div>${names}<p class="err">Payment couldn't be verified. Please contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
+  return `<div class="card"><div class="sw">${idl}${pill("wait","Pending verification")}</div>${names}<p class="note">We're checking your payment. If it's taking long, contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
 }
 function vTickets(){
-  const T=S.tk,se=T.search,mine=getMine().filter(c=>!(se&&!se.nf&&se.code===c)),hist=LS.get("mm_hist",[]);
-  let h=head("Tickets","Check your booking and download your tickets once the payment is confirmed.");
+  const T=S.tk,ids=savedIds();
+  let h=head("Tickets","Check your booking and download your tickets once the payment is confirmed. For your safety we always ask for the phone number too.");
   h+=`<div class="card"><label for="bq">Booking ID</label><input type="text" id="bq" value="${esc(T.q)}" maxlength="14" autocapitalize="characters" autocomplete="off" placeholder="e.g. 97FB17B2">
-  <div class="row"><button id="tsearch" ${T.busy?"disabled":""}>${T.busy?"Searching…":"Search"}</button></div>${T.msg?`<div class="err" role="alert">${esc(T.msg)}</div>`:""}</div>`;
-  if(hist.length)h+=`<div class="lbl">Recent searches</div><div class="chips" style="margin-bottom:14px">${hist.map(c=>`<button class="chip" data-hist="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
-  if(se){
-    h+=se.nf?`<div class="card"><b>No booking found${se.code?" for "+esc(se.code):""}.</b><p class="note">Check the Booking ID. The letter O and the number 0 are treated the same.</p><div class="row">${contactBtn("Hi, I couldn't find my "+CONFIG.eventName+" booking"+(se.code?" (I searched for "+se.code+")":"")+".","Need help?")}</div></div>`:bookingCard(se.code);
-  }
-  if(mine.length)h+=`<h2 style="margin-top:20px">On this device</h2>`+mine.map(bookingCard).join("");
-  h+=`<div class="row"><button class="ghost" id="trefresh">Refresh status</button><button class="ghost" id="go-home">Home</button></div>`;
+  <label for="tkph">Phone number of the person in the booking</label>${phoneBox("tkph","",T.phone)}
+  <div class="row"><button id="tsearch" ${T.busy?"disabled":""}>${T.busy?"Checking…":"Check"}</button></div>${T.msg?`<div class="err" role="alert">${esc(T.msg)}</div>`:""}</div>`;
+  if(ids.length)h+=`<div class="lbl">Booking IDs used on this device <span class="note">(tap to fill)</span></div><div class="chips" style="margin-bottom:14px">${ids.map(c=>`<button class="chip" data-hist="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
+  if(T.nf)h+=NF.replace("@@HELP@@",contactBtn("Hi, I couldn't find my "+CONFIG.eventName+" booking.","Need help?"));
+  else if(T.res)h+=bookingCard(T.res);
+  h+=`<div class="row">${xOpen()?`<button class="ghost" id="go-xmenu">Transfer tickets</button>`:""}${T.res?`<button class="ghost" id="trefresh">Refresh status</button>`:""}<button class="ghost" id="go-home">Home</button></div>`;
   return h;
 }
-async function fetchBooking(code){const{data,error}=await db.rpc("lookup_booking",{p_code:code});if(error)throw error;return data}
-async function loadMine(){
-  const codes=getMine();if(!codes.length)return;
-  await Promise.all(codes.map(async c=>{try{S.tk.data[c]=await fetchBooking(c)}catch(_){S.tk.data[c]="err"}}));
-  if(S.step==="tickets"){const q=($("#bq")||{}).value;if(q!=null)S.tk.q=q;const y=window.scrollY;render();window.scrollTo(0,y)}
-}
-async function doSearch(raw){
-  const code=normCode(raw);S.tk.q=raw;S.tk.msg="";
-  if(!/^[0-9A-F]{8}$/.test(code)){S.tk.search={code:String(raw).trim(),nf:true};return render()}
-  S.tk.busy=true;render();
+async function doSearch(){
+  const T=S.tk,code=normCode(T.q),ph=String(T.phone||"").replace(/\D/g,"");T.msg="";T.res=null;T.nf=false;
+  if(!/^[0-9A-F]{8}$/.test(code)||!/^\d{10}$/.test(ph)){T.nf=true;return render()}
+  T.busy=true;render();
   try{
-    const d=await fetchBooking(code);S.tk.data[code]=d;
-    if(d){remember("mm_hist",code,10);S.tk.search={code,nf:false}}else S.tk.search={code,nf:true};
-  }catch(_){S.tk.search=null;S.tk.msg="Could not reach the server. Check your internet and try again."}
-  S.tk.busy=false;render();
+    const{data,error}=await db.rpc("lookup_tickets",{p_code:code,p_phone:ph});if(error)throw error;
+    if(data&&data.found){
+      remember("mm_hist",code,10);
+      if(data.kind==="registration"&&data.status==="paid"){try{const x=await db.rpc("transfer_status",{p_booking_code:code,p_phone:ph});data.xstatus=x.error||!x.data||!x.data.found?null:x.data}catch(_){}}
+      T.res=data;T.code=code;T.ph=ph;
+    }else T.nf=true;
+  }catch(_){T.msg="Could not reach the server. Check your internet and try again."}
+  T.busy=false;const y=window.scrollY;render();window.scrollTo(0,y);
 }
-function openTickets(){S.step="tickets";S.tk.search=null;S.tk.msg="";S.tk.q="";render();(S.pay?Promise.resolve():loadPay()).then(loadMine)}
+function openTickets(pre){S.step="tickets";const T=S.tk;T.res=null;T.nf=false;T.msg="";T.phone="";T.q=pre||"";render();(S.pay?Promise.resolve():loadPay()).then(loadTI).then(()=>{if(S.step==="tickets")render()})}
+function viewTickets(){const d=S.tk.res;if(!d)return;const live=d.tickets.filter(t=>!t.transferred&&t.secret);if(!live.length)return;S.cur={booking_code:d.booking_code,tickets:live};S.step="ticket";render()}
+
+/* ---------- Transfer tickets ---------- */
+S.xs={mode:"private",code:"",ticket:"",phone:"",upi:"",busy:false,err:"",res:null};S.xb={};S.xp={};
+function vXMenu(){
+  if(!S.ti)return head("Transfer tickets","Checking…")+`<div class="row"><button class="ghost" id="go-tickets">Back</button></div>`;
+  if(!xOpen())return head("Transfer tickets",S.ti.open?"The last date for ticket transfers has passed.":"Ticket transfers are not open right now.")+`<div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`;
+  return head("Transfer tickets","Can't come? Give your seat to someone else. The number of seats never changes, and the organisers check every transfer by phone.")+
+  `<div class="card"><h2>Private transfer</h2><p class="note" style="margin-top:0">You already know who will take your seat. You settle the money between yourselves; the organisers are not involved in it.</p><div class="row"><button data-xgo="private-sell">I want to sell</button><button class="ghost" data-xgo="private-buy">I want to buy</button></div></div>
+  <div class="card"><h2>Public transfer</h2><p class="note" style="margin-top:0">You have no buyer. The organisers find one, collect the ticket price from them and pay you.</p><div class="row"><button data-xgo="public-sell">I want to sell</button><button class="ghost" data-xgo="public-buy">I want to buy</button></div></div>
+  <div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`}
+function vXSell(){
+  const x=S.xs,pub=x.mode==="public";
+  return head((pub?"Public":"Private")+" transfer: sell","Enter the details exactly as they are for the ticket you want to give up.")+
+  (x.err?`<div class="card errbox" role="alert">${esc(x.err)}</div>`:"")+
+  `<div class="card"><label for="xs_c">Booking ID</label><input type="text" id="xs_c" data-xs="code" value="${esc(x.code)}" maxlength="14" autocapitalize="characters" autocomplete="off">
+  <label for="xs_t">Ticket number</label><input type="text" id="xs_t" data-xs="ticket" value="${esc(x.ticket)}" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="e.g. E26-007">
+  <label for="xs_p">Phone number entered for that ticket</label>${phoneBox("xs_p",'data-xs="phone"',x.phone)}
+  ${pub?`<label for="xs_u">Where should we pay you? (UPI ID or 10-digit UPI phone number)</label><input type="text" id="xs_u" data-xs="upi" value="${esc(x.upi)}" maxlength="80" autocomplete="off" placeholder="name@bank">
+  <p class="note">Public transfer: the organisers find a buyer, collect the ticket price from them, and pay you exactly what they receive after the transfer is done. They will call your registered number to confirm.</p>`
+  :`<p class="note">Private transfer: you get a code. Give it to the person taking your seat. The organisers will call your registered number before anything changes.</p>`}
+  <div class="row"><button class="ghost" id="go-xmenu">Back</button><button id="xsell" ${x.busy?"disabled":""}>${x.busy?"Please wait…":"Get my code"}</button></div></div>`}
+function vXCode(){
+  const r=S.xs.res,pub=S.xs.mode==="public";
+  return '<div class="seal" aria-hidden="true">✓</div>'+head("Your transfer code","Ticket "+esc(r.ticket_label))+
+  `<div class="card idcard"><div class="note">Code</div><div class="amt" style="letter-spacing:.2em">${esc(r.code)}</div><div class="note">Valid until ${esc(fmtWhen(r.expires_at))}</div><div class="row"><button class="ghost" id="copycode">Copy code</button></div></div>
+  <div class="card">${pub?`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Contact the organisers. They will find a buyer and give them this code. They will call your registered number to confirm before the ticket moves, and pay you after the transfer.</p>`
+  :`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Give this code to the person taking your seat. They open Tickets, then Transfer tickets, then Private transfer, then “I want to buy”, and type the code. After they apply, the organisers call your registered number to confirm. Until then your ticket stays valid.</p>`}
+  <p class="note">If the code runs out, just make a new one. A new code makes the old one stop working. You can check or cancel it any time from Tickets (Booking ID + phone).</p></div>
+  <div class="row">${contactBtn("Hi, I made a ticket transfer code ("+r.code+") for ticket "+r.ticket_label+" for "+CONFIG.eventName+".","Contact the organisers")}<button class="ghost" id="go-tickets">Back to Tickets</button></div>`}
+function vXBuy(){
+  const b=S.xb;
+  return head("Buy a ticket","Type the code you were given by the seller or by the organisers.")+
+  (b.err?`<div class="card errbox" role="alert">${esc(b.err)}</div>`:"")+
+  `<div class="card"><label for="xb_c">Code</label><input type="text" id="xb_c" data-xb="code" value="${esc(b.code||"")}" maxlength="10" autocapitalize="characters" autocomplete="off" placeholder="6 letters and numbers" style="letter-spacing:.2em;text-transform:uppercase">
+  <div class="row"><button class="ghost" id="go-xmenu">Back</button><button id="xopen" ${b.busy?"disabled":""}>${b.busy?"Checking…":"Continue"}</button></div></div>`}
+function vXForm(){
+  const b=S.xb,pub=b.mode==="public";
+  return head("Transfer Form","Buying "+esc(b.seller_name)+"'s ticket")+
+  (b.err?`<div class="card errbox" role="alert">${esc(b.err)}</div>`:"")+
+  `<div class="card"><label for="xf_n">Your name</label><input type="text" id="xf_n" data-x="name" value="${esc(b.name||"")}" maxlength="80" autocomplete="name">
+  <label for="xf_p">Phone number</label>${phoneBox("xf_p",'data-x="phone"',b.phone)}
+  <label for="xf_e">Email</label><input type="text" id="xf_e" data-x="email" value="${esc(b.email||"")}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="you@example.com">
+  <div class="lbl">Where are you currently?</div><div class="opts">${optX("loc","In Bengaluru",b.loc)}${optX("loc","Outside Bengaluru",b.loc)}</div>
+  <div class="lbl">Will you attend?</div><div class="opts">${optX("att","Surely",b.att)}${optX("att","Most probably",b.att)}</div>
+  ${b.food_locked?`<div class="lbl">Food preference</div><p class="note" style="margin-top:0">The food order has been placed, so your food is the same as the seller's: <b>${esc(b.food)}</b>.</p>`:`<div class="lbl">Food preference</div><div class="opts">${optX("food","Veg",b.food)}${optX("food","Non-veg",b.food)}</div>`}
+  <label style="display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:18px"><input type="checkbox" id="xf_ok" ${b.consent?"checked":""} style="margin-top:5px;flex:none"><span>${pub?"I understand that the organisers will ask me to pay the standard ticket price after they confirm with the seller, and that the seat is mine only after they complete the transfer.":"I understand that the payment between me and the seller is our own matter, and the organisers are not responsible for it."}</span></label>
+  <p class="note">Your email is used for event updates and to recover your ticket. Only the organisers can see it.</p>
+  <div class="row"><button class="ghost" id="go-xbuy">Back</button><button id="xsubmit" ${b.busy?"disabled":""}>${b.busy?"Submitting…":"Submit"}</button></div></div>`}
+function vXDone(){
+  const r=S.xb.result,pub=S.xb.mode==="public";
+  return '<div class="seal" aria-hidden="true">✓</div>'+head("Request received","Save your Booking ID.")+
+  `<div class="card idcard"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div><div class="row"><button class="ghost" id="copyxid">Copy Booking ID</button></div></div>
+  <div class="card"><span class="pill p-wait">Pending verification</span><p>The organizers (admins) will be notified of this request, and will take necessary actions soon.</p>
+  <p class="note">${pub?"They will confirm with the seller first, then ask you here to pay the standard ticket price. Open Tickets with your Booking ID and phone number to see the next step.":"They will confirm with the seller by phone. When it is done, open Tickets with your Booking ID and phone number to get your ticket."} You do not have a ticket or a seat until the transfer is completed.</p></div>
+  <div class="row">${contactBtn("Hi, I submitted a ticket transfer request for "+CONFIG.eventName+". My Booking ID is "+r.booking_code+".","Contact now")}<button class="ghost" id="go-tickets">Go to Tickets</button></div>`}
+function vTPay(){
+  const p=S.xp;
+  if(S.payLoading)return head("Payment","Loading the payment details…");
+  if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="tp-back">Back</button><button id="tp-retry">Try again</button></div>`;
+  if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers haven't finished setting up payments. Please try again a little later.")+`<div class="row"><button class="ghost" id="tp-back">Back</button>${contactBtn("Hi, I couldn't pay for my ticket transfer because the payment details are missing.","Contact the organisers")}</div>`;
+  return head("Pay ₹"+p.amount,"Ticket transfer payment")+(p.err?`<div class="card errbox" role="alert">${esc(p.err)}</div>`:"")+
+  `<div class="card" style="text-align:center"><div class="amt">₹${p.amount}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${p.amount}"></canvas>
+  <p class="note" style="margin:0 0 6px">Scan this QR with your UPI app, or pay to the UPI ID below.</p><div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
+  <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div></div>
+  <div class="card"><label for="tshot">Upload payment screenshot</label><input type="file" id="tshot" accept="image/*" ${p.file?'style="display:none"':""}>
+  ${p.file&&p.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(p.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="tshot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Images only.</div>`}</div>
+  <div class="row"><button class="ghost" id="tp-back" ${p.busy?"disabled":""}>Back</button><button id="tp-submit" ${p.busy?"disabled":""}>${p.busy?"Submitting…":"Submit payment"}</button></div>`}
+
+async function xSell(){
+  const x=S.xs;if(x.busy)return;x.err="";
+  const code=normCode(x.code),ph=String(x.phone||"").replace(/\D/g,"");
+  if(!/^[0-9A-F]{8}$/.test(code)||!x.ticket.trim()||!/^\d{10}$/.test(ph)||(x.mode==="public"&&!x.upi.trim())){x.err="Please fill in every box. The phone number must be 10 digits.";return render()}
+  x.busy=true;render();
+  try{
+    const a={p_booking_code:code,p_ticket:x.ticket.trim(),p_phone:ph};if(x.mode==="public")a.p_upi=x.upi.trim();
+    const{data,error}=await db.rpc(x.mode==="public"?"public_sell":"private_sell",a);if(error)throw error;
+    if(data&&data.ok){x.res=data;S.step="xcode";x.busy=false;return render()}
+    x.err=xerr(data);
+  }catch(_){x.err="Could not reach the server. Check your internet and try again."}
+  x.busy=false;render();
+}
+async function xOpenCode(){
+  const b=S.xb;if(b.busy)return;b.err="";const c=String(b.code||"").toUpperCase().replace(/[\s-]/g,"");
+  if(!/^[A-Z2-9]{6}$/.test(c)){b.err="Please type the 6-character code.";return render()}
+  b.busy=true;render();
+  try{
+    const{data,error}=await db.rpc("transfer_open",{p_code:c});if(error)throw error;
+    if(data&&data.ok){if(b.sidFor!==c){b.sid=uuid();b.sidFor=c}   /* one submission ID per code: a retry of the same form is safe, a different code is a new request */
+      Object.assign(b,{mode:data.mode,seller_name:data.seller_name,food_locked:!!data.food_locked,food:data.food||"",code:c});if(b.food_locked)b.food=data.food;S.step="xform";b.busy=false;return render()}
+    b.err=xerr(data);
+  }catch(_){b.err="Could not reach the server. Check your internet and try again."}
+  b.busy=false;render();
+}
+async function xSubmit(){
+  const b=S.xb;if(b.busy)return;b.err="";
+  const e=[];if(!String(b.name||"").trim())e.push("enter your name");if(!/^\d{10}$/.test(b.phone||""))e.push("phone must be exactly 10 digits");if(!okMail(b.email))e.push("enter a valid email address");
+  if(!b.loc)e.push("choose where you are currently");if(!b.att)e.push("choose Surely or Most probably");if(!b.food_locked&&!b.food)e.push("choose Veg or Non-veg");if(!b.consent)e.push("tick the box to confirm you understand");
+  if(e.length){b.err="Please "+e.join("; ")+".";return render()}
+  b.busy=true;render();
+  try{
+    const{data,error}=await db.rpc("transfer_submit",{p_code:b.code,p_submission_id:b.sid,p_buyer:{name:b.name.trim(),phone:b.phone,email:b.email.trim(),loc:b.loc,att:b.att,food:b.food_locked?"":b.food,consent:"true"}});if(error)throw error;
+    if(data&&data.ok){b.result=data;remember("mm_mine",data.booking_code,20);S.step="xdone";b.busy=false;return render()}
+    b.err=xerr(data);
+  }catch(_){b.err="Could not reach the server. Check your internet and tap Submit again. Tapping again will not create a duplicate request."}
+  b.busy=false;render();
+}
+async function tPaySubmit(){
+  const p=S.xp;if(p.busy)return;p.err="";
+  if(!p.file){p.err="Upload your payment screenshot to continue.";return render()}
+  p.busy=true;render();
+  try{
+    const blob=await compress(p.file),ext={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"}[blob.type];
+    if(!ext)p.err="Please upload the screenshot as a JPG or PNG image.";
+    else{
+      const path=p.sid+"."+ext,up=await db.storage.from("payment-proofs").upload(path,blob,{contentType:blob.type,upsert:false});
+      if(up.error&&!/exist|duplicate|409/i.test((up.error.message||"")+(up.error.statusCode||"")))throw up.error;
+      const{data,error}=await db.rpc("transfer_pay",{p_booking_code:p.code,p_phone:p.ph,p_submission_id:p.sid,p_screenshot_path:path});if(error)throw error;
+      if(data&&data.ok){p.busy=false;toast("Payment received. The organisers will check it.",3500);S.step="tickets";S.tk.q=p.code;S.tk.phone=p.ph;return doSearch()}
+      p.err=xerr(data);
+    }
+  }catch(_){p.err="Could not reach the server. Check your internet and tap Submit again. Tapping again will not create a duplicate."}
+  p.busy=false;render();
+}
+
 function vTicket(){
   const r=S.cur,n=r.tickets.length;
   let h=head("Your ticket"+(n>1?"s":""),"Show the QR code at the entry.");
@@ -470,8 +642,9 @@ function drawQR(c,text){
   for(let r=0;r<m;r++)for(let col=0;col<m;col++)if(q.isDark(r,col))x.fillRect(pad+col*k,pad+r*k,k,k);
 }
 function toast(t,ms){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),ms||2200)}
+const shownAmt=()=>S.step==="tpay"?S.xp.amount:total();
 const blobQR=()=>new Promise(r=>$("#qr").toBlob(r,"image/png"));
-async function download(){const b=await blobQR(),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="meetup-upi-"+total()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+async function download(){const b=await blobQR(),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="meetup-upi-"+shownAmt()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 function compress(file){return new Promise(res=>{
   const img=new Image(),u=URL.createObjectURL(file);
@@ -493,7 +666,7 @@ async function submit(){
       const up=await db.storage.from("payment-proofs").upload(path,blob,{contentType:blob.type,upsert:false});
       if(up.error&&!/exist|duplicate|409/i.test((up.error.message||"")+(up.error.statusCode||"")))throw up.error;
       const{data,error}=await db.rpc("submit_booking",{p_submission_id:S.sid,
-        p_people:S.people.map(p=>({name:p.name.trim(),phone:p.phone,loc:p.loc,att:p.att,food:p.food})),p_screenshot_path:path});
+        p_people:S.people.map(p=>({name:p.name.trim(),phone:p.phone,email:p.email.trim().toLowerCase(),loc:p.loc,att:p.att,food:p.food})),p_screenshot_path:path});
       if(error)throw error;
       S.result=data;S.step="done";
       try{localStorage.setItem("mm_last",JSON.stringify({code:data.booking_code}))}catch(_){}
@@ -513,24 +686,50 @@ async function submit(){
 }
 
 document.addEventListener("input",e=>{const t=e.target;
+  if(t.classList&&t.classList.contains("ph"))t.value=cleanPhone(t.value);
   if(t.id==="bq")S.tk.q=t.value;
-  if(t.dataset.k==="phone")t.value=t.value.replace(/\D/g,"").slice(0,10);
+  if(t.id==="tkph")S.tk.phone=t.value;
+  if(t.dataset.xs)S.xs[t.dataset.xs]=t.value;
+  if(t.dataset.xb)S.xb[t.dataset.xb]=t.value;
+  if(t.dataset.x)S.xb[t.dataset.x]=t.value;
   if(t.dataset.k)S.people[+t.dataset.i][t.dataset.k]=t.value});
-document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="bq"){e.preventDefault();doSearch(e.target.value)}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="bq"||e.target.id==="tkph")){e.preventDefault();doSearch()}if(e.key==="Enter"&&e.target.id==="xb_c"){e.preventDefault();xOpenCode()}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="fr"){S.friends=t.checked;setN(t.checked?2:1);render()}
   else if(t.name==="cnt"){setN(+t.value);render()}
+  else if(t.dataset&&t.dataset.x&&t.type==="radio"){S.xb[t.dataset.x]=t.value}
+  else if(t.id==="xf_ok"){S.xb.consent=t.checked}
+  else if(t.id==="tshot"){const f=t.files[0],P=S.xp;
+    if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){P.err="Choose an image file (a screenshot or photo).";t.value="";P.file=null;P.fileUrl=null;render()}
+    else{try{if(P.fileUrl)URL.revokeObjectURL(P.fileUrl)}catch(_){}P.file=f||null;P.fileUrl=f?URL.createObjectURL(f):null;P.err="";render()}}
   else if(t.id==="shot"){const f=t.files[0];
     if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){$("#ferr").textContent="Choose an image file (a screenshot or photo).";t.value="";S.file=null;S.fileUrl=null}else{try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}S.file=f||null;S.fileUrl=f?URL.createObjectURL(f):null;S.payErr="";render()}}});
 document.addEventListener("click",async e=>{const el=e.target.closest("button,a"),id=el?el.id:"",ds=el?el.dataset:{};
   if(id==="go-home"){S.step="home";render()}
   if(id==="go-register"){S.step="loading";render();load()}
-  if(id==="go-tickets")openTickets();
-  if(id==="back-tickets"){S.step="tickets";render();loadMine()}
-  if(id==="tsearch")doSearch(($("#bq")||{}).value||"");
-  if(id==="trefresh"){S.tk.msg="";await loadMine();toast("Status refreshed")}
-  if(ds.hist){S.tk.q=ds.hist;doSearch(ds.hist)}
-  if(ds.view){const d=S.tk.data[ds.view];if(d&&d.status==="paid"){S.cur=d;S.step="ticket";render()}}
+  if(id==="go-tickets")openTickets(S.step==="done"&&S.result?S.result.booking_code:S.step==="xdone"&&S.xb.result?S.xb.result.booking_code:"");
+  if(id==="back-tickets"){S.step="tickets";render()}
+  if(id==="tsearch")doSearch();
+  if(id==="trefresh"){S.tk.msg="";await doSearch();toast("Status refreshed")}
+  if(ds.hist){S.tk.q=ds.hist;S.tk.res=null;S.tk.nf=false;render();const ph=$("#tkph");if(ph)ph.focus()}
+  if(ds.view)viewTickets();
+  /* ----- transfers ----- */
+  if(id==="go-xmenu"){S.step="xmenu";render();loadTI().then(()=>{if(S.step==="xmenu")render()})}
+  if(ds.xstart){const d=S.tk.res;S.xs={mode:"private",code:d?d.booking_code:"",ticket:"",phone:S.tk.ph||"",upi:"",busy:false,err:"",res:null};S.step="xmenu";render()}
+  if(ds.xgo){const[m,sd]=ds.xgo.split("-");if(sd==="sell"){const keep=S.xs;S.xs={mode:m,code:keep.code||"",ticket:keep.ticket||"",phone:keep.phone||"",upi:"",busy:false,err:"",res:null};S.step="xsell"}else{S.xb={code:"",busy:false,err:""};S.step="xbuy"}render()}
+  if(id==="xsell")xSell();
+  if(id==="copycode"){try{await navigator.clipboard.writeText(S.xs.res.code);toast("Code copied")}catch(_){toast("Press and hold the code to copy")}}
+  if(id==="go-xbuy"){S.step="xbuy";render()}
+  if(id==="xopen")xOpenCode();
+  if(id==="xsubmit")xSubmit();
+  if(id==="copyxid"){try{await navigator.clipboard.writeText(S.xb.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
+  if(ds.xcancel&&S.tk.code){if(!confirm("Cancel this transfer code? Nobody will be able to use it."))return;
+    try{const{data,error}=await db.rpc("transfer_cancel",{p_booking_code:S.tk.code,p_ticket:ds.xcancel,p_phone:S.tk.ph});if(error)throw error;
+      if(data&&data.ok){toast("Code cancelled");await doSearch()}else toast(xerr(data),4500)}catch(_){toast("Could not reach the server. Try again.",3500)}}
+  if(ds.tpay&&S.tk.res&&S.tk.res.transfer){S.xp={code:S.tk.code,ph:S.tk.ph,amount:S.tk.res.transfer.amount_due,sid:uuid(),file:null,fileUrl:null,busy:false,err:""};S.step="tpay";S.payLoading=true;S.payFail=false;render();loadPay().then(ok=>{S.payLoading=false;S.payFail=!ok;if(S.step==="tpay")render()})}
+  if(id==="tp-back"&&!S.xp.busy){S.step="tickets";render()}
+  if(id==="tp-retry"){S.payLoading=true;S.payFail=false;render();loadPay().then(ok=>{S.payLoading=false;S.payFail=!ok;if(S.step==="tpay")render()})}
+  if(id==="tp-submit")tPaySubmit();
   if(ds.dl)downloadTicket(ds.dl,+ds.i);
   if(id==="dl-all-pdf")downloadAll("pdf");
   if(id==="dl-all-jpg")downloadAll("jpg");
@@ -543,8 +742,8 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="copy"){try{await navigator.clipboard.writeText(S.pay.upi);toast("UPI ID copied")}catch(_){toast("Press and hold the UPI ID to copy")}}
   if(id==="copyid"){try{await navigator.clipboard.writeText(S.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
   if(id==="dl")download();
-  if(id==="share"){const b=await blobQR(),f=new File([b],"meetup-upi-"+total()+".png",{type:"image/png"});
-    if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Pay ₹"+total()})}catch(_){}}
+  if(id==="share"){const b=await blobQR(),f=new File([b],"meetup-upi-"+shownAmt()+".png",{type:"image/png"});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Pay ₹"+shownAmt()})}catch(_){}}
     else{await download();toast("Sharing isn't supported here, so the QR was downloaded")}}
   if(id==="submit")submit();
   if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}S.file=null;S.fileUrl=null;S.result=null;S.errs=[];S.step="loading";render();load()}

@@ -42,8 +42,9 @@ const SIMILAR_BITS=8;                // images differing by <= this many of 1024
 const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true}});
 const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
-const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",type:"",review:false},msg:"",charts:[],scanning:false,alert:null,log:[],payOpen:false};
-function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
+const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",type:"",review:false},msg:"",charts:[],scanning:false,alert:null,log:[],payOpen:false,
+  emails:{},emailsOk:false,transfers:[],buyers:[],tReady:false,money:null,ipf:null,showMoved:false};
+function toast(t,ms){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),ms||2400)}
 
 /* ---------- boot / auth ---------- */
 async function boot(){
@@ -60,6 +61,12 @@ async function load(){
   try{const r=await db.rpc("admin_registration_status");S.reg=r.error?null:r.data}catch(_){S.reg=null}
   try{const r=await db.rpc("admin_payment_alert");S.alert=r.error?null:r.data}catch(_){S.alert=null}
   try{const r=await db.from("settings_log").select("*").order("id",{ascending:false}).limit(200);S.log=r.error?[]:r.data}catch(_){S.log=[]}
+  /* emails live in their own admin-only table; transfers and IP flags exist only after the Release 2 database update */
+  try{const r=await db.from("ticket_emails").select("ticket_id,email");S.emailsOk=!r.error;S.emails=r.error?{}:Object.fromEntries(r.data.map(x=>[x.ticket_id,x.email]))}catch(_){S.emailsOk=false;S.emails={}}
+  try{const[x,y]=await Promise.all([db.from("transfers").select("*").order("created_at",{ascending:false}),db.from("transfer_buyers").select("*")]);
+    S.tReady=!x.error&&!y.error;S.transfers=x.error?[]:x.data;S.buyers=y.error?[]:y.data;S.money=null;
+    if(S.tReady){const m=await db.rpc("admin_transfer_money");S.money=m.error?null:m.data}}catch(_){S.tReady=false;S.transfers=[];S.buyers=[]}
+  try{const r=await db.rpc("admin_ip_flags");S.ipf=r.error?null:r.data}catch(_){S.ipf=null}
 }
 /* ===== live registration status banner (daily pause + 10-minute grace) ===== */
 function fmtIST(iso){try{const d=new Date(iso),day=x=>x.toLocaleDateString("en-IN",{day:"numeric",month:"short",timeZone:"Asia/Kolkata"});
@@ -82,6 +89,16 @@ const bk=id=>S.bookings.find(b=>b.id===id)||{};
 const tlabel=t=>t.kind==="coordinator"?"E26-"+pad(t.coord_no)+"C":(t.ticket_no==null?"—":"E26-"+pad(t.ticket_no));
 /* list order: coordinators first, then guests by number (the order you clicked Paid), then people awaiting approval by registration order */
 const rank=t=>t.kind==="coordinator"?0:(t.ticket_no==null?2:1);
+/* a ticket that was transferred to someone else is "retired": it stays in the list for the record but is never counted */
+const live=()=>people().filter(p=>!p.transferred_out_at);
+const fdt=iso=>iso?new Date(iso).toLocaleString("en-IN",{timeZone:"Asia/Kolkata",day:"numeric",month:"short",hour:"numeric",minute:"2-digit",hour12:true}):"–";
+function tAge(iso){const h=(Date.now()-new Date(iso).getTime())/36e5;return h<1?Math.max(1,Math.round(h*60))+" min":h<48?Math.round(h)+" h":Math.round(h/24)+" days"}
+const TERR={NOT_ALLOWED:"Only admins can do this.",INVALID_TRANSFER:"That transfer no longer exists. The page was refreshed.",NOT_PENDING:"This transfer is no longer waiting for an admin (someone else may have handled it). The page was refreshed.",NOT_ACTIVE:"This code is no longer active.",NO_BUYER:"No buyer has applied yet.",
+  CALL_NOT_CONFIRMED:"Tick “I phoned the seller” first.",PAYMENT_NOT_VERIFIED:"Verify the buyer's payment first.",NOT_PUBLIC:"This only applies to public transfers.",ALREADY_REQUESTED:"Payment was already requested.",NOT_SUBMITTED:"The buyer has not uploaded a payment screenshot yet.",ALREADY_VERIFIED:"The payment is already verified.",INVALID_AMOUNT:"Type the amount that actually arrived (₹1 to ₹10,00,000).",
+  SELLER_CHECKED_IN:"The seller has already entered the hall, so this ticket cannot be transferred. Reject this transfer.",SELLER_ALREADY_TRANSFERRED:"This ticket was already transferred.",SELLER_TICKET_INVALID:"The seller's ticket is no longer valid (booking not confirmed, or the ticket changed). Reject this transfer.",BUYER_BOOKING_INVALID:"The buyer's booking is no longer valid. Reject this transfer.",
+  INVALID_HOURS:"Hours must be between 1 and 168.",INVALID_NOTE:"The note is too long (300 characters at most).",INVALID_REFERENCE:"Type a reference of 3 to 80 characters (for example the UPI transaction ID).",ALREADY_PAID:"The seller is already marked as paid.",NOT_DONE:"The transfer is not completed yet.",ALREADY_RETURNED:"Already marked as returned.",NO_RETURN_DUE:"No return is due for this transfer.",
+  INVALID_THRESHOLD:"The number must be between 2 and 1000.",INVALID_CUTOFF:"Choose either a cut-off date or 'no limit', not both.",PAYMENT_INFO_MISSING:"Fill in the UPI ID, payee name and WhatsApp number (Settings, Payment details) before switching transfers on."};
+function terr(e){const m=((e&&e.message)||"").match(/[A-Z][A-Z_]{4,}/);return TERR[m&&m[0]]||("Failed: "+((e&&e.message)||"unknown error"))}
 const people=()=>S.tickets.map(t=>({...t,b:bk(t.booking_id)})).sort((a,b)=>rank(a)-rank(b)||(rank(a)===0?a.coord_no-b.coord_no:rank(a)===1?a.ticket_no-b.ticket_no:a.reg_seq-b.reg_seq));
 function flags(){
   const f={},add=(id,m)=>(f[id]=f[id]||[]).push(m),code=id=>bk(id).booking_code;
@@ -98,6 +115,9 @@ function flags(){
     const d=ham(sc[i].image_hash,sc[j].image_hash);
     if(d<=SIMILAR_BITS){add(sc[i].booking_id,"Screenshot looks like "+code(sc[j].booking_id)+" ("+d+" bits apart)");add(sc[j].booking_id,"Screenshot looks like "+code(sc[i].booking_id)+" ("+d+" bits apart)")}}
   S.scans.forEach(s=>{if(!s.read_ok&&bk(s.booking_id).status!=="rejected")add(s.booking_id,"Could not read a transaction ID")});
+  // 2b) many registrations from one network address (a flag only: shared WiFi and mobile networks can look the same)
+  const ipb=(S.ipf&&S.ipf.by_booking)||{};
+  S.bookings.forEach(b=>{const i=ipb[b.booking_code];if(i&&b.status!=="rejected")add(b.id,"Same network address as "+(i.count-1)+" other registration"+(i.count===2?"":"s")+" (flag only)")});
   // 3) amount remarks (only for scans done after the amount upgrade)
   S.scans.forEach(s=>{const b=bk(s.booking_id);if(b.status==="rejected"||!s.amounts)return;
     if(!s.amounts.length)add(b.id,"Couldn't find an amount on the screenshot");
@@ -114,15 +134,17 @@ function view(){
     ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<label for="em">Email</label><input id="em" type="email" autocomplete="username" style="width:100%">
     <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" style="width:100%"><p><button id="login">Sign in</button></p></div>`;return}
   if(S.staff.role!=="admin"){a.innerHTML=`<h1>Hello, ${esc(S.staff.name)}</h1><div class="card">This page is for admins. <a href="../gate/">Open the gate scanner</a>.</div><button class="ghost" id="logout">Sign out</button>`;return}
-  const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],["scan","Scan screenshots"],["settings","Settings"]];
+  const todo=S.tReady?S.transfers.filter(x=>x.status==="pending_admin").length+S.transfers.filter(x=>x.return_due&&!x.returned_at).length+S.transfers.filter(x=>x.kind==="public"&&x.status==="done"&&!x.seller_paid_at).length:0;
+  const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],...(S.tReady?[["transfers","Transfers"+(todo?" ("+todo+")":"")]]:[]),["scan","Scan screenshots"],["settings","Settings"]];
+  if(S.tab==="transfers"&&!S.tReady)S.tab="overview";
   a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--green);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--green)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
-  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner():""}<div id="v"></div>`;
-  ({overview:vOverview,bookings:vBookings,people:vPeople,scan:vScan,settings:vSettings})[S.tab]();
+  ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner()+ipBanner():""}<div id="v"></div>`;
+  ({overview:vOverview,bookings:vBookings,people:vPeople,transfers:vTransfers,scan:vScan,settings:vSettings})[S.tab]();
 }
 function vOverview(){
-  const P=people(),live=P.filter(p=>p.b.status!=="rejected"),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending");
+  const P=live(),liveP=P.filter(p=>p.b.status!=="rejected"),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending");
   const money=st=>S.bookings.filter(b=>b.status===st).reduce((s,b)=>s+b.amount_expected,0),here=P.filter(p=>p.checked_in_at&&p.b.status==="paid").length;
-  const used=live.length,left=Math.max(S.settings.cap-used,0),coords=live.filter(p=>p.kind==="coordinator"),pcoords=paid.filter(p=>p.kind==="coordinator");
+  const used=liveP.length,left=Math.max(S.settings.cap-used,0),coords=liveP.filter(p=>p.kind==="coordinator"),pcoords=paid.filter(p=>p.kind==="coordinator");
   $("#v").innerHTML=regBar()+`<div class="grid">
       <div class="card stat"><span class="mute">Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span></div>
    <div class="card stat"><span class="mute">Spots used</span><b>${used}</b><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span></div>
@@ -148,15 +170,18 @@ function filtBar(withPeople){
   <select id="floc"><option value="">Location: all</option><option ${f.loc==="In Bengaluru"?"selected":""}>In Bengaluru</option><option ${f.loc==="Outside Bengaluru"?"selected":""}>Outside Bengaluru</option></select>
   <select id="fatt"><option value="">Attendance: all</option><option ${f.att==="Surely"?"selected":""}>Surely</option><option ${f.att==="Most probably"?"selected":""}>Most probably</option></select>
   <select id="ftype"><option value="">Type: all</option><option value="guest" ${f.type==="guest"?"selected":""}>Guests only</option><option value="coordinator" ${f.type==="coordinator"?"selected":""}>Coordinators only</option></select>
+  ${S.tickets.some(t=>t.transferred_out_at)?`<label style="margin:0;font-weight:400"><input type="checkbox" id="fmoved" ${S.showMoved?"checked":""}> Show transferred tickets</label>`:""}
   <button class="ghost" id="csv">Download Excel (CSV)</button>`:`<label style="margin:0"><input type="checkbox" id="frev" ${f.review?"checked":""}> Needs review only</label>`}</div>`;
 }
-function vBookings(){$("#v").innerHTML=filtBar(false)+`<div class="card wrap" id="tbl"></div>`;tBookings()}
+function vBookings(){const nT=S.bookings.filter(b=>b.kind==="transfer").length;
+  $("#v").innerHTML=filtBar(false)+(nT?`<p class="mute">${nT} transfer booking${nT===1?"":"s"} not shown here: they have no payment screenshot and are handled in the Transfers tab.</p>`:"")+`<div class="card wrap" id="tbl"></div>`;tBookings()}
 function amtRemark(b,s){if(!s)return"";if(!s.amounts)return'<div class="mute">Amount: re-scan to check</div>';
   if(!s.amounts.length)return`<div class="err">Amount: couldn't find one</div>`;
   return s.amounts.map(Number).includes(Number(b.amount_expected))?`<div style="color:var(--ok)">Amount ✓ ${inr(b.amount_expected)} found</div>`:`<div class="err">Amount ✗ ${inr(b.amount_expected)} not found</div>`}
 function idRead(id){const s=S.scans.find(x=>x.booking_id===id),b=bk(id);return !s?'<span class="mute">not scanned</span>':(s.txn_ids&&s.txn_ids.length?s.txn_ids.map(esc).join("<br>"):'<span class="mute">no ID found</span>')+amtRemark(b,s)}
 function tBookings(){
   const F=flags(),q=S.f.q.toLowerCase(),rows=S.bookings.filter(b=>{
+    if(b.kind==="transfer")return false;
     const names=S.tickets.filter(t=>t.booking_id===b.id);
     if(S.f.pay&&b.status!==S.f.pay)return false;if(S.f.review&&!(F[b.id]||[]).length)return false;
     return !q||b.booking_code.toLowerCase().includes(q)||names.some(t=>t.name.toLowerCase().includes(q)||t.phone.includes(q))}).reverse();
@@ -169,14 +194,15 @@ function tBookings(){
     ${b.status!=="rejected"?`<button class="sm bad" data-st="rejected" data-b="${b.id}">Reject</button>`:""} ${b.status!=="pending"?`<button class="sm ghost" data-st="pending" data-b="${b.id}">Pending</button>`:""}</td></tr>`}).join("")+`</table>${rows.length?"":'<p class="mute">Nothing to show.</p>'}`;
 }
 function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
-  return people().filter(p=>(!f.pay||p.b.status===f.pay)&&(!f.food||p.food===f.food)&&(!f.loc||p.location===f.loc)&&(!f.att||p.attendance===f.att)&&(!f.type||p.kind===f.type)&&(!q||p.name.toLowerCase().includes(q)||p.phone.includes(q)||tlabel(p).toLowerCase().includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)))}
+  return people().filter(p=>(S.showMoved||!p.transferred_out_at)&&(!f.pay||p.b.status===f.pay)&&(!f.food||p.food===f.food)&&(!f.loc||p.location===f.loc)&&(!f.att||p.attendance===f.att)&&(!f.type||p.kind===f.type)&&(!q||p.name.toLowerCase().includes(q)||p.phone.includes(q)||tlabel(p).toLowerCase().includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)))}
 function vPeople(){$("#v").innerHTML=filtBar(true)+`<div class="card wrap" id="tbl"></div>`;tPeople()}
 function tPeople(){const r=filteredPeople();
-  $("#tbl").innerHTML=`<p class="mute">${r.length} people shown</p><table><tr><th>Ticket</th><th>Type</th><th>Name</th><th>Phone</th><th>Location</th><th>Attendance</th><th>Food</th><th>Booking</th><th>Payment</th><th>Present</th></tr>`+
-  r.map(p=>`<tr><td><b>${esc(tlabel(p))}</b></td><td>${p.kind==="coordinator"?"Coordinator"+(p.ticket_no!=null?`<div class="mute">guest ${esc("E26-"+pad(p.ticket_no))} cancelled</div>`:"")   :"Guest"+(p.prev_coord_no!=null?`<div class="mute">coordinator ${esc("E26-"+pad(p.prev_coord_no)+"C")} cancelled</div>`:"")}${p.b.status==="rejected"?"":`<div style="margin-top:4px">${p.kind==="coordinator"?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div>`}</td><td>${esc(p.name)}</td><td>${p.phone}</td><td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?`Present <button class="sm ghost" data-undo="${p.id}">Undo</button>`:"—"}</td></tr>`).join("")+`</table>`}
-function csv(){const r=filteredPeople(),h=["Ticket No.","Type","Name","Phone","Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at"];
+  $("#tbl").innerHTML=`<p class="mute">${r.length} people shown</p><table><tr><th>Ticket</th><th>Type</th><th>Name</th><th>Phone</th>${S.emailsOk?"<th>Email</th>":""}<th>Location</th><th>Attendance</th><th>Food</th><th>Booking</th><th>Payment</th><th>Present</th></tr>`+
+  r.map(p=>p.transferred_out_at?`<tr style="opacity:.6"><td><b>${esc(tlabel(p))}</b></td><td>Guest<div class="mute">transferred to another person</div></td><td>${esc(p.name)}</td><td>${p.phone}</td>${S.emailsOk?`<td>${esc(S.emails[p.id]||"–")}</td>`:""}<td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill">Transferred</span></td><td>—</td></tr>`:
+  `<tr><td><b>${esc(tlabel(p))}</b></td><td>${p.kind==="coordinator"?"Coordinator"+(p.ticket_no!=null?`<div class="mute">guest ${esc("E26-"+pad(p.ticket_no))} cancelled</div>`:"")   :"Guest"+(p.prev_coord_no!=null?`<div class="mute">coordinator ${esc("E26-"+pad(p.prev_coord_no)+"C")} cancelled</div>`:"")}${p.b.status==="rejected"?"":`<div style="margin-top:4px">${p.kind==="coordinator"?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div>`}</td><td>${esc(p.name)}</td><td>${p.phone}</td>${S.emailsOk?`<td>${esc(S.emails[p.id]||"–")}</td>`:""}<td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?`Present <button class="sm ghost" data-undo="${p.id}">Undo</button>`:"—"}</td></tr>`).join("")+`</table>`}
+function csv(){const r=filteredPeople(),h=["Ticket No.","Type","Name","Phone",...(S.emailsOk?["Email"]:[]),"Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at",...(S.showMoved?["Transferred to another person"]:[])];
   const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
-  const rows=r.map(p=>[tlabel(p),p.kind==="coordinator"?"Coordinator":"Guest",p.name,p.phone,p.location,p.attendance,p.food,p.b.booking_code,p.b.status,p.b.amount_expected,p.checked_in_at?"Yes":"No",p.checked_in_at||""]);
+  const rows=r.map(p=>[tlabel(p),p.kind==="coordinator"?"Coordinator":"Guest",p.name,p.phone,...(S.emailsOk?[S.emails[p.id]||""]:[]),p.location,p.attendance,p.food,p.b.booking_code,p.b.status,p.b.amount_expected,p.checked_in_at?"Yes":"No",p.checked_in_at||"",...(S.showMoved?[p.transferred_out_at?"Yes":"No"]:[])]);
   const txt="\ufeff"+[h].concat(rows).map(x=>x.map(q).join(",")).join("\r\n"),a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));a.download="meetup-registrations.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 async function shots(items){
@@ -187,7 +213,7 @@ async function shots(items){
   $("#mi").innerHTML=out.join("");
 }
 function vScan(){
-  const un=S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)),bad=S.scans.filter(s=>(!s.read_ok||!s.amounts)&&bk(s.booking_id).status!=="rejected");
+  const un=S.bookings.filter(b=>b.kind!=="transfer"&&b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)),bad=S.scans.filter(s=>(!s.read_ok||!s.amounts)&&bk(s.booking_id).status!=="rejected");
   $("#v").innerHTML=`<div class="card"><h2>Scan screenshots</h2><p>Reads each payment screenshot on <b>this computer</b> (nothing is sent to any outside service), finds the transaction ID, and flags bookings that share an ID or a near-identical image. Participants see nothing.</p>
   <p><b>${un.length}</b> not scanned yet · <b>${bad.length}</b> unreadable or from before the amount check · <b>${S.scans.length}</b> scanned in total</p>
   <p><button id="scan" ${S.scanning?"disabled":""}>Scan ${un.length} new</button> <button class="ghost" id="rescan" ${S.scanning||!bad.length?"disabled":""}>Re-scan ${bad.length} unreadable / older</button> <button class="ghost" id="rescanall" ${S.scanning||!S.scans.length?"disabled":""}>Re-scan all ${S.scans.length}</button></p>
@@ -283,6 +309,8 @@ function vSettings(){const s=S.settings;
   <p><button id="ssave">Save settings</button></p></div>
   ${payCard(s)}
   ${evCard(s)}
+  ${trCard(s)}
+  ${ipCard(s)}
   <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
   <p class="mute">A reminder list. Nothing here is checked automatically.</p>
   <label style="font-weight:400"><input type="checkbox"> Payment details above (UPI ID, payee name) are the final ones, and a test payment reached the right account</label>
@@ -291,6 +319,101 @@ function vSettings(){const s=S.settings;
   <label style="font-weight:400"><input type="checkbox"> All test bookings deleted and the payment-proofs storage emptied</label>
   <label style="font-weight:400"><input type="checkbox"> "Allow new users to sign up" is off in Supabase</label>
   <label style="font-weight:400"><input type="checkbox"> The other organiser logins are created</label></div>${logCard()}`}
+
+/* ---------- IP flag banner (flag only: nothing is ever blocked) ---------- */
+function ipBanner(){const f=S.ipf;if(!f||!f.ips||!f.ips.length)return"";
+  return `<div class="card" style="border:2px solid var(--warn)"><b>⚑ Many registrations from one network address</b> <span class="mute">(flag only, nothing is blocked; shared WiFi or a mobile network can look the same)</span>
+  <div class="wrap"><table><tr><th>Network address</th><th>Registrations</th><th>People</th><th>Pending</th><th>Paid</th><th>Rejected</th><th>Last</th></tr>${f.ips.map(i=>`<tr><td>${esc(i.ip)}</td><td>${i.bookings}</td><td>${i.people}</td><td>${i.pending}</td><td>${i.paid}</td><td>${i.rejected}</td><td>${esc(fdt(i.last_at))}</td></tr>`).join("")}</table></div>
+  <span class="mute">The affected bookings are marked in the Bookings tab. Flag level: ${f.threshold} or more.</span></div>`}
+
+/* ---------- Transfers tab ---------- */
+const sellerTk=x=>S.tickets.find(t=>t.id===x.ticket_id);
+const sellerLbl=x=>{const t=sellerTk(x);return t?tlabel(t):"?"};
+const buyerOf=x=>S.buyers.find(b=>b.transfer_id===x.id&&(b.status==="active"||b.status==="done"));
+const MODE=k=>k==="public"?"Public":"Private";
+async function tcall(fn,args,okMsg){
+  const r=await db.rpc(fn,args);
+  if(r.error){toast(terr(r.error),6000);await load();view();return null}
+  await load();view();toast(okMsg);return r.data||true}
+function moneyPanel(){const m=S.money;if(!m)return"";
+  const c=(l,k,hint)=>`<div class="card stat"><span class="mute">${l}</span><b>${inr(m[k].amount)}</b><span class="mute">${m[k].count} transfer${m[k].count===1?"":"s"}${hint?" · "+hint:""}</span></div>`;
+  return `<h2>Transfer money</h2><p class="mute" style="margin-top:0">Only <b>public</b> transfers move money through you. This never mixes with the registration totals on the Overview.</p>
+  <div class="grid">${c("Awaiting payment","awaiting_payment","asked, not paid yet")}${c("Awaiting your check","awaiting_verification","screenshot uploaded")}${c("Verified, waiting for Transfer","verified_waiting_transfer")}${c("To pay out to sellers","to_pay_out")}${c("Paid out","paid_out")}${c("To return to buyers","return_due")}${c("Returned","returned")}
+  <div class="card stat" style="border:2px solid var(--gold)"><span class="mute">Held by you right now</span><b>${inr(m.held_now)}</b><span class="mute">should match the bank, apart from the registration money</span></div></div>`}
+function tCard(x){
+  const b=buyerOf(x),t=sellerTk(x),pub=x.kind==="public",call=!!x.seller_call_confirmed_at,asked=!!x.payment_requested_at,sub=!!x.payment_submitted_at,ver=!!x.payment_verified_at,canT=call&&(!pub||ver);
+  const tick=(ok,txt)=>`<div>${ok?"✅":"⬜"} ${txt}</div>`;
+  const here=t&&t.checked_in_at;
+  return `<div class="card" style="border-color:${here?"var(--err)":"var(--line)"}"><div class="bar"><b style="flex:1">${MODE(x.kind)} transfer · ${esc(sellerLbl(x))} ${esc(x.seller_name)} → ${b?esc(b.name):"(no buyer)"}</b><span class="mute">waiting ${tAge(x.updated_at||x.created_at)}</span></div>
+  ${here?`<p class="err"><b>The seller has already entered the hall.</b> Transfer will be refused. Reject this transfer.</p>`:""}
+  <div class="two"><div><b>Seller (original ticket)</b><div>${esc(x.seller_name)} · ${esc(sellerLbl(x))}</div><div>Registered phone: <b>${esc(x.seller_phone)}</b></div>${pub?`<div>Payout UPI / phone to read back: <b>${esc(x.seller_upi||"")}</b></div>`:""}</div>
+  <div><b>Buyer (new person)</b>${b?`<div>${esc(b.name)} · ${esc(b.phone)}</div><div>${esc(b.email)}</div><div>${esc(b.location)} · ${esc(b.attendance)} · ${esc(b.food)}</div><div class="mute">Applied ${esc(fdt(b.created_at))}</div>`:`<div class="mute">No buyer</div>`}</div></div>
+  <div style="margin:10px 0"><label style="font-weight:600;display:block"><input type="checkbox" data-tcall="${x.id}" ${call?"checked":""}> I phoned the seller's <u>registered</u> number (${esc(x.seller_phone)}), not a number typed in any form</label>
+  <p class="mute" style="margin:2px 0 8px">${pub?"Ask: “Is this ticket still yours? Shall we pass it to another person? Your payout goes to the UPI ID I will read back.” Read back the payout UPI ID shown above.":`Ask: “Shall I transfer this ticket to ${esc(b?b.name:"the buyer")}? We assume the payment is settled between you two, as you chose a private transfer.”`}</p></div>
+  ${pub?`<div style="margin:6px 0">${tick(call,"Seller called")}${tick(asked,"Buyer asked to pay ₹"+esc(x.amount_due??"…"))}${tick(sub,"Buyer uploaded a screenshot")}${tick(ver,"Payment verified"+(ver?": ₹"+x.amount_received+" received":""))}</div>
+    <div class="bar">${!asked?`<button class="sm" data-tact="ask" data-id="${x.id}" ${call?"":"disabled"}>Ask buyer to pay the ticket price</button>`:""}
+    ${sub&&x.payment_screenshot_path?`<button class="sm ghost" data-tact="shot" data-id="${x.id}">View payment screenshot</button>`:""}
+    ${sub&&!ver?`<input id="amt-${x.id}" type="number" min="1" max="1000000" placeholder="Amount received (₹)" style="width:190px"> <button class="sm" data-tact="verify" data-id="${x.id}">Verify amount received</button>`:""}</div>`:""}
+  <div class="bar" style="margin-top:10px"><button data-tact="approve" data-id="${x.id}" ${canT&&!here?"":"disabled"}>Transfer</button><button class="bad" data-tact="reject" data-id="${x.id}">Reject</button>
+  <span class="mute">${canT?"Ready: this swaps the tickets in one step.":pub?"Needs the call tick and a verified payment.":"Needs the call tick."}</span></div></div>`}
+function vTransfers(){
+  const open=S.transfers.filter(x=>x.status==="pending_admin"),codes=S.transfers.filter(x=>x.status==="code_active"),
+    payout=S.transfers.filter(x=>x.kind==="public"&&x.status==="done"&&!x.seller_paid_at),ret=S.transfers.filter(x=>x.return_due&&!x.returned_at),
+    past=S.transfers.filter(x=>["done","rejected","withdrawn"].includes(x.status)).slice(0,25),on=S.settings.transfers_open;
+  $("#v").innerHTML=`${on?"":`<div class="card" style="border-color:var(--warn)"><b>Transfers are switched OFF.</b> <span class="mute">Visitors cannot start new ones. Existing ones can still be finished here. Switch them on under Settings.</span></div>`}
+  ${moneyPanel()}
+  <h2 style="margin-top:18px">Waiting for you (${open.length})</h2>${open.length?open.map(tCard).join(""):`<p class="mute">Nothing is waiting.</p>`}
+  <h2 style="margin-top:18px">Active codes (${codes.length})</h2><p class="mute" style="margin-top:0">A seller made a code and no buyer has used it yet. For a <b>public</b> transfer, find a buyer and give them the code.</p>
+  ${codes.length?`<div class="card wrap"><table><tr><th>Seller</th><th>Mode</th><th>Made</th><th>Expires</th><th>Payout</th><th>Actions</th></tr>${codes.map(x=>{const exp=new Date(x.code_expires_at)<new Date();
+    return `<tr><td>${esc(sellerLbl(x))} ${esc(x.seller_name)}<div class="mute">${esc(x.seller_phone)}</div></td><td>${MODE(x.kind)}</td><td>${esc(fdt(x.created_at))}</td><td>${exp?`<span class="pill p-rejected">expired</span> `:""}${esc(fdt(x.code_expires_at))}</td><td>${esc(x.seller_upi||"–")}</td>
+    <td>${x.kind==="public"?`<b>Code ${esc(x.code||"")}</b> `:""}<button class="sm ghost" data-tact="extend" data-id="${x.id}">Extend</button> <button class="sm bad" data-tact="reject" data-id="${x.id}">Cancel code</button></td></tr>`}).join("")}</table></div>`:`<p class="mute">No active codes.</p>`}
+  <h2 style="margin-top:18px">Pay the seller (${payout.length})</h2><p class="mute" style="margin-top:0">Public transfers that went through. Pay the seller <b>exactly the amount received</b>, then record the reference.</p>
+  ${payout.length?`<div class="card wrap"><table><tr><th>Seller</th><th>Pay to</th><th>Amount</th><th></th></tr>${payout.map(x=>`<tr><td>${esc(sellerLbl(x))} ${esc(x.seller_name)}</td><td>${esc(x.seller_upi||"")}</td><td><b>${inr(x.amount_received)}</b></td><td><button class="sm" data-tact="paid" data-id="${x.id}">Mark seller paid</button></td></tr>`).join("")}</table></div>`:`<p class="mute">Nobody to pay.</p>`}
+  <h2 style="margin-top:18px">Return money to a buyer (${ret.length})</h2><p class="mute" style="margin-top:0">A public transfer failed after the buyer had paid. Send the money back, then record the reference.</p>
+  ${ret.length?`<div class="card wrap"><table><tr><th>Buyer</th><th>Phone</th><th>Amount</th><th></th></tr>${ret.map(x=>{const b=S.buyers.find(y=>y.transfer_id===x.id);return `<tr><td>${b?esc(b.name):"?"}</td><td>${b?esc(b.phone):""}</td><td>${x.amount_received?`<b>${inr(x.amount_received)}</b>`:"check the bank for the amount received"}</td><td><button class="sm" data-tact="returned" data-id="${x.id}">Mark returned</button></td></tr>`}).join("")}</table></div>`:`<p class="mute">Nothing to return.</p>`}
+  <h2 style="margin-top:18px">Recent history</h2>
+  ${past.length?`<div class="card wrap"><table><tr><th>When</th><th>Mode</th><th>Ticket</th><th>Seller</th><th>Buyer</th><th>Result</th><th>Note</th></tr>${past.map(x=>{const b=S.buyers.find(y=>y.transfer_id===x.id);return `<tr><td>${esc(fdt(x.decided_at||x.updated_at))}</td><td>${MODE(x.kind)}</td><td>${esc(sellerLbl(x))}</td><td>${esc(x.seller_name)}</td><td>${b?esc(b.name):"–"}</td><td><span class="pill ${x.status==="done"?"p-paid":"p-rejected"}">${x.status==="withdrawn"?"closed":x.status}</span></td><td class="n">${esc(x.decision_note||"")}</td></tr>`}).join("")}</table></div>`:`<p class="mute">Nothing yet.</p>`}`;
+}
+async function tAction(act,id){
+  const x=S.transfers.find(y=>y.id===id);if(!x)return;const b=buyerOf(x);
+  if(act==="ask")return tcall("admin_transfer_request_payment",{p_transfer:id},"The buyer can now see the payment screen");
+  if(act==="shot")return shots([{path:x.payment_screenshot_path,label:"Buyer payment"+(b?" · "+b.name:"")}]);
+  if(act==="verify"){const v=+($("#amt-"+id)||{}).value;if(!(v>=1))return toast("Type the amount that actually arrived in the bank",4000);
+    if(!confirm("Confirm: ₹"+v+" has arrived in the bank account for this transfer?\n\nThe seller will be owed exactly ₹"+v+"."))return;
+    return tcall("admin_transfer_verify_payment",{p_transfer:id,p_amount:v},"Payment verified")}
+  if(act==="approve"){
+    if(!confirm("Transfer ticket "+sellerLbl(x)+" ("+x.seller_name+") to "+(b?b.name:"the buyer")+"?\n\n"+x.seller_name+"'s ticket is cancelled for good and "+(b?b.name:"the buyer")+" receives a new ticket number. This cannot be undone."))return;
+    const r=await tcall("admin_transfer_approve",{p_transfer:id},"Done.");if(r&&r.new_label)toast("Transferred: "+r.old_label+" → "+r.new_label,5000);return}
+  if(act==="reject"){
+    const warn=x.kind==="public"&&x.payment_submitted_at?"\n\nThe buyer has already paid: the money will be marked as TO RETURN.":"";
+    const note=prompt((x.status==="code_active"?"Cancel this code?":"Reject this transfer?")+warn+"\n\nOptional note (why):","");if(note===null)return;
+    return tcall("admin_transfer_reject",{p_transfer:id,p_note:note.trim()||null},x.status==="code_active"?"Code cancelled":"Transfer rejected")}
+  if(act==="extend"){const h=prompt("Keep this code valid for how many more hours from now? (1 to 168)","24");if(h===null)return;
+    return tcall("admin_transfer_extend_code",{p_transfer:id,p_hours:parseInt(h,10)},"Code extended")}
+  if(act==="paid"||act==="returned"){const ref=prompt(act==="paid"?"The seller was paid ₹"+x.amount_received+". Type the payment reference (for example the UPI transaction ID):":"The buyer's money was sent back. Type the payment reference (or a short note such as “no money received”):","");if(ref===null)return;
+    return tcall(act==="paid"?"admin_transfer_mark_paid":"admin_transfer_mark_returned",{p_transfer:id,p_reference:ref.trim()},act==="paid"?"Seller marked as paid":"Return recorded")}
+}
+
+/* ---------- settings cards for transfers and the repeat-registration flag ---------- */
+function trCard(s){
+  if(s.private_code_hours===undefined)return `<div class="card" style="max-width:520px"><h2>Ticket transfers</h2><p class="err" style="margin:0"><b>One setup step is missing.</b> The transfer database update has not been applied yet.</p></div>`;
+  return `<div class="card" style="max-width:520px"><h2>Ticket transfers</h2>
+  <p class="mute" style="margin-top:0">Lets a ticket holder who cannot come hand the seat to someone else. Keep this OFF until it has been tested.</p>
+  <label><input type="checkbox" id="topen" ${s.transfers_open?"checked":""}> Transfers open</label>
+  <label for="tcut">Last moment for new transfers (India time, optional)</label><input id="tcut" type="datetime-local" value="${s.transfer_cutoff_at?istInput(s.transfer_cutoff_at):""}">
+  <p class="mute" style="margin:4px 0">After this nobody can start a new transfer. Ones already in progress can still be finished here. Empty = no limit.</p>
+  <label><input type="checkbox" id="tfood" ${s.transfer_food_locked?"checked":""}> Lock the food choice (the buyer gets the seller's food)</label>
+  <p class="mute" style="margin:4px 0">Switch this on once the food order has been placed.</p>
+  <label for="thours">How long a transfer code stays valid (hours, 1 to 168)</label><input id="thours" type="number" min="1" max="168" value="${s.private_code_hours}">
+  <p class="mute" style="margin:4px 0">You can extend any code later from the Transfers tab. The price a public buyer is asked is the “Price per person” above.</p>
+  <p><button id="tsave">Save transfer settings</button></p></div>`}
+function ipCard(s){
+  if(s.ip_flag_threshold===undefined)return"";
+  return `<div class="card" style="max-width:520px"><h2>Repeat-registration flag</h2>
+  <p class="mute" style="margin-top:0">Marks bookings when one network address makes this many registrations or more. It only flags: nobody is ever blocked.</p>
+  <label for="ipth">Flag at this many registrations (2 to 1000)</label><input id="ipth" type="number" min="2" max="1000" value="${s.ip_flag_threshold}">
+  <p><button id="ipsave">Save</button> <button class="ghost bad" id="ipclear">Delete all stored network addresses</button></p>
+  <p class="mute" style="margin-bottom:0">Do the deletion after the event. It cannot be undone.</p></div>`}
 
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{const t=e.target,id=t.id;
@@ -313,9 +436,19 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
     if(!confirm(msg))return;
     const r=await db.rpc("set_coordinator",{p_ticket_id:tk.id,p_make:make});if(r.error)return toast("Failed: "+r.error.message);
     await load();view();return toast(make?tk.name+" is now "+r.data.label:tk.name+" is a guest again")}
-  if(id==="scan")return runScan(S.bookings.filter(b=>b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
+  if(id==="scan")return runScan(S.bookings.filter(b=>b.kind!=="transfer"&&b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
   if(id==="rescanall")return runScan(S.scans.map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
   if(id==="rescan")return runScan(S.scans.filter(s=>!s.read_ok||!s.amounts).map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));
+  if(t.dataset.tact)return tAction(t.dataset.tact,t.dataset.id);
+  if(id==="tsave"){const s0=S.settings,cv=$("#tcut").value,on=$("#topen").checked,h=+$("#thours").value;
+    if(!(h>=1&&h<=168))return toast("Code validity must be 1 to 168 hours",4000);
+    if(on&&!s0.transfers_open&&!confirm("Switch ticket transfers ON?\n\nPeople will be able to start transfers straight away. Only do this once the transfer system has been tested."))return;
+    const r=await db.rpc("admin_set_transfer_settings",{p_open:on,p_food_locked:$("#tfood").checked,p_code_hours:h,p_clear_cutoff:!cv&&!!s0.transfer_cutoff_at,p_cutoff:cv?new Date(cv+":00+05:30").toISOString():null});
+    if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Transfer settings saved")}
+  if(id==="ipsave"){const n=+$("#ipth").value;if(!(n>=2&&n<=1000))return toast("Use a number from 2 to 1000",4000);
+    const r=await db.rpc("admin_set_transfer_settings",{p_ip_threshold:n});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Saved")}
+  if(id==="ipclear"){if(!confirm("Delete every stored network address?\n\nDo this only after the event. It cannot be undone, and the repeat-registration flags will disappear."))return;
+    const r=await db.rpc("admin_clear_client_ips");if(r.error)return toast(terr(r.error),6000);await load();view();return toast(r.data+" stored addresses deleted")}
   if(id==="evsave"){
     const v=$("#sev").value,vn=$("#svenue").value.trim();
     if(!v)return toast("Choose the event date and time");
@@ -339,6 +472,8 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
 document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="sopen"&&$("#pausebox"))$("#pausebox").style.display=t.checked?"block":"none";
   if(t.id==="mode"){S.mode=t.value;view()}
+  if(t.id==="fmoved"){S.showMoved=t.checked;tPeople()}
+  if(t.dataset.tcall){tcall("admin_transfer_confirm_call",{p_transfer:t.dataset.tcall,p_confirmed:t.checked},t.checked?"Call confirmed":"Call tick removed")}
   if(["fpay","ffood","floc","fatt","ftype","frev"].includes(t.id)){S.f.pay=$("#fpay")?.value??S.f.pay;if($("#ffood")){S.f.food=$("#ffood").value;S.f.loc=$("#floc").value;S.f.att=$("#fatt").value;S.f.type=$("#ftype").value}if($("#frev"))S.f.review=$("#frev").checked;S.tab==="people"?tPeople():tBookings()}});
 document.addEventListener("input",e=>{if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});

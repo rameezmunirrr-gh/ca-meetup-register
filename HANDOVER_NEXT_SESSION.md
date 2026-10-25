@@ -1,5 +1,21 @@
 # HANDOVER FOR THE NEXT CLAUDE SESSION
 
+> ## UPDATE 25 Oct 2026: READ THIS BLOCK FIRST (it overrides anything below that disagrees)
+> - **Everything on the master list (section 4) is now BUILT and tested except the rollout itself, the rehearsal, the restyle and the About page.** Piece 6 is written (`sql/r2_06_transfer_settings.sql`); emails are in the admin-only table `ticket_emails` (G3 resolved); the admin, gate and public pages are rewritten (G4, G5, G6 resolved); G8 is closed (the scratch copy now reproduces real permissions); G11 done (`baseline.py` deleted). See the 24-25 Oct entry in `PROJECT_NOTES.md` section 13 for details.
+> - **Tests:** database suites 62, 55, 153, 157, 77, 68 (`scratch-db/test_r2_01..06.py`, 572 checks); browser suites in `scratch-db/browser/` (`run_admin.py` 33, `run_gate.py` 7, `run_public.py` 68; they use Playwright with a mocked Supabase, see `mock_supabase.js`; run from that folder). Rebuild recipe in section 9 still applies; add piece 6 to the file list used by `test_r2_06.py`.
+> - **The live site and database are UNCHANGED.** The owner has real state to confirm first (section 1: is registration still closed with no real bookings? the owner said so on 24 Oct 2026).
+> - **Rollout order (use this instead of section 2.2 while registration is CLOSED and there are NO real bookings; the pages are written to cope with the database being a step behind):**
+>   1. Run the nightly snapshot workflow by hand (a before-picture).
+>   2. In the Supabase SQL editor run, in this order: `r2_01_prep.sql`, `r2_02_lookup.sql`. (From this moment the OLD pages cannot register, because registration now needs an email, so do step 3 straight away.)
+>   3. Publish the new `index.html`, `admin/index.html` and `gate/index.html` together.
+>   4. Run `r2_02b_cutover.sql`, `r2_03_private_transfer.sql`, `r2_04_public_via_code.sql`, `r2_05_cleanup_and_ip.sql`, `r2_06_transfer_settings.sql` in that order. (`r2_02c` is already applied.) Transfers stay OFF.
+>   5. Run the snapshot workflow, rebuild the scratch copy from the NEW snapshot and rerun all six suites: any difference between what was tested and what is live shows here.
+>   6. Rehearse on the real site with test data (section 5.4): turn transfers on, run the cases, turn them off; then delete the test data and empty the `payment-proofs` bucket (notes section 11). 7. Restyle last.
+>   If real bookings exist or registration is open, do NOT use this order: use the staged order in section 2.2 (registration page first) and pick a quiet moment. Paste every SQL run into `sql/changes.sql`.
+> - **Still to do:** the rollout and rehearsal with the owner; check which header carries the real visitor IP (G10, section 3.5 item 1); look at all new screens on a real phone; the restyle ("Midnight Emerald" for admin and gate, ivory/green for public); the About page and logo when the owner sends them; owner decisions in section 8 (defaults in use).
+> - **What was NOT verified:** nothing has run on the real Supabase or GitHub Pages; the mocked-browser tests prove the pages call the right functions with the right values and show the right text, not that the real database answers as the scratch copy does (that is what the post-apply snapshot comparison in step (c) is for).
+
+
 **Project:** Ehsaas'26 meetup registration app (repo `rameezmunirrr-gh/ca-meetup-register`, public, GitHub Pages + Supabase).
 **Written:** at the end of one very long session. The notes label that work 16 to 17 Oct 2026; the chat's clock said Friday 23 Oct 2026 when this was written. **Ask the owner today's real situation first (see section 1).**
 **Read order:** (1) this file, (2) `PROJECT_NOTES.md` (decisions, database design, change log), (3) the SQL pieces in `sql/` and the tests in `scratch-db/` only when you work on them.

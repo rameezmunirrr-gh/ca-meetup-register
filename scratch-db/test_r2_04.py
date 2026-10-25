@@ -165,6 +165,7 @@ out = par([lambda: call_new('authenticated',"select admin_transfer_approve(%s)",
 oks = [o2 for o2 in out if o2[0]=='ok']; t.check("4.9 two admins pressing Transfer at the same instant: exactly ONE succeeds", len(oks)==1 and any('NOT_PENDING' in o2[1] for o2 in out if o2[0]=='err'), out)
 res = oks[0][1][0][0]; nl = res['new_label']
 t.check("4.10 the swap: a new ticket with the next guest number in the buyer's booking; the seller's ticket is retired", res['booking_code']==nb and sql("select ticket_no from tickets where name='Dan Buyer'")[0][0]==nxt and sql("select transferred_out_at is not null, ticket_no from tickets where name='Asha'")[0]==(True,1))
+t.check("4.10b public transfer: the buyer's email is in the admin-only ticket_emails table (not on tickets)", sql("select e.email from ticket_emails e join tickets t on t.id=e.ticket_id where t.name='Dan Buyer'")==[('dan@example.com',)])
 t.check("4.11 COUNTS unchanged: counted, paid, pending, revenue, registrations", counts()==before, (before, counts()))
 v = lk(nb,'9000000004'); t.check("4.12 the buyer sees their ticket with a QR", v['status']=='paid' and v['tickets'][0]['secret'] and v['tickets'][0]['label']==nl, v)
 t.check("4.13 the seller sees their ticket as transferred (no QR)", lk(A,'9000000001')['tickets'][0]['transferred'] and lk(A,'9000000001')['tickets'][0]['secret'] is None)

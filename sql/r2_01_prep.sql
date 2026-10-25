@@ -4,11 +4,17 @@
 -- Safe to run once. Changes no existing data. Transfers stay OFF.
 -- ============================================================================
 
--- 1. Email per person (required for new bookings, optional on old rows)
-alter table public.tickets add column if not exists email text;
-alter table public.tickets drop constraint if exists tickets_email_check;
-alter table public.tickets add constraint tickets_email_check
-  check (email is null or (char_length(email) between 5 and 120 and email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'));
+-- 1. Email per person (required for new bookings). Kept in its OWN table that only admins can read,
+--    so gate volunteers (who can read the tickets table) never see email addresses.
+create table if not exists public.ticket_emails (
+  ticket_id uuid primary key references public.tickets(id) on delete cascade,
+  email text not null check (char_length(email) between 5 and 120 and email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
+);
+alter table public.ticket_emails enable row level security;
+drop policy if exists admin_read_ticket_emails on public.ticket_emails;
+create policy admin_read_ticket_emails on public.ticket_emails for select to authenticated using (is_admin());
+revoke all on table public.ticket_emails from public, anon, authenticated, service_role;
+grant select on table public.ticket_emails to authenticated;
 
 -- 2. Markers used by transfers (nothing writes them yet)
 --    transferred_out_at: the seller's ticket after a transfer (cancelled, not counted anywhere)
@@ -66,7 +72,7 @@ CREATE OR REPLACE FUNCTION public.submit_booking(p_submission_id uuid, p_people 
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text; pi jsonb;
+declare s settings%rowtype; b bookings%rowtype; n int; used int; r record; code text; pi jsonb; tid uuid;
 begin
   select * into b from bookings where submission_id = p_submission_id;
   if found then return _booking_json(b.id); end if;
@@ -111,20 +117,25 @@ begin
   insert into bookings (booking_code, submission_id, people_count, amount_expected, screenshot_path)
   values (code, p_submission_id, n, n * s.price_per_head, p_screenshot_path) returning * into b;
 
-  insert into tickets (secret, booking_id, name, phone, email, location, attendance, food)
-  select substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), b.id,
-         trim(value->>'name'), value->>'phone', lower(trim(value->>'email')), value->>'loc', value->>'att', value->>'food'
-  from jsonb_array_elements(p_people) with ordinality as e(value, ord) order by ord;
+  -- one ticket per person, in the order listed; the email goes to the admin-only table ticket_emails
+  for r in select value, ord from jsonb_array_elements(p_people) with ordinality as e(value, ord) order by ord loop
+    insert into tickets (secret, booking_id, name, phone, location, attendance, food)
+    values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), b.id,
+            trim(r.value->>'name'), r.value->>'phone', r.value->>'loc', r.value->>'att', r.value->>'food')
+    returning id into tid;
+    insert into ticket_emails (ticket_id, email) values (tid, lower(trim(r.value->>'email')));
+  end loop;
 
   return _booking_json(b.id);
 end $function$;
 
--- 7. Exports: add email and the transfer marker at the end of the report view
-create or replace view public.report as
+-- 7. Exports: add email (admins only, via ticket_emails) and the transfer marker at the end of the report view
+create or replace view public.report with (security_invoker = true) as   -- keep it staff-only: it must follow the caller's row-level security
  select t.ticket_no as sl_no, t.name, t.phone, t.location, t.attendance, t.food,
         b.booking_code, b.status as payment_status, b.amount_expected, b.people_count, b.screenshot_path,
         (t.checked_in_at is not null) as present, t.checked_in_at, t.created_at, t.kind, t.coord_no,
         _ticket_label(t.kind, t.ticket_no, t.coord_no) as ticket_label,
-        t.email, t.transferred_out_at, b.kind as booking_kind
+        e.email, t.transferred_out_at, b.kind as booking_kind
    from tickets t join bookings b on b.id = t.booking_id
+        left join ticket_emails e on e.ticket_id = t.id
   order by t.kind, t.coord_no, t.ticket_no, t.reg_seq;

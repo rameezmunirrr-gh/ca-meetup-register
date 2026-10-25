@@ -34,7 +34,7 @@ a.btn{display:inline-block;font-weight:600;border-radius:10px;padding:6px 10px;f
 .res{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
 .res:last-child{border-bottom:0}
 .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;font-weight:600;border:1px solid var(--line);white-space:nowrap}
-.p-paid{color:var(--ok);border-color:var(--ok)}.p-pending{color:var(--warn);border-color:var(--warn)}.p-rejected{color:var(--err);border-color:var(--err)}.p-here{color:#fff;background:var(--ok);border-color:var(--ok)}
+.p-moved{color:var(--mute);border-color:var(--mute)}.p-paid{color:var(--ok);border-color:var(--ok)}.p-pending{color:var(--warn);border-color:var(--warn)}.p-rejected{color:var(--err);border-color:var(--err)}.p-here{color:#fff;background:var(--ok);border-color:var(--ok)}
 .vm{display:inline-block;width:13px;height:13px;border:2px solid;border-radius:3px;position:relative;vertical-align:-2px;margin:0 4px 0 0}
 .vm:after{content:"";position:absolute;inset:2px;border-radius:50%;background:currentColor}.vm.v{color:#17803d}.vm.n{color:#c62828}
 .ov{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:#fff;overflow:auto}
@@ -70,12 +70,16 @@ async function boot(){
   S.staff=data;await loadData();view();setInterval(async()=>{if(S.staff&&!S.ov&&!S.busy){await loadData();counts()}},30000);
 }
 async function loadData(){
-  const[t,b]=await Promise.all([db.from("tickets").select("id,ticket_no,coord_no,kind,name,phone,food,booking_id,checked_in_at,reg_seq"),db.from("bookings").select("id,booking_code,status")]);
+  const cols="id,ticket_no,coord_no,kind,name,phone,food,booking_id,checked_in_at,reg_seq";
+  let[t,b]=await Promise.all([db.from("tickets").select(cols+",transferred_out_at"),db.from("bookings").select("id,booking_code,status")]);
+  /* works before AND after the database update that adds transferred_out_at (nothing can be transferred before that) */
+  if(t.error&&/transferred_out_at/.test(t.error.message||""))t=await db.from("tickets").select(cols);
   if(t.error||b.error){S.msg="Could not load the list: "+((t.error||b.error).message);return}
   S.tickets=t.data;S.bookings=b.data;S.msg="";
 }
 function stats(){
-  const P=S.tickets.filter(t=>bk(t.booking_id).status==="paid"),here=P.filter(t=>t.checked_in_at),f=(a,v)=>a.filter(t=>t.food===v).length;
+  /* a ticket that was transferred to someone else is retired: it must not be counted (the buyer's new ticket is) */
+  const P=S.tickets.filter(t=>!t.transferred_out_at&&bk(t.booking_id).status==="paid"),here=P.filter(t=>t.checked_in_at),f=(a,v)=>a.filter(t=>t.food===v).length;
   return{conf:P.length,here:here.length,vC:f(P,"Veg"),vH:f(here,"Veg"),nC:f(P,"Non-veg"),nH:f(here,"Non-veg")}
 }
 function counts(){const el=$("#counts");if(!el)return;const s=stats();
@@ -102,6 +106,8 @@ function results(){
   const digits=q.replace(/\D/g,""),hits=S.tickets.filter(t=>{const lab=tlabel(t).toLowerCase(),b=bk(t.booking_id);
     return t.name.toLowerCase().includes(q)||t.phone.includes(q)||lab.includes(q)||(b.booking_code||"").toLowerCase().includes(q)||(digits&&digits.length>=1&&q.replace(/[^0-9]/g,"")===q&&String(t.ticket_no)===String(+digits))}).slice(0,15);
   el.innerHTML=hits.length?hits.map(t=>{const b=bk(t.booking_id);
+    if(t.transferred_out_at)  /* retired ticket: shown so staff can explain, but it can never be admitted */
+      return `<div class="res"><div><b>${esc(tlabel(t))}</b> ${esc(t.name)}<div class="note">${vm(t.food)} · ${esc(t.phone)} · ${esc(b.booking_code||"")}</div><div class="note">This ticket was transferred to someone else. Ask for their current ticket.</div></div><div style="text-align:right"><span class="pill p-moved">Transferred</span></div></div>`;
     const pill=t.checked_in_at?`<span class="pill p-here">Present</span>`:`<span class="pill p-${b.status}">${b.status==="paid"?"Confirmed":b.status}</span>`;
     return `<div class="res"><div><b>${esc(tlabel(t))}</b> ${esc(t.name)}<div class="note">${vm(t.food)} · ${esc(t.phone)} · ${esc(b.booking_code||"")}</div></div><div style="text-align:right">${pill}<div><button class="sm" data-pick="${t.id}" style="margin-top:6px">Open</button></div></div></div>`}).join(""):`<p class="note">No one found.</p>`;
 }
@@ -173,7 +179,7 @@ document.addEventListener("click",async e=>{
   if(id==="login"){const{error}=await db.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});S.msg=error?"Wrong email or password.":"";return error?view():boot()}
   if(id==="logout"){stopCam();await db.auth.signOut();S.staff=null;S.msg="";return view()}
   if(id==="camtoggle")return S.cam?stopCam():startCam();
-  if(ds.pick){const p=S.tickets.find(x=>x.id===ds.pick);if(!p)return;const b=bk(p.booking_id);
+  if(ds.pick){const p=S.tickets.find(x=>x.id===ds.pick);if(!p||p.transferred_out_at)return;const b=bk(p.booking_id);
     return show("n",`<div class="name">${esc(p.name)}</div><div class="lab">${esc(tlabel(p))}</div><div class="sub">${vm(p.food)}</div><div class="sub">Booking ${esc(b.booking_code||"")} · ${esc(b.status||"")}${p.checked_in_at?" · already present":""}</div>
       <button data-act="admitpick" data-id="${p.id}">Admit ${esc(p.name)}</button><button class="line" data-act="next">Cancel</button>`)}
   const act=ds.act;if(!act)return;
