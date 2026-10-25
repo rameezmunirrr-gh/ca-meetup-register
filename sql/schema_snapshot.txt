@@ -71,6 +71,7 @@ settings|21|transfer_cutoff_at|timestamp with time zone|f|
 settings|22|transfer_food_locked|boolean|t|false
 settings|23|private_code_hours|integer|t|2
 settings|24|ip_flag_threshold|integer|t|5
+settings|25|show_about|boolean|t|true
 settings_log|1|id|bigint|t|
 settings_log|2|at|timestamp with time zone|t|now()
 settings_log|3|changed_by|uuid|f|
@@ -772,6 +773,19 @@ begin
   update settings set upi_id = u, payee_name = n, whatsapp_number = w where id = 1;
 end $function$
 
+--- admin_set_show_about(p_show boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_show_about(p_show boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_show is null then raise exception 'INVALID_VALUE'; end if;
+  update settings set show_about = p_show where id = 1;
+end $function$
+
 --- admin_set_transfer_settings(p_open boolean, p_cutoff timestamp with time zone, p_clear_cutoff boolean, p_food_locked boolean, p_code_hours integer, p_ip_threshold integer) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_set_transfer_settings(p_open boolean DEFAULT NULL::boolean, p_cutoff timestamp with time zone DEFAULT NULL::timestamp with time zone, p_clear_cutoff boolean DEFAULT false, p_food_locked boolean DEFAULT NULL::boolean, p_code_hours integer DEFAULT NULL::integer, p_ip_threshold integer DEFAULT NULL::integer)
  RETURNS void
@@ -819,7 +833,7 @@ begin
   select * into sb from bookings where id = t.booking_id for update;
   if t.transferred_out_at is not null then raise exception 'SELLER_ALREADY_TRANSFERRED'; end if;
   if t.checked_in_at is not null then raise exception 'SELLER_CHECKED_IN'; end if;
-  if sb.status <> 'paid' or t.kind <> 'guest' or t.ticket_no is null then raise exception 'SELLER_TICKET_INVALID'; end if;
+  if sb.status <> 'paid' or (t.ticket_no is null and t.coord_no is null) then raise exception 'SELLER_TICKET_INVALID'; end if;
   select * into bu from transfer_buyers where transfer_id = x.id and status = 'active' for update;
   if not found then raise exception 'NO_BUYER'; end if;
   select * into bk from bookings where id = bu.booking_id for update;
@@ -1151,6 +1165,16 @@ begin
   return _public_state(s, p_session);
 end $function$
 
+--- get_site_flags() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.get_site_flags()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object('show_about', s.show_about) from settings s where s.id = 1
+$function$
+
 --- get_transfer_info() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.get_transfer_info()
  RETURNS jsonb
@@ -1250,8 +1274,7 @@ begin
   select * into t from tickets where id = tid for update;
   select * into b from bookings where id = t.booking_id;
   if t.transferred_out_at is not null then return jsonb_build_object('ok', false, 'error', 'ALREADY_TRANSFERRED'); end if;
-  if b.status <> 'paid' or t.ticket_no is null then return jsonb_build_object('ok', false, 'error', 'NOT_CONFIRMED'); end if;
-  if t.kind <> 'guest' then return jsonb_build_object('ok', false, 'error', 'COORDINATOR'); end if;
+  if b.status <> 'paid' or (t.ticket_no is null and t.coord_no is null) then return jsonb_build_object('ok', false, 'error', 'NOT_CONFIRMED'); end if;
   if t.checked_in_at is not null then return jsonb_build_object('ok', false, 'error', 'ALREADY_CHECKED_IN'); end if;
   lbl := _ticket_label(t.kind, t.ticket_no, t.coord_no);
 
@@ -1292,8 +1315,7 @@ begin
   select * into t from tickets where id = tid for update;
   select * into b from bookings where id = t.booking_id;
   if t.transferred_out_at is not null then return jsonb_build_object('ok', false, 'error', 'ALREADY_TRANSFERRED'); end if;
-  if b.status <> 'paid' or t.ticket_no is null then return jsonb_build_object('ok', false, 'error', 'NOT_CONFIRMED'); end if;
-  if t.kind <> 'guest' then return jsonb_build_object('ok', false, 'error', 'COORDINATOR'); end if;
+  if b.status <> 'paid' or (t.ticket_no is null and t.coord_no is null) then return jsonb_build_object('ok', false, 'error', 'NOT_CONFIRMED'); end if;
   if t.checked_in_at is not null then return jsonb_build_object('ok', false, 'error', 'ALREADY_CHECKED_IN'); end if;
   upi := btrim(coalesce(p_upi, ''));
   if upi !~ '^([0-9]{10}|[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31})$' then return jsonb_build_object('ok', false, 'error', 'INVALID_UPI'); end if;
@@ -1423,6 +1445,7 @@ begin
   select * into s from settings where id = 1 for update;
   select * into t from tickets where id = p_ticket_id for update;
   if not found then raise exception 'INVALID_TICKET'; end if;
+  if t.transferred_out_at is not null then raise exception 'ALREADY_TRANSFERRED'; end if;   -- a retired ticket can never become (or stop being) a coordinator
 
   if p_make and t.kind = 'guest' then
     if t.prev_coord_no is not null then
