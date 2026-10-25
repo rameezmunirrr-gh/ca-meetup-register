@@ -103,6 +103,39 @@ for name, who in grants:
 for l in secs['TRIGGERS']:
     if ' | CREATE TRIGGER' in l:
         out.append(l.split(' | ', 1)[1] + ';')
+# row level security, policies and table grants of the OLD tables, copied from the real snapshot
+# (closes handover gap G8: before this, the scratch copy did not reproduce who can read what)
+def raw_section(prefix):
+    lines, on = [], False
+    for l in txt.split('\n'):
+        if l.startswith('=== '):
+            on = l.startswith('=== ' + prefix); continue
+        if on and l.strip(): lines.append(l)
+    return lines
+for l in raw_section('ROW LEVEL SECURITY'):
+    m = re.match(r'^(\w+) : rls=(true|false)$', l)
+    if m and m.group(2) == 'true':
+        out.append(f"alter table public.{m.group(1)} enable row level security;")
+for l in raw_section('POLICIES'):
+    parts = [x.strip() for x in l.split(' | ')]
+    if len(parts) != 6 or not parts[0].startswith('public.'): continue      # storage.objects is a stub in the scratch copy
+    tbl, name, cmd, roles, using, chk = parts
+    roles = roles.strip('{}')
+    using = using.replace('using: ', '', 1); chk = chk.replace('check: ', '', 1)
+    q = f'create policy "{name}" on {tbl} for {cmd.lower()} to {roles}'
+    if using != '-': q += f' using ({using})'
+    if chk != '-': q += f' with check ({chk})'
+    out.append(q + ';')
+PRIV = {'r': 'select', 'a': 'insert', 'w': 'update', 'd': 'delete'}
+for l in raw_section('TABLE AND VIEW PERMISSIONS'):
+    m = re.match(r'^(\w+) : \{(.*)\}$', l)
+    if not m: continue
+    tbl = m.group(1)
+    for item in m.group(2).split(','):
+        mm = re.match(r'^(\w+)=([a-zA-Z]*)/', item)
+        if not mm or mm.group(1) not in ('anon', 'authenticated', 'service_role'): continue
+        privs = [PRIV[c] for c in mm.group(2) if c in PRIV]
+        if privs: out.append(f"grant {', '.join(privs)} on public.{tbl} to {mm.group(1)};")
 # settings row
 out.append("insert into public.settings (id) values (1) on conflict do nothing;")
 open('build.sql', 'w').write('\n'.join(out))

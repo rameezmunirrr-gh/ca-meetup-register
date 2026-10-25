@@ -218,11 +218,12 @@ t.check("3.6 two admins pressing Transfer at the same instant: exactly ONE succe
 res = oks[0][1][0][0]
 winner = admin if out[0][0]=='ok' else admin2   # whichever admin's press actually won the race
 t.check("3.7 the answer names the new ticket and the buyer's Booking ID", res['booking_code']==newb and res['old_label']==label(1) and re.fullmatch(r'E26-\d{3}', res['new_label']), res)
-new = sql("select ticket_no,kind,secret,booking_id,transferred_from,phone,email,name from tickets where name='Dan Buyer'")
+new = sql("select ticket_no,kind,secret,booking_id,transferred_from,phone,(select email from ticket_emails e where e.ticket_id = tickets.id),name from tickets where name='Dan Buyer'")
 t.check("3.8 exactly one new ticket was created for the buyer", len(new)==1, new)
 nt = new[0]
 t.check("3.9 it got the NEXT guest number (normal numbering rule)", nt[0]==next_before and sql("select next_ticket from settings")[0][0]==next_before+1, (nt[0], next_before))
 t.check("3.10 new ticket: guest, 12-char secret different from the seller's, lives in the BUYER's booking", nt[1]=='guest' and len(nt[2])==12 and nt[2]!=old_secret and str(nt[3])==str(sql("select id from bookings where booking_code=%s",(newb,))[0][0]))
+t.check("3.11b the buyer's email moved to the admin-only ticket_emails table, lower-case, and the old seller's email is untouched", nt[6]=='dan@example.com' and sql("select count(*) from ticket_emails e join tickets t on t.id=e.ticket_id where t.name='Asha'")[0][0]==1, nt[6])
 t.check("3.11 it points back at the seller's old ticket", str(nt[4])==str(sql("select id from tickets where ticket_no=1")[0][0]))
 old = sql("select ticket_no, transferred_out_at, secret from tickets where name='Asha'")[0]
 t.check("3.12 the seller's ticket keeps its number (retired) and is marked transferred out", old[0]==1 and old[1] is not None and old[2]==old_secret)
