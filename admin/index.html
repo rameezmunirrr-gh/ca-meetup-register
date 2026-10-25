@@ -434,7 +434,7 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
   if(t.dataset.co){const tk=S.tickets.find(x=>x.id===t.dataset.t),make=t.dataset.co==="make";if(!tk)return;
     const msg=make?"Make "+tk.name+" a coordinator?"+(tk.ticket_no!=null?"\n\nTheir guest number "+tlabel(tk)+" will be cancelled and they will get the next coordinator number. Other numbers do not change.":"\n\nThey will get the next coordinator number (E26-"+pad(S.settings.next_coord)+"C)."):"Remove "+tk.name+" as coordinator?\n\nThe coordinator number is retired and never reused. They go back to being a guest.";
     if(!confirm(msg))return;
-    const r=await db.rpc("set_coordinator",{p_ticket_id:tk.id,p_make:make});if(r.error)return toast("Failed: "+r.error.message);
+    const r=await db.rpc("set_coordinator",{p_ticket_id:tk.id,p_make:make});if(r.error)return toast(/ALREADY_TRANSFERRED/.test(r.error.message||"")?"This ticket was already transferred to someone else, so its coordinator status cannot be changed.":"Failed: "+r.error.message);
     await load();view();return toast(make?tk.name+" is now "+r.data.label:tk.name+" is a guest again")}
   if(id==="scan")return runScan(S.bookings.filter(b=>b.kind!=="transfer"&&b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)));
   if(id==="rescanall")return runScan(S.scans.map(s=>bk(s.booking_id)).filter(b=>b.status!=="rejected"));

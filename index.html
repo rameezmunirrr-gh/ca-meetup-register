@@ -358,7 +358,7 @@ function transferNote(tr){
   return `<div class="card"><b>Your transfers</b>`+tr.transfers.map(x=>{
     let h=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><div class="sw"><span>${esc(x.ticket_label||"")} · ${x.mode==="public"?"Public":"Private"}</span>${pill(x.status==="done"?"ok":x.status==="rejected"||x.status==="withdrawn"||x.status==="expired"?"bad":"wait",L[x.status]||esc(x.status))}</div>`;
     if(x.status==="code_active"&&x.code)h+=`<div class="note" style="margin-top:6px">Code <b style="letter-spacing:.15em;font-size:1.1rem">${esc(x.code)}</b> · valid until ${esc(fmtWhen(x.expires_at))}</div><div class="row"><button class="ghost" data-xcancel="${esc(x.ticket_label)}">Cancel this code</button></div>`;
-    if(x.status==="pending_admin")h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?esc(x.buyer_name)+" has applied. ":""}The organisers will call your registered number to confirm before anything changes. Your ticket stays valid until then.</p>`;
+    if(x.status==="pending_admin")h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?esc(x.buyer_name)+" has applied. ":""}The organisers may call your registered number to confirm before anything changes. Your ticket stays valid until then.</p>`;
     if(x.status==="done"){h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?"Your ticket now belongs to "+esc(x.buyer_name)+".":"Your ticket was transferred."}`;
       if(x.mode==="public"&&x.amount_to_receive)h+=x.payout==="paid"?` You have been paid ₹${esc(x.amount_to_receive)}.`:` The organisers will pay you ₹${esc(x.amount_to_receive)} on the payout UPI ID / number you gave.`;
       h+=`</p>`}
@@ -372,7 +372,7 @@ function bookingCard(d){
   if(d.kind==="transfer"){
     const tr=d.transfer||{},st=tr.state,w=(c,t)=>`<div class="sw">${idl}${pill(c,t)}</div>`;
     if(d.status==="paid")return `<div class="card">${w("ok","Confirmed")}<p style="margin:10px 0 0">Your transfer is complete. This is now your ticket.</p>${names}<div class="row"><button data-view="1">View Ticket</button></div></div>`;
-    const T={pending:["wait","Pending verification","The organisers have been notified. They will call the seller to confirm"+(tr.type==="public"?", then ask you to pay the standard ticket price here":"")+". Please check back here."],
+    const T={pending:["wait","Pending verification","The organisers have been notified. They may call the seller to confirm"+(tr.type==="public"?", then ask you to pay the standard ticket price here":"")+". Please check back here."],
       payment_due:["wait","Payment needed","The organisers confirmed with the seller. Please pay ₹"+esc(tr.amount_due)+" and upload the payment screenshot."],
       payment_submitted:["wait","Payment received for checking","Your screenshot is with the organisers. They are checking it against the bank."],
       payment_verified:["wait","Payment verified","Your payment is verified. The organisers will complete the transfer shortly."],
@@ -419,26 +419,27 @@ function vXMenu(){
   if(!S.ti)return head("Transfer tickets","Checking…")+`<div class="row"><button class="ghost" id="go-tickets">Back</button></div>`;
   if(!xOpen())return head("Transfer tickets",S.ti.open?"The last date for ticket transfers has passed.":"Ticket transfers are not open right now.")+`<div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`;
   return head("Transfer tickets","Can't come? Give your seat to someone else. The number of seats never changes, and the organisers check every transfer by phone.")+
-  `<div class="card"><h2>Private transfer</h2><p class="note" style="margin-top:0">You already know who will take your seat. You settle the money between yourselves; the organisers are not involved in it.</p><div class="row"><button data-xgo="private-sell">I want to sell</button><button class="ghost" data-xgo="private-buy">I want to buy</button></div></div>
-  <div class="card"><h2>Public transfer</h2><p class="note" style="margin-top:0">You have no buyer. The organisers find one, collect the ticket price from them and pay you.</p><div class="row"><button data-xgo="public-sell">I want to sell</button><button class="ghost" data-xgo="public-buy">I want to buy</button></div></div>
+  `<div class="card"><h2>Private transfer</h2><p class="note" style="margin-top:0">You already know who will take your seat. You settle the money between yourselves; the organisers are not involved in it.</p><div class="row"><button data-xgo="private-sell">I want to sell</button></div></div>
+  <div class="card"><h2>Public transfer</h2><p class="note" style="margin-top:0">You have no buyer. The organisers find one, collect the ticket price from them and pay you.</p><div class="row"><button data-xgo="public-sell">I want to sell</button></div></div>
+  <div class="card"><h2>Buying a ticket</h2><p class="note" style="margin-top:0">Got a code from a seller or from the organisers? The code decides whether it is a private or a public transfer, so there is only one place to type it.</p><div class="row"><button data-xgo="private-buy">I want to buy</button></div></div>
   <div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`}
 function vXSell(){
   const x=S.xs,pub=x.mode==="public";
   return head((pub?"Public":"Private")+" transfer: sell","Enter the details exactly as they are for the ticket you want to give up.")+
   (x.err?`<div class="card errbox" role="alert">${esc(x.err)}</div>`:"")+
   `<div class="card"><label for="xs_c">Booking ID</label><input type="text" id="xs_c" data-xs="code" value="${esc(x.code)}" maxlength="14" autocapitalize="characters" autocomplete="off">
-  <label for="xs_t">Ticket number</label><input type="text" id="xs_t" data-xs="ticket" value="${esc(x.ticket)}" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="e.g. E26-007">
+  <label for="xs_t">Ticket number</label><input type="text" id="xs_t" data-xs="ticket" value="${esc(x.ticket)}" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="e.g. E26-007 or E26-001C">
   <label for="xs_p">Phone number entered for that ticket</label>${phoneBox("xs_p",'data-xs="phone"',x.phone)}
   ${pub?`<label for="xs_u">Where should we pay you? (UPI ID or 10-digit UPI phone number)</label><input type="text" id="xs_u" data-xs="upi" value="${esc(x.upi)}" maxlength="80" autocomplete="off" placeholder="name@bank">
-  <p class="note">Public transfer: the organisers find a buyer, collect the ticket price from them, and pay you exactly what they receive after the transfer is done. They will call your registered number to confirm.</p>`
-  :`<p class="note">Private transfer: you get a code. Give it to the person taking your seat. The organisers will call your registered number before anything changes.</p>`}
+  <p class="note">Public transfer: the organisers find a buyer, collect the ticket price from them, and pay you exactly what they receive after the transfer is done. They may call your registered number to confirm.</p>`
+  :`<p class="note">Private transfer: you get a code. Give it to the person taking your seat. The organisers may call your registered number before anything changes.</p>`}
   <div class="row"><button class="ghost" id="go-xmenu">Back</button><button id="xsell" ${x.busy?"disabled":""}>${x.busy?"Please wait…":"Get my code"}</button></div></div>`}
 function vXCode(){
   const r=S.xs.res,pub=S.xs.mode==="public";
   return '<div class="seal" aria-hidden="true">✓</div>'+head("Your transfer code","Ticket "+esc(r.ticket_label))+
   `<div class="card idcard"><div class="note">Code</div><div class="amt" style="letter-spacing:.2em">${esc(r.code)}</div><div class="note">Valid until ${esc(fmtWhen(r.expires_at))}</div><div class="row"><button class="ghost" id="copycode">Copy code</button></div></div>
-  <div class="card">${pub?`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Contact the organisers. They will find a buyer and give them this code. They will call your registered number to confirm before the ticket moves, and pay you after the transfer.</p>`
-  :`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Give this code to the person taking your seat. They open Tickets, then Transfer tickets, then Private transfer, then “I want to buy”, and type the code. After they apply, the organisers call your registered number to confirm. Until then your ticket stays valid.</p>`}
+  <div class="card">${pub?`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Contact the organisers. They will find a buyer and give them this code. They may call your registered number to confirm before the ticket moves, and pay you after the transfer.</p>`
+  :`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Give this code to the person taking your seat. They open Tickets, then Transfer tickets, then Private transfer, then “I want to buy”, and type the code. After they apply, the organisers may call your registered number to confirm. Until then your ticket stays valid.</p>`}
   <p class="note">If the code runs out, just make a new one. A new code makes the old one stop working. You can check or cancel it any time from Tickets (Booking ID + phone).</p></div>
   <div class="row">${contactBtn("Hi, I made a ticket transfer code ("+r.code+") for ticket "+r.ticket_label+" for "+CONFIG.eventName+".","Contact the organisers")}<button class="ghost" id="go-tickets">Back to Tickets</button></div>`}
 function vXBuy(){

@@ -97,7 +97,7 @@ with sync_playwright() as p:
     # ===== 6. seller flow (private)
     SELL = "window.__R.get_transfer_info={open:true,cutoff_passed:false,food_locked:false};window.__R.private_sell=a=>({data:a.p_phone==='9000000002'&&a.p_ticket.toUpperCase()==='E26-002'?{ok:true,code:'67Y659',hours:2,expires_at:new Date(Date.now()+7200000).toISOString(),ticket_label:'E26-002'}:{ok:false,error:'MISMATCH'},error:null});window.__R.public_sell=a=>({data:{ok:true,mode:'public',code:'H96NNF',hours:2,expires_at:new Date(Date.now()+7200000).toISOString(),ticket_label:'E26-002'},error:null});"
     b,pg,errs=page(p,SELL); pg.click('#go-tickets'); pg.wait_for_selector('#go-xmenu'); pg.click('#go-xmenu'); pg.wait_for_selector('[data-xgo="private-sell"]')
-    check('menu offers Private and Public, sell and buy', all(pg.query_selector(f'[data-xgo="{k}"]') for k in ['private-sell','private-buy','public-sell','public-buy']))
+    check('menu offers Private sell, Public sell and ONE buy button (the code decides the mode)', all(pg.query_selector(f'[data-xgo="{k}"]') for k in ['private-sell','private-buy','public-sell']) and not pg.query_selector('[data-xgo="public-buy"]') and len(pg.query_selector_all('[data-xgo$="-buy"]'))==1)
     pg.click('[data-xgo="private-sell"]'); pg.wait_for_selector('#xs_c')
     pg.fill('#xs_c','AB12CD34'); pg.fill('#xs_t','E26-009'); pg.fill('#xs_p','9000000002'); pg.click('#xsell'); pg.wait_for_timeout(300)
     check('wrong details: the exact mismatch sentence, nothing else revealed', 'Submission failed due to details mismatch' in pg.inner_text('#app'), pg.inner_text('#app')[:300])
@@ -109,10 +109,11 @@ with sync_playwright() as p:
     pg.click('#go-tickets'); b.close()
     # public sell needs UPI
     b,pg,errs=page(p,SELL); pg.click('#go-tickets'); pg.wait_for_selector('#go-xmenu'); pg.click('#go-xmenu'); pg.click('[data-xgo="public-sell"]'); pg.wait_for_selector('#xs_u')
+    check('seller form hints that coordinators type their E26-001C style number', 'E26-001C' in (pg.get_attribute('#xs_t','placeholder') or ''))
     pg.fill('#xs_c','AB12CD34'); pg.fill('#xs_t','E26-002'); pg.fill('#xs_p','9000000002'); pg.click('#xsell'); pg.wait_for_timeout(200)
     check('public sell without a payout UPI is stopped before any server call', 'fill in every box' in pg.inner_text('#app') and not last(pg,'public_sell'))
     pg.fill('#xs_u','asha@okbank'); pg.click('#xsell'); pg.wait_for_selector('#copycode'); ps=last(pg,'public_sell')
-    check('public_sell sends the payout UPI', ps['args'].get('p_upi')=='asha@okbank', ps); check('public text tells the seller the organisers find a buyer', 'find a buyer' in pg.inner_text('#app')); b.close()
+    check('public_sell sends the payout UPI', ps['args'].get('p_upi')=='asha@okbank', ps); check('public text tells the seller the organisers find a buyer', 'find a buyer' in pg.inner_text('#app')); check('wording: organisers MAY call (never "will call")', 'may call your registered number' in pg.inner_text('#app') and 'will call' not in pg.inner_text('#app')); b.close()
     # ===== 7. buyer flow
     BUY = ("window.__R.get_transfer_info={open:true,cutoff_passed:false,food_locked:false};"
            "window.__R.transfer_open=a=>({data:a.p_code==='67Y659'?{ok:true,mode:'private',seller_name:'Ben',expires_at:'2030-01-01T00:00:00Z',food_locked:window.__LOCK||false,food:window.__LOCK?'Non-veg':null}:{ok:false,error:'INVALID_CODE'},error:null});"
