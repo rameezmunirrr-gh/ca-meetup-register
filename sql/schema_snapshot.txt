@@ -1,4 +1,9 @@
 === COLUMNS (table | position | column | type | not null | default) ===
+booking_feedback|1|booking_id|uuid|t|
+booking_feedback|2|rating|smallint|f|
+booking_feedback|3|comment|text|f|
+booking_feedback|4|created_at|timestamp with time zone|t|now()
+booking_feedback|5|updated_at|timestamp with time zone|t|now()
 booking_ips|1|booking_id|uuid|t|
 booking_ips|2|ip|text|f|
 booking_ips|3|raw|text|f|
@@ -72,6 +77,8 @@ settings|22|transfer_food_locked|boolean|t|false
 settings|23|private_code_hours|integer|t|2
 settings|24|ip_flag_threshold|integer|t|5
 settings|25|show_about|boolean|t|true
+settings|26|ask_email|boolean|t|true
+settings|27|ask_feedback|boolean|t|true
 settings_log|1|id|bigint|t|
 settings_log|2|at|timestamp with time zone|t|now()
 settings_log|3|changed_by|uuid|f|
@@ -113,7 +120,7 @@ transfer_buyers|3|submission_id|uuid|t|
 transfer_buyers|4|booking_id|uuid|t|
 transfer_buyers|5|name|text|t|
 transfer_buyers|6|phone|text|t|
-transfer_buyers|7|email|text|t|
+transfer_buyers|7|email|text|f|
 transfer_buyers|8|location|text|t|
 transfer_buyers|9|attendance|text|t|
 transfer_buyers|10|food|text|t|
@@ -155,6 +162,11 @@ transfers|32|returned_at|timestamp with time zone|f|
 transfers|33|returned_by|uuid|f|
 transfers|34|return_reference|text|f|
 === CONSTRAINTS ===
+booking_feedback | booking_feedback_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
+booking_feedback | booking_feedback_check | CHECK (((rating IS NOT NULL) OR (comment IS NOT NULL)))
+booking_feedback | booking_feedback_comment_check | CHECK (((char_length(comment) >= 1) AND (char_length(comment) <= 1000)))
+booking_feedback | booking_feedback_pkey | PRIMARY KEY (booking_id)
+booking_feedback | booking_feedback_rating_check | CHECK (((rating >= 1) AND (rating <= 5)))
 booking_ips | booking_ips_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
 booking_ips | booking_ips_pkey | PRIMARY KEY (booking_id)
 bookings | bookings_amount_expected_check | CHECK ((((kind = 'registration'::text) AND (amount_expected > 0)) OR ((kind = 'transfer'::text) AND (amount_expected >= 0))))
@@ -239,6 +251,7 @@ transfers | transfers_seller_upi_check | CHECK (((seller_upi IS NULL) OR (seller
 transfers | transfers_status_check | CHECK ((status = ANY (ARRAY['code_active'::text, 'pending_admin'::text, 'done'::text, 'rejected'::text, 'withdrawn'::text, 'replaced'::text])))
 transfers | transfers_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 === INDEXES ===
+booking_feedback | CREATE UNIQUE INDEX booking_feedback_pkey ON public.booking_feedback USING btree (booking_id)
 booking_ips | CREATE INDEX booking_ips_ip_idx ON public.booking_ips USING btree (ip)
 booking_ips | CREATE UNIQUE INDEX booking_ips_pkey ON public.booking_ips USING btree (booking_id)
 bookings | CREATE UNIQUE INDEX bookings_booking_code_key ON public.bookings USING btree (booking_code)
@@ -296,6 +309,7 @@ report
 === TABLE AND VIEW OPTIONS (for example security_invoker) ===
 report : {security_invoker=true}
 === ROW LEVEL SECURITY ON/OFF ===
+booking_feedback : rls=true
 booking_ips : rls=true
 bookings : rls=true
 keepalive : rls=true
@@ -309,6 +323,7 @@ tickets : rls=true
 transfer_buyers : rls=true
 transfers : rls=true
 === POLICIES (public tables and storage) ===
+public.booking_feedback | admin_read_booking_feedback | SELECT | {authenticated} | using: is_admin() | check: -
 public.booking_ips | admin_read_booking_ips | SELECT | {authenticated} | using: is_admin() | check: -
 public.bookings | staff_read_bookings | SELECT | {authenticated} | using: is_staff() | check: -
 public.keepalive | anon can read keepalive | SELECT | {anon} | using: true | check: -
@@ -741,6 +756,32 @@ begin
     'grace_count', gc, 'grace_until', case when gc > 0 then gu else null end, 'server_now', now());
 end $function$
 
+--- admin_set_ask_email(p_ask boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_ask_email(p_ask boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_ask is null then raise exception 'INVALID_VALUE'; end if;
+  update settings set ask_email = p_ask where id = 1;
+end $function$
+
+--- admin_set_ask_feedback(p_ask boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_ask_feedback(p_ask boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_ask is null then raise exception 'INVALID_VALUE'; end if;
+  update settings set ask_feedback = p_ask where id = 1;
+end $function$
+
 --- admin_set_event(p_event_at timestamp with time zone, p_venue text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_set_event(p_event_at timestamp with time zone, p_venue text)
  RETURNS void
@@ -843,7 +884,7 @@ begin
   values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), bk.id, bu.name, bu.phone,
           bu.location, bu.attendance, bu.food, 'guest', t.id)
   returning * into nt;
-  insert into ticket_emails (ticket_id, email) values (nt.id, bu.email);   -- email stays in the admin-only table
+  if bu.email is not null then insert into ticket_emails (ticket_id, email) values (nt.id, bu.email); end if;   -- email stays in the admin-only table
   update tickets set transferred_out_at = now() where id = t.id;
   update bookings set status = 'paid', reviewed_by = auth.uid(), reviewed_at = now(), reviewed_via = 'admin' where id = bk.id;
   perform _assign_numbers(bk.id);
@@ -1172,7 +1213,7 @@ CREATE OR REPLACE FUNCTION public.get_site_flags()
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select jsonb_build_object('show_about', s.show_about) from settings s where s.id = 1
+  select jsonb_build_object('show_about', s.show_about, 'ask_email', s.ask_email, 'ask_feedback', s.ask_feedback) from settings s where s.id = 1
 $function$
 
 --- get_transfer_info() | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
@@ -1510,8 +1551,8 @@ begin
   for r in select value from jsonb_array_elements(p_people) loop
     if length(trim(coalesce(r.value->>'name',''))) not between 1 and 80 then raise exception 'INVALID_NAME'; end if;
     if coalesce(r.value->>'phone','') !~ '^[0-9]{10}$' then raise exception 'INVALID_PHONE'; end if;
-    if length(trim(coalesce(r.value->>'email',''))) not between 5 and 120
-       or lower(trim(r.value->>'email')) !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'INVALID_EMAIL'; end if;
+    if s.ask_email and (length(trim(coalesce(r.value->>'email',''))) not between 5 and 120
+       or lower(trim(r.value->>'email')) !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then raise exception 'INVALID_EMAIL'; end if;
     if coalesce(r.value->>'loc','') not in ('In Bengaluru','Outside Bengaluru') then raise exception 'INVALID_LOCATION'; end if;
     if coalesce(r.value->>'att','') not in ('Surely','Most probably') then raise exception 'INVALID_ATTENDANCE'; end if;
     if coalesce(r.value->>'food','') not in ('Veg','Non-veg') then raise exception 'INVALID_FOOD'; end if;
@@ -1536,10 +1577,31 @@ begin
     values (substr(replace(gen_random_uuid()::text, '-', ''), 1, 12), b.id,
             trim(r.value->>'name'), r.value->>'phone', r.value->>'loc', r.value->>'att', r.value->>'food')
     returning id into tid;
-    insert into ticket_emails (ticket_id, email) values (tid, lower(trim(r.value->>'email')));
+    if s.ask_email then insert into ticket_emails (ticket_id, email) values (tid, lower(trim(r.value->>'email'))); end if;
   end loop;
 
   return _booking_json(b.id);
+end $function$
+
+--- submit_feedback(p_booking_code text, p_rating integer, p_comment text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.submit_feedback(p_booking_code text, p_rating integer, p_comment text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare s settings; bid uuid; c text := nullif(trim(coalesce(p_comment, '')), '');
+begin
+  select * into s from settings where id = 1;
+  if not s.ask_feedback then return jsonb_build_object('ok', false, 'error', 'FEEDBACK_OFF'); end if;
+  if p_rating is not null and p_rating not between 1 and 5 then return jsonb_build_object('ok', false, 'error', 'INVALID_RATING'); end if;
+  if c is not null and char_length(c) > 1000 then return jsonb_build_object('ok', false, 'error', 'INVALID_COMMENT'); end if;
+  if p_rating is null and c is null then return jsonb_build_object('ok', false, 'error', 'EMPTY_FEEDBACK'); end if;
+  select id into bid from bookings where booking_code = upper(trim(coalesce(p_booking_code, ''))) and kind = 'registration';
+  if bid is null then return jsonb_build_object('ok', false, 'error', 'BOOKING_NOT_FOUND'); end if;
+  insert into booking_feedback (booking_id, rating, comment) values (bid, p_rating, c)
+    on conflict (booking_id) do update set rating = excluded.rating, comment = excluded.comment, updated_at = now();
+  return jsonb_build_object('ok', true);
 end $function$
 
 --- transfer_cancel(p_booking_code text, p_ticket text, p_phone text) | execute rights: {postgres=X/postgres,anon=X/postgres,authenticated=X/postgres}
@@ -1679,10 +1741,10 @@ begin
 
   if p_buyer is null or jsonb_typeof(p_buyer) <> 'object' then return jsonb_build_object('ok', false, 'error', 'INVALID_DATA'); end if;
   v_name := trim(coalesce(p_buyer->>'name', ''));
-  v_email := lower(trim(coalesce(p_buyer->>'email', '')));
+  v_email := case when s.ask_email then lower(trim(coalesce(p_buyer->>'email', ''))) else null end;
   if length(v_name) not between 1 and 80 then return jsonb_build_object('ok', false, 'error', 'INVALID_NAME'); end if;
   if coalesce(p_buyer->>'phone', '') !~ '^[0-9]{10}$' then return jsonb_build_object('ok', false, 'error', 'INVALID_PHONE'); end if;
-  if length(v_email) not between 5 and 120 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then return jsonb_build_object('ok', false, 'error', 'INVALID_EMAIL'); end if;
+  if s.ask_email and (length(v_email) not between 5 and 120 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$') then return jsonb_build_object('ok', false, 'error', 'INVALID_EMAIL'); end if;
   if coalesce(p_buyer->>'loc', '') not in ('In Bengaluru', 'Outside Bengaluru') then return jsonb_build_object('ok', false, 'error', 'INVALID_LOCATION'); end if;
   if coalesce(p_buyer->>'att', '') not in ('Surely', 'Most probably') then return jsonb_build_object('ok', false, 'error', 'INVALID_ATTENDANCE'); end if;
   if not s.transfer_food_locked and coalesce(p_buyer->>'food', '') not in ('Veg', 'Non-veg') then return jsonb_build_object('ok', false, 'error', 'INVALID_FOOD'); end if;
@@ -1753,6 +1815,7 @@ issue_pg_net_access | ddl_command_end | extensions.grant_pg_net_access | enabled
 pgrst_ddl_watch | ddl_command_end | extensions.pgrst_ddl_watch | enabled=O
 pgrst_drop_watch | sql_drop | extensions.pgrst_drop_watch | enabled=O
 === TABLE AND VIEW PERMISSIONS ===
+booking_feedback : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 booking_ips : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
 bookings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 keepalive : {postgres=arwdDxtm/postgres,anon=rDxtm/postgres,authenticated=Dxtm/postgres,service_role=Dxtm/postgres}
