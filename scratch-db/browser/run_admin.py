@@ -72,6 +72,11 @@ with sync_playwright() as p:
     pg.click('button[data-tab="people"]'); check('old database: People works without email column', 'Email' not in pg.inner_text('#tbl') and 'Ben' in pg.inner_text('#tbl'))
     pg.click('button[data-tab="settings"]'); check('old database: Settings shows the setup-step notice instead of crashing', 'One setup step is missing' in pg.inner_text('#v'))
     b.close()
+    # ---- 8b. look and feel
+    b, pg, errs = open_page(p, db())
+    check('look: admin has the slim header with the logo and the Organiser label', pg.is_visible('.top') and pg.query_selector('.top img') is not None and 'Organiser' in pg.inner_text('.top'))
+    check('look: admin uses the brand colours, not the old green', '#0e5a43' not in pg.content().lower())
+    b.close()
     # ---- 9. settings save for transfers
     d = db(); d['rpc']['admin_set_transfer_settings']=None
     b, pg, errs = open_page(p, d, 'settings')

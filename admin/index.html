@@ -2,26 +2,28 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/png" href="../assets/icon-192.png"><link rel="apple-touch-icon" href="../assets/apple-touch-icon.png"><meta name="theme-color" content="#0A2147">
 <title>Organiser · Meetup 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#eef3ef;--card:#fff;--ink:#10231b;--mute:#52665c;--green:#0e5a43;--gold:#c9962b;--line:#cfdcd3;--err:#b3261e;--ok:#17803d;--warn:#a96b00;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}}
-:root[data-theme="dark"]{--bg:#0d1a14;--card:#14271e;--ink:#e8f1ec;--mute:#9db3a8;--green:#3fb98d;--gold:#e0b04a;--line:#27402f;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#06150e}
+:root{--bg:#EEF1F7;--card:#fff;--ink:#0F1B33;--mute:#55627C;--brand:#0A2147;--accent:#FFA400;--line:#D3DAE8;--err:#b3261e;--ok:#17803d;--warn:#a96b00;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#071429;--card:#0E2142;--ink:#E8EEFA;--mute:#9BAAC7;--brand:#FFA400;--accent:#FFC24D;--line:#1E3563;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#0A1630}}
+:root[data-theme="dark"]{--bg:#071429;--card:#0E2142;--ink:#E8EEFA;--mute:#9BAAC7;--brand:#FFA400;--accent:#FFC24D;--line:#1E3563;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#0A1630}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*:before,*:after{box-sizing:inherit}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
-.kasavu{height:10px;background:repeating-linear-gradient(90deg,var(--gold) 0 18px,var(--bg) 18px 22px,var(--green) 22px 40px,var(--bg) 40px 44px)}
+.kasavu{height:6px;background:repeating-linear-gradient(90deg,#FFA400 0 22px,#FBF7EC 22px 26px,#0A2147 26px 40px,#FBF7EC 40px 44px)}
+.top{background:#0A2147;color:#FBF7EC;padding:9px 14px;padding-top:calc(9px + env(safe-area-inset-top,0px))}.top div{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:11px}.top img{height:28px;width:auto;display:block}.top span{font-weight:700;font-size:.98rem;letter-spacing:.01em}.top small{margin-left:auto;color:#FFC24D;font-weight:600}
 main{max-width:1100px;margin:0 auto;padding:16px 14px 60px}
 h1{font-size:1.6rem;margin:10px 0 4px;font-weight:800}h2{font-size:1.1rem;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 12px}
 .mute{color:var(--mute)}.err{color:var(--err)}
 input,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
 label{display:block;font-weight:600;margin:10px 0 4px}
-button{font:inherit;font-weight:600;border-radius:8px;padding:9px 13px;border:1px solid var(--green);background:var(--green);color:var(--on);cursor:pointer}
-button.ghost{background:transparent;color:var(--green)}button.bad{background:var(--err);border-color:var(--err);color:#fff}button.sm{padding:5px 9px;font-size:.85rem}
-button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}.tabs button.on{background:var(--green);color:var(--on);border-color:var(--green)}
+button{font:inherit;font-weight:600;border-radius:8px;padding:9px 13px;border:1px solid var(--brand);background:var(--brand);color:var(--on);cursor:pointer}
+button.ghost{background:transparent;color:var(--brand)}button.bad{background:var(--err);border-color:var(--err);color:#fff}button.sm{padding:5px 9px;font-size:.85rem}
+button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}.tabs button.on{background:var(--brand);color:var(--on);border-color:var(--brand)}
 .grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat b{display:block;font-size:1.7rem;line-height:1.1}
 .charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.charts .card{height:300px}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
@@ -33,7 +35,7 @@ button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus
 .modal .box{background:var(--card);border-radius:12px;padding:14px;max-width:960px;width:100%}.modal img{max-width:100%;max-height:78vh;border-radius:8px;display:block;margin:6px auto}.two{display:flex;gap:10px;flex-wrap:wrap}.two>div{flex:1 1 300px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;z-index:10}
 </style></head>
-<body><div class="kasavu"></div><main id="app"></main>
+<body><header class="top"><div><img src="../assets/logo-mark.png" alt="" width="41" height="28"><span>Mallu Articles Bengaluru</span><small>Organiser</small></div></header><div class="kasavu"></div><main id="app"></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js"></script>
 <script>
@@ -137,7 +139,7 @@ function view(){
   const todo=S.tReady?S.transfers.filter(x=>x.status==="pending_admin").length+S.transfers.filter(x=>x.return_due&&!x.returned_at).length+S.transfers.filter(x=>x.kind==="public"&&x.status==="done"&&!x.seller_paid_at).length:0;
   const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],...(S.tReady?[["transfers","Transfers"+(todo?" ("+todo+")":"")]]:[]),["scan","Scan screenshots"],["settings","Settings"]];
   if(S.tab==="transfers"&&!S.tReady)S.tab="overview";
-  a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--green);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--green)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
+  a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--brand);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--brand)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
   ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner()+ipBanner():""}<div id="v"></div>`;
   ({overview:vOverview,bookings:vBookings,people:vPeople,transfers:vTransfers,scan:vScan,settings:vSettings})[S.tab]();
 }
@@ -340,7 +342,7 @@ function moneyPanel(){const m=S.money;if(!m)return"";
   const c=(l,k,hint)=>`<div class="card stat"><span class="mute">${l}</span><b>${inr(m[k].amount)}</b><span class="mute">${m[k].count} transfer${m[k].count===1?"":"s"}${hint?" · "+hint:""}</span></div>`;
   return `<h2>Transfer money</h2><p class="mute" style="margin-top:0">Only <b>public</b> transfers move money through you. This never mixes with the registration totals on the Overview.</p>
   <div class="grid">${c("Awaiting payment","awaiting_payment","asked, not paid yet")}${c("Awaiting your check","awaiting_verification","screenshot uploaded")}${c("Verified, waiting for Transfer","verified_waiting_transfer")}${c("To pay out to sellers","to_pay_out")}${c("Paid out","paid_out")}${c("To return to buyers","return_due")}${c("Returned","returned")}
-  <div class="card stat" style="border:2px solid var(--gold)"><span class="mute">Held by you right now</span><b>${inr(m.held_now)}</b><span class="mute">should match the bank, apart from the registration money</span></div></div>`}
+  <div class="card stat" style="border:2px solid var(--accent)"><span class="mute">Held by you right now</span><b>${inr(m.held_now)}</b><span class="mute">should match the bank, apart from the registration money</span></div></div>`}
 function tCard(x){
   const b=buyerOf(x),t=sellerTk(x),pub=x.kind==="public",call=!!x.seller_call_confirmed_at,asked=!!x.payment_requested_at,sub=!!x.payment_submitted_at,ver=!!x.payment_verified_at,canT=call&&(!pub||ver);
   const tick=(ok,txt)=>`<div>${ok?"✅":"⬜"} ${txt}</div>`;
