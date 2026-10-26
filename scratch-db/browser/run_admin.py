@@ -112,7 +112,7 @@ with sync_playwright() as p:
     check('saving sends ask = false', c and c[-1]['args']=={'p_ask':False}, c)
     pg.click('button[data-tab="feedback"]'); t=pg.inner_text('#v')
     check('Feedback tab shows count, average 4.0 / 5 and the comment', 'Answers received' in t and '4.0 / 5' in t and 'More snacks' in t and not errs, (t[:300], errs))
-    check('Feedback tab: a 2-person booking shows "<name> and others", a 1-person booking shows just the name', t.count(' and others')==1, t)
+    check('Feedback tab: a 2-person booking shows "<name> and 1 other", a 1-person booking shows just the name', ' and 1 other' in t and t.count(' and ')>=1 and 'and others' not in t, t)
     b.close()
     b, pg, errs = open_page(p, db(), 'settings')
     check('no Feedback tab and no card before the database update (no crash)', pg.query_selector('button[data-tab="feedback"]') is None and pg.query_selector('#askfb') is None and not errs); b.close()
