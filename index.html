@@ -412,12 +412,10 @@ function vDone(){
   return '<div class="seal" aria-hidden="true">✓</div>'+head("Registration received","Please save your Booking ID. Once the organisers confirm your payment, open Tickets, enter your Booking ID and phone number, and download your tickets.")+
   `<div class="card idcard"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div>
   <div class="row"><button class="ghost" id="copyid">Copy Booking ID</button></div></div>
-  ${fbCard(r)}
-  <div class="card wrap"><table><tr><th>Name</th><th>Food</th></tr>`+
-  r.tickets.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.food)}</td></tr>`).join("")+
-  `</table></div><div class="card"><span class="pill p-wait">Pending verification</span>
+  <div class="card"><span class="pill p-wait">Pending verification</span>
   <p>Your payment of <b>₹${r.amount_expected}</b> is being verified. Ticket numbers are issued once the organisers confirm it.</p>
   <p class="note">Your Booking ID is saved on this device. On another device, open Tickets and enter your Booking ID and phone number.</p></div>
+  ${fbCard(r)}
   <div class="row"><button id="go-tickets">Go to Tickets</button>${contactBtn("Hi, I'm checking on my "+CONFIG.eventName+" booking, ID "+r.booking_code+".")}</div>
   <div class="row"><button class="ghost" id="again">Register another booking</button><button class="ghost" id="go-home">Home</button></div>`;
 }
