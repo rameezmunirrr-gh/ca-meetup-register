@@ -131,6 +131,25 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 2
 .foot{text-align:center;margin:36px 0 0;color:var(--mute);font:600 .95rem var(--sans)}
 .amt,h1,h2,.when dd,.when dt,.pres,.foot{font-variant-numeric:lining-nums}
 .idcard .amt{font:800 2.4rem/1.1 var(--sans);letter-spacing:.1em;font-variant-numeric:lining-nums;color:var(--accent)}
+/* review screen (stacked, phone friendly) */
+.who{padding:14px 0;border-bottom:1px solid var(--line)}.who:first-child{padding-top:2px}.who:last-child{border-bottom:0;padding-bottom:2px}
+.who-n{display:flex;gap:12px;align-items:center}.who-n .note{word-break:break-word;margin-top:2px}
+.who-i{flex:none;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;font-weight:800;font-size:.85rem}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0 42px}.tags span{padding:3px 11px;border-radius:999px;border:1px solid var(--line3);font-size:.82rem;font-weight:700;color:var(--mute)}
+.tot{display:flex;align-items:center;justify-content:space-between;gap:12px}.tot-a{font:800 1.9rem/1 var(--sans);color:var(--accent);letter-spacing:-.02em}
+/* phone comfort */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button,a.btn,label,.opts span{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.opts span{padding:12px 18px}
+main{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+@media(max-width:480px){
+main{padding-left:16px;padding-right:16px}
+button,a.btn{padding:15px 14px;font-size:.98rem}
+button.big{padding:18px 16px}
+.row{gap:10px}.row>button,.row>a.btn{flex:1 1 130px}
+.card{padding:20px 16px}
+.sub{font-size:.98rem}
+}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes pop{50%{transform:scale(1.07)}}
 @media(prefers-reduced-motion:reduce){.invite,.seal,.opts input:checked+span{animation:none}.rv{opacity:1;transform:none;transition:none}.card h2:before,button,a.btn,.opts span{transition:none}}
@@ -291,43 +310,43 @@ function vHome(){
   <div class="orn"><i></i><b></b><i></i></div>
   <dl class="when"><div><dt>Date</dt><dd>${esc(evDate())}</dd></div><div><dt>Time</dt><dd>${esc(evTime())}</dd></div><div><dt>Venue</dt><dd>${esc(evVenue())}</dd></div></dl>
   </div><div class="band"></div></section>
-  <div class="row col" style="gap:12px"><button class="big" id="go-register">Register for the meet-up</button>
+  <div class="row col" style="gap:12px"><button class="big" id="go-register">Register now</button>
   <button class="big ghost" id="go-tickets">Tickets</button>${S.flags&&S.flags.show_about?`<button class="big ghost" id="go-about">About ${esc(CONFIG.organiserName)}</button>`:""}</div>`+
-  (n?`<p class="note" style="text-align:center;margin-top:18px">You have ${n} booking${n===1?"":"s"} on this device. Open Tickets and enter your phone number to see ${n===1?"it":"them"}.</p>`:"");
+  (n?`<p class="note" style="text-align:center;margin-top:18px">${n===1?"Your booking is":n+" bookings are"} saved on this device. Open Tickets and enter your phone number to view ${n===1?"it":"them"}.</p>`:"");
 }
 function vAbout(){return head("About "+esc(CONFIG.organiserName),"Under construction")+`<div class="card"><p style="margin:0">This page is under construction. Please check back soon.</p></div><div class="row"><button class="ghost" id="go-home">Home</button></div>`}
 function loadFlags(){if(!db)return Promise.resolve();return db.rpc("get_site_flags").then(r=>{S.flags=r.error?null:r.data}).catch(()=>{S.flags=null})}
-function vError(){return head("Couldn't load registration","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
+function vError(){return head("We couldn't load this page","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
 function vClosed(){
   const st=S.status||{},r=st.closed_reason,re=st.reopen_at?fmtWhen(st.reopen_at):"";
-  const m={not_open:["Registrations haven't opened yet","Please check back soon."],
-    paused:["Registrations are paused for a short while","This is a short daily break while the organisers check payments. "+(re?"Registration reopens at "+re+".":"Please check back soon.")],deadline:["Registrations are closed","The registration deadline has passed."],full:["All spots are taken","Registrations are full. Please contact the organisers if you need help."]}[r]||["Registrations are closed",""];
+  const m={not_open:["Registration hasn't opened yet","Please check back soon."],
+    paused:["Registration is paused for a short while","This is a brief daily break while the organisers verify payments. "+(re?"Registration reopens at "+re+".":"Please check back soon.")],deadline:["Registration is closed","The registration deadline has passed."],full:["All spots are taken","Registration is full. Please contact the organisers if you need help."]}[r]||["Registration is closed",""];
   let h=head(m[0],esc(CONFIG.eventName)+". "+m[1]);
-  if(S.graceLost&&(r==="paused"||r==="not_open"||r==="deadline"))h+=`<div class="card"><b>Your 10 minutes to finish are over.</b><p class="note">If you have already paid, please do not pay again. Message the organisers with your payment screenshot and they will sort it out.</p>${contactBtn("Hi, I was registering for "+CONFIG.eventName+" when registration closed. I have paid Rs "+total()+" for "+S.n+" person(s). Name: "+((S.people[0]||{}).name||""),"Message the organisers")}</div>`;
+  if(S.graceLost&&(r==="paused"||r==="not_open"||r==="deadline"))h+=`<div class="card"><b>Your 10-minute window to finish has ended.</b><p class="note">If you have already paid, please don't pay again. Message the organisers with your payment screenshot and they will sort it out.</p>${contactBtn("Hi, I was registering for "+CONFIG.eventName+" when registration closed. I have paid Rs "+total()+" for "+S.n+" person(s). Name: "+((S.people[0]||{}).name||""),"Message the organisers")}</div>`;
   return h+`<div class="row"><button class="ghost" id="retry">Check again</button><button class="ghost" id="go-home">Home</button></div>`;
 }
 function vForm(){
   const st=S.status;
-  let h=head(esc(CONFIG.eventName),esc(evLine())+". Registration is ₹"+st.price_per_head+" per person"+(closeDate()?", open until "+closeDate():"")+".");
+  let h=head("Register for "+esc(CONFIG.eventName),esc(evLine())+". Registration fee: ₹"+st.price_per_head+" per person."+(closeDate()?" Registration closes on "+closeDate()+".":""));
   if(st.next_close_at){const ms=new Date(st.next_close_at).getTime()-(Date.now()+skew);
-    if(ms>0&&ms<2*3600e3)h+=`<div class="card note">Heads up: registration takes a short break at <b>${fmtT(st.next_close_at)}</b> for payment checking. If you have already started, you get 10 more minutes to finish.</div>`}
-  if(st.spots_left<=20)h+=`<div class="card"><b>Only ${st.spots_left} spot${st.spots_left===1?"":"s"} left</b></div>`;
-  if(lastCode())h+=`<div class="card note">You already made a booking from this device (Booking ID <b>${esc(lastCode())}</b>). Submitting again creates a new booking.</div>`;
-  if(S.errs.length)h+=`<div class="card errbox" role="alert"><b>Please fix:</b><ul>${S.errs.map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`;
+    if(ms>0&&ms<2*3600e3)h+=`<div class="card note">Registration will pause briefly at <b>${fmtT(st.next_close_at)}</b> while payments are verified. If you have already started, you will get 10 extra minutes to finish.</div>`}
+  if(st.spots_left<=20)h+=`<div class="card"><b>Only ${st.spots_left} spot${st.spots_left===1?"":"s"} left.</b> Register soon.</div>`;
+  if(lastCode())h+=`<div class="card note">You already have a booking from this device (Booking ID <b>${esc(lastCode())}</b>). Submitting again will create a new booking.</div>`;
+  if(S.errs.length)h+=`<div class="card errbox" role="alert"><b>Please correct the following:</b><ul>${S.errs.map(e=>`<li>${esc(e)}</li>`).join("")}</ul></div>`;
   if(maxN()>1){
-    h+=`<div class="card"><div class="sw"><div><b>Include friends</b><div class="note">Register up to ${maxN()} people in one booking</div></div><input type="checkbox" id="fr" ${S.friends?"checked":""} aria-label="Include friends"></div>`;
-    if(S.friends)h+=`<div class="lbl">How many people are you registering for?</div><div class="opts">`+
+    h+=`<div class="card"><div class="sw"><div><b>Booking for friends too?</b><div class="note">Add up to ${maxN()} people in a single booking</div></div><input type="checkbox" id="fr" ${S.friends?"checked":""} aria-label="Include friends"></div>`;
+    if(S.friends)h+=`<div class="lbl">How many people in total, including you?</div><div class="opts">`+
       Array.from({length:maxN()-1},(_,j)=>j+2).map(n=>`<label><input type="radio" name="cnt" value="${n}" ${S.n===n?"checked":""}><span>${n}</span></label>`).join("")+`</div>`;
     h+=`</div>`;
   }
   S.people.forEach((p,i)=>{
     h+=`<div class="card"><h2 class="c${i%5}">${S.n>1?"Person "+(i+1):"Your details"}</h2>
-    <label for="n${i}">Name</label><input type="text" id="n${i}" data-i="${i}" data-k="name" value="${esc(p.name)}" maxlength="80" autocomplete="${i?"off":"name"}">
-    <label for="t${i}">Phone number</label><div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" placeholder="10 digits" autocomplete="${i?"off":"tel-national"}" aria-label="Phone number, 10 digits, India +91"></div>
-    ${askEmail()?`<label for="e${i}">Email</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
-    <p class="note" style="margin:6px 0 0">Only the organisers can see it. We use it to send event updates and to reach you if something is wrong with your booking.</p>`:""}
-    <div class="lbl">Where are you currently?</div><div class="opts">${opt(i,"loc","In Bengaluru",p.loc)}${opt(i,"loc","Outside Bengaluru",p.loc)}</div>
-    <div class="lbl">Will you attend?</div><div class="opts">${opt(i,"att","Surely",p.att)}${opt(i,"att","Most probably",p.att)}</div>
+    <label for="n${i}">Full name</label><input type="text" id="n${i}" data-i="${i}" data-k="name" value="${esc(p.name)}" maxlength="80" autocomplete="${i?"off":"name"}">
+    <label for="t${i}">Phone number</label><div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" placeholder="10-digit mobile number" autocomplete="${i?"off":"tel-national"}" aria-label="Phone number, 10 digits, India +91"></div>
+    ${askEmail()?`<label for="e${i}">Email address</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
+    <p class="note" style="margin:6px 0 0">Only the organisers can see this. We will use it to share event updates, or to reach you if there is an issue with your booking.</p>`:""}
+    <div class="lbl">Where are you currently based?</div><div class="opts">${opt(i,"loc","In Bengaluru",p.loc)}${opt(i,"loc","Outside Bengaluru",p.loc)}</div>
+    <div class="lbl">Will you be attending?</div><div class="opts">${opt(i,"att","Surely",p.att)}${opt(i,"att","Most probably",p.att)}</div>
     <div class="lbl">Food preference</div><div class="opts">${opt(i,"food","Veg",p.food)}${opt(i,"food","Non-veg",p.food)}</div>
     </div>`;
   });
@@ -335,37 +354,36 @@ function vForm(){
 }
 function validate(){
   const e=[];S.people.forEach((p,i)=>{const w=S.n>1?"Person "+(i+1)+": ":"";
-    if(!p.name.trim())e.push(w+"enter a name");
-    if(!/^\d{10}$/.test(p.phone))e.push(w+"phone must be exactly 10 digits");
-    if(!p.loc)e.push(w+"choose where you are currently");
-    if(!p.att)e.push(w+"choose Surely or Most probably");
-    if(!p.food)e.push(w+"choose Veg or Non-veg");
-    if(askEmail()&&!okMail(p.email))e.push(w+"enter a valid email address")});
+    if(!p.name.trim())e.push(w+"Please enter a name");
+    if(!/^\d{10}$/.test(p.phone))e.push(w+"Enter a valid 10-digit phone number");
+    if(!p.loc)e.push(w+"Select where you are currently based");
+    if(!p.att)e.push(w+"Select Surely or Most probably");
+    if(!p.food)e.push(w+"Select Veg or Non-veg");
+    if(askEmail()&&!okMail(p.email))e.push(w+"Enter a valid email address")});
   return e;
 }
 function vSummary(){
-  return head("Check your details","Make sure everything is right. Food and hall numbers are planned from this.")+
-  `<div class="card wrap"><table><tr><th></th><th>Name</th><th>Phone</th><th>Location</th><th>Attending</th><th>Food</th></tr>`+
-  S.people.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.name.trim())}${askEmail()?`<div class="note">${esc(p.email.trim())}</div>`:""}</td><td>+91 ${p.phone}</td><td>${p.loc}</td><td>${p.att}</td><td>${p.food}</td></tr>`).join("")+
-  `</table></div><div class="card"><b>${S.n} × ₹${price()} = ₹${total()}</b> payable</div>
-  <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to payment</button></div>`;
+  return head("Check your details","Please make sure everything is correct. Food and hall arrangements are planned from these details.")+
+  `<div class="card">`+S.people.map((p,i)=>`<div class="who"><div class="who-n"><span class="who-i">${i+1}</span><div><b>${esc(p.name.trim())}</b><div class="note">+91 ${esc(p.phone)}${askEmail()&&p.email.trim()?"<br>"+esc(p.email.trim()):""}</div></div></div><div class="tags"><span>${esc(p.loc)}</span><span>${esc(p.att)}</span><span>${esc(p.food)}</span></div></div>`).join("")+`</div>
+  <div class="card tot"><div><b>Total payable</b><div class="note">${S.n} × ₹${price()}</div></div><div class="tot-a">₹${total()}</div></div>
+  <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to pay</button></div>`;
 }
 function upiLink(amt,note){amt=amt==null?total():amt;note=note||("Meetup "+S.n+" reg");return `upi://pay?pa=${encodeURIComponent(S.pay.upi)}&pn=${encodeURIComponent(S.pay.payee)}&am=${Number(amt).toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`}
 function vPay(){
   if(S.payLoading)return head("Payment","Loading the payment details…");
   if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="back">Back</button><button id="payretry">Try again</button></div>`;
-  if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers haven't finished setting up payments. Please try again a little later.")+`<div class="row"><button class="ghost" id="back">Back</button>${contactBtn("Hi, I couldn't pay for my "+CONFIG.eventName+" registration because the payment details are missing.","Contact the organisers")}</div>`;
+  if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers are still setting up payments. Please try again shortly.")+`<div class="row"><button class="ghost" id="back">Back</button>${contactBtn("Hi, I couldn't pay for my "+CONFIG.eventName+" registration because the payment details are missing.","Contact the organisers")}</div>`;
   const qrc=`<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${total()}"></canvas>`;
-  return head("Pay ₹"+total(),S.n+" registration"+(S.n>1?"s":"")+" × ₹"+price())+
-  (S.payChanged?`<div class="card errbox" role="alert"><b>The organisers have just updated the payment details.</b> Please use the QR below. If you have already paid, do not pay again: continue, upload your screenshot, and tell the organisers.</div>`:"")+
+  return head("Pay ₹"+total(),S.n+" "+(S.n>1?"people":"person")+" × ₹"+price())+
+  (S.payChanged?`<div class="card errbox" role="alert"><b>The payment details were just updated.</b> Please use the QR below. If you have already paid, don't pay again: upload your screenshot and let the organisers know.</div>`:"")+
   (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
   `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${qrc}
-  <p class="note" style="margin:0 0 6px">Scan this QR with your UPI app.<br>Pay using this phone? Take a screenshot and upload it in your UPI app, or pay using the UPI ID below.</p>
+  <p class="note" style="margin:0 0 6px">Scan this QR with any UPI app to pay.<br>Paying from this phone? Take a screenshot of the QR and upload it in your UPI app, or pay to the UPI ID below.</p>
   <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
-  <p class="note">Share opens your phone's share sheet. Pick Google Pay or any UPI app to pay ₹${total()}.</p></div>
-  <div class="card"><label for="shot">Upload payment screenshot</label><input type="file" id="shot" accept="image/*" ${S.file?'style="display:none"':""}>
-  ${S.file&&S.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(S.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="shot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Images only.</div>`}<div class="err" id="ferr"></div></div>
+  <p class="note">Tap Share QR and choose your UPI app (such as Google Pay or PhonePe) to pay ₹${total()}.</p></div>
+  <div class="card"><label for="shot">Upload your payment screenshot</label><input type="file" id="shot" accept="image/*" ${S.file?'style="display:none"':""}>
+  ${S.file&&S.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(S.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="shot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Please upload an image of your payment confirmation.</div>`}<div class="err" id="ferr"></div></div>
   <div class="row"><button class="ghost" id="back" ${S.busy?"disabled":""}>Back</button><button id="submit">Submit registration</button></div>`;
 }
 const fbOn=()=>!!(S.flags&&S.flags.ask_feedback===true);
@@ -373,17 +391,17 @@ function fbCard(r){
   if(!fbOn())return"";
   if(!S.fb||S.fb.code!==r.booking_code)S.fb={code:r.booking_code,rating:0,comment:"",busy:false,sent:false,err:""};
   const f=S.fb;
-  if(f.sent)return `<div class="card"><h2>Thank you!</h2><p style="margin:0">Your answer has reached the organisers.</p></div>`;
-  return `<div class="card"><h2>Two quick questions <span class="note">(optional)</span></h2>
-  <div class="lbl">Tell us how excited are you!</div>
+  if(f.sent)return `<div class="card"><h2>Thank you!</h2><p style="margin:0">Your response has reached the organisers.</p></div>`;
+  return `<div class="card"><h2>Share your thoughts <span class="note">(optional)</span></h2>
+  <div class="lbl">How excited are you for ${esc(CONFIG.eventName)}?</div>
   <div class="opts rate" role="radiogroup" aria-label="Excitement, 1 to 5">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="fb_r" data-fb="rating" value="${n}" ${f.rating===n?"checked":""}><span>${n}</span></label>`).join("")}</div>
-  <p class="note" style="margin:6px 0 0">1 = a little, 5 = can't wait!</p>
-  <label for="fb_c">Any suggestions/ideas/expectations from your side</label><textarea id="fb_c" data-fb="comment" maxlength="1000" rows="4">${esc(f.comment)}</textarea>
+  <p class="note" style="margin:6px 0 0">1 = a little excited &nbsp;·&nbsp; 5 = can't wait!</p>
+  <label for="fb_c">Please share a few words about the program</label><textarea id="fb_c" data-fb="comment" maxlength="1000" rows="4" placeholder="It could be anything: your suggestions, expectations, ideas and more. This helps us run the program better!">${esc(f.comment)}</textarea>
   ${f.err?`<p class="err" role="alert">${esc(f.err)}</p>`:""}
   <div class="row"><button id="fbsend" ${f.busy?"disabled":""}>${f.busy?"Sending…":"Send"}</button></div></div>`}
 async function fbSend(){
   const f=S.fb;if(!f||f.busy)return;const c=f.comment.trim();
-  if(!f.rating&&!c){f.err="Pick a number or write a few words first.";render();return}
+  if(!f.rating&&!c){f.err="Please pick a number or write a few words first.";render();return}
   f.busy=true;f.err="";render();
   try{const{data,error}=await db.rpc("submit_feedback",{p_booking_code:f.code,p_rating:f.rating||null,p_comment:c||null});
     if(error)throw error;if(!data||!data.ok){f.err=xerr(data);f.busy=false;render();return}
@@ -391,15 +409,15 @@ async function fbSend(){
   catch(_){f.err="Could not send. Please check your internet and try again.";f.busy=false;render()}}
 function vDone(){
   const r=S.result;
-  return '<div class="seal" aria-hidden="true">✓</div>'+head("Registration received","Save your Booking ID. When the organisers confirm your payment, open Tickets on this page and enter your Booking ID and phone number to download your tickets.")+
+  return '<div class="seal" aria-hidden="true">✓</div>'+head("Registration received","Please save your Booking ID. Once the organisers confirm your payment, open Tickets, enter your Booking ID and phone number, and download your tickets.")+
   `<div class="card idcard"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div>
   <div class="row"><button class="ghost" id="copyid">Copy Booking ID</button></div></div>
   ${fbCard(r)}
   <div class="card wrap"><table><tr><th>Name</th><th>Food</th></tr>`+
   r.tickets.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.food)}</td></tr>`).join("")+
   `</table></div><div class="card"><span class="pill p-wait">Pending verification</span>
-  <p>Amount to be verified: <b>₹${r.amount_expected}</b>. Your ticket numbers are given once the organisers confirm your payment.</p>
-  <p class="note">This booking is saved on this device. You can also open it from any other device with the Booking ID.</p></div>
+  <p>Your payment of <b>₹${r.amount_expected}</b> is being verified. Ticket numbers are issued once the organisers confirm it.</p>
+  <p class="note">Your Booking ID is saved on this device. On another device, open Tickets and enter your Booking ID and phone number.</p></div>
   <div class="row"><button id="go-tickets">Go to Tickets</button>${contactBtn("Hi, I'm checking on my "+CONFIG.eventName+" booking, ID "+r.booking_code+".")}</div>
   <div class="row"><button class="ghost" id="again">Register another booking</button><button class="ghost" id="go-home">Home</button></div>`;
 }
@@ -414,7 +432,7 @@ const okMail=e=>{e=String(e||"").trim();return e.length>=5&&e.length<=120&&/^[^@
 const XERR={MISMATCH:"Submission failed due to details mismatch. Please check the Booking ID, the ticket number and the phone number of that ticket.",TRANSFERS_CLOSED:"Ticket transfers are not open right now.",CUTOFF_PASSED:"The last date for ticket transfers has passed.",NOT_CONFIRMED:"This ticket is not confirmed yet, so it cannot be transferred.",
   COORDINATOR:"Coordinator tickets cannot be transferred here. Please contact the organisers.",ALREADY_CHECKED_IN:"This ticket has already been used at the entry.",ALREADY_TRANSFERRED:"This ticket has already been transferred.",ALREADY_PENDING:"A buyer has already applied for this ticket. The organisers are handling it. Please wait or contact them.",
   TRY_AGAIN:"Something collided. Please tap the button again.",INVALID_UPI:"That payout UPI ID or phone number doesn't look right. Use name@bank or a 10-digit number.",INVALID_CODE:"Invalid code. Please check it, or ask for a new one. Codes stop working after a while.",NOT_AVAILABLE:"This ticket is no longer available for transfer.",
-  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Phone must be exactly 10 digits.",INVALID_EMAIL:"Please enter a valid email address.",FEEDBACK_OFF:"Sorry, answers are not being collected any more.",EMPTY_FEEDBACK:"Pick a number or write a few words first.",INVALID_RATING:"Please pick a number from 1 to 5.",INVALID_COMMENT:"That message is too long. Please keep it under 1000 characters.",BOOKING_NOT_FOUND:"We could not find this booking.",INVALID_LOCATION:"Please choose where you are currently.",INVALID_ATTENDANCE:"Please choose Surely or Most probably.",INVALID_FOOD:"Please choose Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
+  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Phone must be exactly 10 digits.",INVALID_EMAIL:"Please enter a valid email address.",FEEDBACK_OFF:"Sorry, answers are not being collected any more.",EMPTY_FEEDBACK:"Please pick a number or write a few words first.",INVALID_RATING:"Please pick a number from 1 to 5.",INVALID_COMMENT:"That message is too long. Please keep it under 1000 characters.",BOOKING_NOT_FOUND:"We could not find this booking.",INVALID_LOCATION:"Please choose where you are currently.",INVALID_ATTENDANCE:"Please choose Surely or Most probably.",INVALID_FOOD:"Please choose Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
   CONTACT_ADMIN:"A buyer has already applied. Only the organisers can end this now. Please contact them.",NOTHING_TO_CANCEL:"There is no active code to cancel.",NOT_ACTIVE:"This transfer is no longer open.",PAYMENT_NOT_REQUESTED:"The organisers have not asked for payment yet.",ALREADY_SUBMITTED:"You have already uploaded a payment screenshot.",SCREENSHOT_MISSING:"The screenshot did not upload. Please select it again."};
 const xerr=r=>XERR[r&&r.error]||"Something went wrong. Please try again.";
 const waTxt=t=>contactBtn(t,"Contact the organisers");
@@ -423,7 +441,7 @@ const waTxt=t=>contactBtn(t,"Contact the organisers");
 const savedIds=()=>{const a=getMine().concat(LS.get("mm_hist",[]));return a.filter((c,i)=>a.indexOf(c)===i).slice(0,12)};
 function loadTI(){if(!db)return Promise.resolve();return db.rpc("get_transfer_info").then(r=>{S.ti=r.error?null:r.data}).catch(()=>{S.ti=null})}
 const xOpen=()=>!!(S.ti&&S.ti.open&&!S.ti.cutoff_passed);
-const NF=`<div class="card"><b>No ticket found for these details.</b><p class="note">Check the Booking ID and use the phone number that was entered for that person. The letter O and the number 0 are treated the same.</p><div class="row">${"@@HELP@@"}</div></div>`;
+const NF=`<div class="card"><b>We couldn't find a booking with these details.</b><p class="note">Please check the Booking ID and enter the phone number used for that person. The letter O and the number 0 are treated the same.</p><div class="row">${"@@HELP@@"}</div></div>`;
 function pill(c,t){return `<span class="pill p-${c}">${t}</span>`}
 function transferNote(tr){
   if(!tr||!tr.transfers||!tr.transfers.length)return"";
@@ -454,14 +472,14 @@ function bookingCard(d){
       returned:["ok","Payment returned","This transfer could not be completed and your payment has been returned."]}[st]||["wait","Pending verification",""];
     return `<div class="card">${w(T[0],T[1])}<p style="margin:10px 0 0">${T[2]}</p><div class="row">${st==="payment_due"?`<button data-tpay="1">Pay ₹${esc(tr.amount_due)}</button>`:""}${contactBtn(msg)}</div></div>`}
   if(d.status==="paid")return `<div class="card"><div class="sw">${idl}${pill("ok","Confirmed")}</div>${names}<div class="row">${live.length?`<button data-view="1">View Ticket${live.length>1?"s":""}</button>`:""}${live.length&&xOpen()?`<button class="ghost" data-xstart="1">Transfer a ticket</button>`:""}</div>${moved.length&&!live.length?`<p class="note">This ticket was transferred to someone else.</p>`:""}</div>`+transferNote(d.xstatus);
-  if(d.status==="rejected")return `<div class="card"><div class="sw">${idl}${pill("bad","Not verified")}</div>${names}<p class="err">Payment couldn't be verified. Please contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
-  return `<div class="card"><div class="sw">${idl}${pill("wait","Pending verification")}</div>${names}<p class="note">We're checking your payment. If it's taking long, contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
+  if(d.status==="rejected")return `<div class="card"><div class="sw">${idl}${pill("bad","Not verified")}</div>${names}<p class="err">We couldn't verify this payment. Please contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
+  return `<div class="card"><div class="sw">${idl}${pill("wait","Pending verification")}</div>${names}<p class="note">Your payment is being verified. If this takes longer than expected, please contact the organisers.</p><div class="row">${contactBtn(msg)}</div></div>`;
 }
 function vTickets(){
   const T=S.tk,ids=savedIds();
-  let h=head("Tickets","Check your booking and download your tickets once the payment is confirmed. For your safety we always ask for the phone number too.");
+  let h=head("Tickets","Enter your Booking ID and phone number to view your booking. Tickets can be downloaded once your payment is confirmed. We ask for your phone number to keep your booking secure.");
   h+=`<div class="card"><label for="bq">Booking ID</label><input type="text" id="bq" value="${esc(T.q)}" maxlength="14" autocapitalize="characters" autocomplete="off" placeholder="e.g. 97FB17B2">
-  <label for="tkph">Phone number of the person in the booking</label>${phoneBox("tkph","",T.phone)}
+  <label for="tkph">Phone number used in the booking</label>${phoneBox("tkph","",T.phone)}
   <div class="row"><button id="tsearch" ${T.busy?"disabled":""}>${T.busy?"Checking…":"Check"}</button></div>${T.msg?`<div class="err" role="alert">${esc(T.msg)}</div>`:""}</div>`;
   if(ids.length)h+=`<div class="lbl">Booking IDs used on this device <span class="note">(tap to fill)</span></div><div class="chips" style="margin-bottom:14px">${ids.map(c=>`<button class="chip" data-hist="${esc(c)}">${esc(c)}</button>`).join("")}</div>`;
   if(T.nf)h+=NF.replace("@@HELP@@",contactBtn("Hi, I couldn't find my "+CONFIG.eventName+" booking.","Need help?"));
@@ -612,7 +630,7 @@ async function tPaySubmit(){
 
 function vTicket(){
   const r=S.cur,n=r.tickets.length;
-  let h=head("Your ticket"+(n>1?"s":""),"Show the QR code at the entry.");
+  let h=head("Your ticket"+(n>1?"s":""),"Show this QR code at the entry.");
   r.tickets.forEach((t,i)=>{
     h+=`<div class="card"><canvas id="tc${i}" class="tk" width="900" height="1480" role="img" aria-label="Ticket ${esc(t.label||"")} for ${esc(t.name)}"></canvas>
     <div class="row"><button data-dl="jpg" data-i="${i}">Download JPG</button><button class="ghost" data-dl="pdf" data-i="${i}">Download PDF</button></div></div>`;
@@ -759,7 +777,7 @@ async function submit(){
     const m=(e&&e.message)||String(e);
     if(/NOT_ENOUGH_SPOTS|REGISTRATION_CLOSED/.test(m)){
       S.busy=false;S.graceLost=/REGISTRATION_CLOSED/.test(m);S.step="loading";await load();
-      if(S.step==="form")S.errs=["Spots ran out while you were registering. Please reduce the number of people, or try again later."];
+      if(S.step==="form")S.errs=["Some spots were taken while you were registering. Please reduce the number of people, or try again later."];
       render();return}
     else if(/INVALID_/.test(m)){S.step="form";S.errs=["Some details were not accepted ("+(m.match(/INVALID_\w+/)||[""])[0]+"). Please check each field."]}
     else if(/SCREENSHOT_MISSING/.test(m))S.payErr="The screenshot did not upload. Please select it again and submit.";
