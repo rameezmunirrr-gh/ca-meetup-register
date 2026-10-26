@@ -133,6 +133,7 @@ let db=null;try{db=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supaba
 
 function uuid(){if(crypto.randomUUID)return crypto.randomUUID();
   return"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15;return(c==="x"?r:(r&3|8)).toString(16)})}
+const askEmail=()=>!(S.flags&&S.flags.ask_email===false);
 function blank(){return{name:"",phone:"",email:"",loc:"",att:"",food:""}}
 const S={step:"home",status:null,friends:false,n:1,people:[blank()],file:null,sid:uuid(),errs:[],payErr:"",busy:false,result:null,
   tk:{q:"",phone:"",msg:"",busy:false,res:null,nf:false,code:"",ph:""},ti:null,cur:null,cv:[],pay:null,payLoading:false,payFail:false,payChanged:false};
@@ -286,8 +287,8 @@ function vForm(){
     h+=`<div class="card"><h2>${S.n>1?"Person "+(i+1):"Your details"}</h2>
     <label for="n${i}">Name</label><input type="text" id="n${i}" data-i="${i}" data-k="name" value="${esc(p.name)}" maxlength="80" autocomplete="${i?"off":"name"}">
     <label for="t${i}">Phone number</label><div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" placeholder="10 digits" autocomplete="${i?"off":"tel-national"}" aria-label="Phone number, 10 digits, India +91"></div>
-    <label for="e${i}">Email</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
-    <p class="note" style="margin:6px 0 0">Only the organisers can see it. We use it to send event updates and to reach you if something is wrong with your booking.</p>
+    ${askEmail()?`<label for="e${i}">Email</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
+    <p class="note" style="margin:6px 0 0">Only the organisers can see it. We use it to send event updates and to reach you if something is wrong with your booking.</p>`:""}
     <div class="lbl">Where are you currently?</div><div class="opts">${opt(i,"loc","In Bengaluru",p.loc)}${opt(i,"loc","Outside Bengaluru",p.loc)}</div>
     <div class="lbl">Will you attend?</div><div class="opts">${opt(i,"att","Surely",p.att)}${opt(i,"att","Most probably",p.att)}</div>
     <div class="lbl">Food preference</div><div class="opts">${opt(i,"food","Veg",p.food)}${opt(i,"food","Non-veg",p.food)}</div>
@@ -302,13 +303,13 @@ function validate(){
     if(!p.loc)e.push(w+"choose where you are currently");
     if(!p.att)e.push(w+"choose Surely or Most probably");
     if(!p.food)e.push(w+"choose Veg or Non-veg");
-    if(!okMail(p.email))e.push(w+"enter a valid email address")});
+    if(askEmail()&&!okMail(p.email))e.push(w+"enter a valid email address")});
   return e;
 }
 function vSummary(){
   return head("Check your details","Make sure everything is right. Food and hall numbers are planned from this.")+
   `<div class="card wrap"><table><tr><th></th><th>Name</th><th>Phone</th><th>Location</th><th>Attending</th><th>Food</th></tr>`+
-  S.people.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.name.trim())}<div class="note">${esc(p.email.trim())}</div></td><td>+91 ${p.phone}</td><td>${p.loc}</td><td>${p.att}</td><td>${p.food}</td></tr>`).join("")+
+  S.people.map((p,i)=>`<tr><td>${i+1}</td><td>${esc(p.name.trim())}${askEmail()?`<div class="note">${esc(p.email.trim())}</div>`:""}</td><td>+91 ${p.phone}</td><td>${p.loc}</td><td>${p.att}</td><td>${p.food}</td></tr>`).join("")+
   `</table></div><div class="card"><b>${S.n} × ₹${price()} = ₹${total()}</b> payable</div>
   <div class="row"><button class="ghost" id="edit">Edit details</button><button id="topay">Continue to payment</button></div>`;
 }
@@ -467,12 +468,12 @@ function vXForm(){
   (b.err?`<div class="card errbox" role="alert">${esc(b.err)}</div>`:"")+
   `<div class="card"><label for="xf_n">Your name</label><input type="text" id="xf_n" data-x="name" value="${esc(b.name||"")}" maxlength="80" autocomplete="name">
   <label for="xf_p">Phone number</label>${phoneBox("xf_p",'data-x="phone"',b.phone)}
-  <label for="xf_e">Email</label><input type="text" id="xf_e" data-x="email" value="${esc(b.email||"")}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="you@example.com">
+  ${askEmail()?`<label for="xf_e">Email</label><input type="text" id="xf_e" data-x="email" value="${esc(b.email||"")}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="you@example.com">`:""}
   <div class="lbl">Where are you currently?</div><div class="opts">${optX("loc","In Bengaluru",b.loc)}${optX("loc","Outside Bengaluru",b.loc)}</div>
   <div class="lbl">Will you attend?</div><div class="opts">${optX("att","Surely",b.att)}${optX("att","Most probably",b.att)}</div>
   ${b.food_locked?`<div class="lbl">Food preference</div><p class="note" style="margin-top:0">The food order has been placed, so your food is the same as the seller's: <b>${esc(b.food)}</b>.</p>`:`<div class="lbl">Food preference</div><div class="opts">${optX("food","Veg",b.food)}${optX("food","Non-veg",b.food)}</div>`}
   <label style="display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:18px"><input type="checkbox" id="xf_ok" ${b.consent?"checked":""} style="margin-top:5px;flex:none"><span>${pub?"I understand that the organisers will ask me to pay the standard ticket price after they confirm with the seller, and that the seat is mine only after they complete the transfer.":"I understand that the payment between me and the seller is our own matter, and the organisers are not responsible for it."}</span></label>
-  <p class="note">Your email is used for event updates and to recover your ticket. Only the organisers can see it.</p>
+  ${askEmail()?`<p class="note">Only the organisers can see your email. It is used to send event updates and to reach you if something is wrong with your transfer.</p>`:""}
   <div class="row"><button class="ghost" id="go-xbuy">Back</button><button id="xsubmit" ${b.busy?"disabled":""}>${b.busy?"Submitting…":"Submit"}</button></div></div>`}
 function vXDone(){
   const r=S.xb.result,pub=S.xb.mode==="public";
@@ -521,12 +522,12 @@ async function xOpenCode(){
 }
 async function xSubmit(){
   const b=S.xb;if(b.busy)return;b.err="";
-  const e=[];if(!String(b.name||"").trim())e.push("enter your name");if(!/^\d{10}$/.test(b.phone||""))e.push("phone must be exactly 10 digits");if(!okMail(b.email))e.push("enter a valid email address");
+  const e=[];if(!String(b.name||"").trim())e.push("enter your name");if(!/^\d{10}$/.test(b.phone||""))e.push("phone must be exactly 10 digits");if(askEmail()&&!okMail(b.email))e.push("enter a valid email address");
   if(!b.loc)e.push("choose where you are currently");if(!b.att)e.push("choose Surely or Most probably");if(!b.food_locked&&!b.food)e.push("choose Veg or Non-veg");if(!b.consent)e.push("tick the box to confirm you understand");
   if(e.length){b.err="Please "+e.join("; ")+".";return render()}
   b.busy=true;render();
   try{
-    const{data,error}=await db.rpc("transfer_submit",{p_code:b.code,p_submission_id:b.sid,p_buyer:{name:b.name.trim(),phone:b.phone,email:b.email.trim(),loc:b.loc,att:b.att,food:b.food_locked?"":b.food,consent:"true"}});if(error)throw error;
+    const{data,error}=await db.rpc("transfer_submit",{p_code:b.code,p_submission_id:b.sid,p_buyer:{name:b.name.trim(),phone:b.phone,email:askEmail()?String(b.email||"").trim():"",loc:b.loc,att:b.att,food:b.food_locked?"":b.food,consent:"true"}});if(error)throw error;
     if(data&&data.ok){b.result=data;remember("mm_mine",data.booking_code,20);S.step="xdone";b.busy=false;return render()}
     b.err=xerr(data);
   }catch(_){b.err="Could not reach the server. Check your internet and tap Submit again. Tapping again will not create a duplicate request."}
@@ -684,7 +685,7 @@ async function submit(){
       const up=await db.storage.from("payment-proofs").upload(path,blob,{contentType:blob.type,upsert:false});
       if(up.error&&!/exist|duplicate|409/i.test((up.error.message||"")+(up.error.statusCode||"")))throw up.error;
       const{data,error}=await db.rpc("submit_booking",{p_submission_id:S.sid,
-        p_people:S.people.map(p=>({name:p.name.trim(),phone:p.phone,email:p.email.trim().toLowerCase(),loc:p.loc,att:p.att,food:p.food})),p_screenshot_path:path});
+        p_people:S.people.map(p=>({name:p.name.trim(),phone:p.phone,email:askEmail()?p.email.trim().toLowerCase():"",loc:p.loc,att:p.att,food:p.food})),p_screenshot_path:path});
       if(error)throw error;
       S.result=data;S.step="done";
       try{localStorage.setItem("mm_last",JSON.stringify({code:data.booking_code}))}catch(_){}
