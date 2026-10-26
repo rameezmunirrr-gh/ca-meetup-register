@@ -25,6 +25,8 @@ with sync_playwright() as p:
     check('gate: search finds the retired ticket and says Transferred', 'Transferred' in t and 'current ticket' in t, t)
     check('gate: retired ticket has NO Open/Admit button', pg.query_selector('#results button') is None)
     pg.fill('#q','Dan'); check('gate: the buyer Dan can be opened', pg.query_selector('#results button[data-pick]') is not None)
+    check('look: gate has the slim header with the logo and the Gate label', pg.is_visible('.top') and pg.query_selector('.top img') is not None and 'Gate' in pg.inner_text('.top'))
+    check('look: gate screen has no sideways scrolling at phone width', pg.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'))
     check('no page errors', not errs, errs); b.close()
     # database not updated yet: the first query fails on the missing column, the page must fall back
     old=[{k:v for k,v in t.items() if k!='transferred_out_at'} for t in T[1:3]]
