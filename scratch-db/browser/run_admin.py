@@ -93,6 +93,15 @@ with sync_playwright() as p:
     check('saving sends show = false', c and c[-1]['args']=={'p_show':False}, c); b.close()
     b, pg, errs = open_page(p, db(), 'settings')
     check('About card is hidden before the database update (no crash)', pg.query_selector('#aboutshow') is None and not errs); b.close()
+    # ---- 9c. Email box switch
+    d = db(); d['tables']['settings']=dict(d['tables']['settings'], ask_email=True); d['rpc']['admin_set_ask_email']=None
+    b, pg, errs = open_page(p, d, 'settings')
+    check('Email card shows, ticked', pg.query_selector('#askemail') and pg.is_checked('#askemail'))
+    pg.uncheck('#askemail'); pg.click('#askemailsave'); pg.wait_for_timeout(200)
+    c=[x for x in pg.evaluate('window.__CALLS') if x['name']=='admin_set_ask_email']
+    check('saving sends ask = false', c and c[-1]['args']=={'p_ask':False}, c); b.close()
+    b, pg, errs = open_page(p, db(), 'settings')
+    check('Email card is hidden before the database update (no crash)', pg.query_selector('#askemail') is None and not errs); b.close()
     # ---- 10. IP flag banner and booking flag
     d = db(rpc=dict(admin_ip_flags={'threshold':2,'ips':[{'ip':'203.0.113.9','bookings':2,'people':3,'pending':1,'paid':1,'rejected':0,'last_at':'2026-10-24T10:00:00Z'}],'by_booking':{'CODE0001':{'ip':'203.0.113.9','count':2},'CODE0002':{'ip':'203.0.113.9','count':2}}}))
     b, pg, errs = open_page(p, d)

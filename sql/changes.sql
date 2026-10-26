@@ -1,3 +1,7 @@
+-- 26 Oct 2026: Email box on/off switch (full file: r2_10_email_switch.sql)
+-- settings.ask_email (default true), admin_set_ask_email(boolean), transfer_buyers.email nullable, get_site_flags() adds ask_email,
+-- submit_booking / transfer_submit / admin_transfer_approve skip email when off.
+
 -- 13 Oct 2026: make the report view follow the caller's permissions
 alter view public.report set (security_invoker = true);
 
