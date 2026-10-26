@@ -424,7 +424,7 @@ function aboutCard(s){
   <p><button id="aboutsave">Save</button></p></div>`}
 function vFeedback(){
   const rated=S.fb.filter(x=>x.rating),avg=rated.length?rated.reduce((a,x)=>a+x.rating,0)/rated.length:0,dist=[5,4,3,2,1].map(n=>[n,rated.filter(x=>x.rating===n).length]);
-  const bk=Object.fromEntries(S.bookings.map(b=>[b.id,b])),who=id=>{const t=S.tickets.filter(x=>x.booking_id===id).sort((a,b)=>(a.reg_seq||0)-(b.reg_seq||0))[0];return t?t.name:"–"};
+  const bk=Object.fromEntries(S.bookings.map(b=>[b.id,b])),who=id=>{const l=S.tickets.filter(x=>x.booking_id===id).sort((a,b)=>(a.reg_seq||0)-(b.reg_seq||0));return l.length?l[0].name+(l.length>1?" and others":""):"–"};
   $("#v").innerHTML=`<div class="grid"><div class="card stat"><span class="mute">Answers received</span><b>${S.fb.length}</b><span class="mute">${S.bookings.filter(b=>b.kind==="registration").length} registration bookings</span></div>
   <div class="card stat"><span class="mute">Average excitement</span><b>${rated.length?avg.toFixed(1)+" / 5":"–"}</b><span class="mute">${rated.length} ratings · ${dist.map(d=>d[0]+"★ "+d[1]).join(" · ")}</span></div></div>
   <div class="card wrap"><table><tr><th>When</th><th>Booking</th><th>Name</th><th>Excitement</th><th>Suggestions / ideas / expectations</th></tr>`+

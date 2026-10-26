@@ -226,6 +226,25 @@ with sync_playwright() as p:
     check('feedback OFF: no questions on the Booking ID page', 'Tell us how excited' not in pg.inner_text('#app') and pg.query_selector('#fbsend') is None); b.close()
     b,pg,errs=done_page("{show_about:true,ask_email:true}")
     check('feedback flag unknown (database not updated yet): no questions, no crash', pg.query_selector('#fbsend') is None and not errs); b.close()
+    # ===== a finished booking leaves no old data behind (the reused Booking ID bug)
+    b,pg,errs=done_page("{show_about:true,ask_email:true,ask_feedback:false}"); sid1=last(pg,'submit_booking')['args']['p_submission_id']
+    pg.click('#go-home'); pg.wait_for_selector('#go-register'); pg.click('#go-register'); pg.wait_for_selector('#n0')
+    check('after a booking, Home then Register opens an EMPTY form', pg.input_value('#n0')=='' and pg.input_value('#t0')=='' and pg.input_value('#e0')=='' and not pg.is_checked('input[name="p0_loc"][value="In Bengaluru"]',) )
+    check('after a booking, the old screenshot is forgotten', pg.query_selector('#shot') is None or 'File uploaded' not in pg.inner_text('#app'))
+    pg.fill('#n0','Amy'); pg.fill('#t0','9876500001'); pg.fill('#e0','a@e.com')
+    pg.click('input[name="p0_loc"][value="In Bengaluru"]',force=True); pg.click('input[name="p0_att"][value="Surely"]',force=True); pg.click('input[name="p0_food"][value="Veg"]',force=True)
+    pg.click('#review'); pg.click('#topay'); pg.wait_for_selector('#shot',state='attached')
+    pg.set_input_files('#shot',{'name':'s2.png','mimeType':'image/png','buffer':bytes.fromhex('89504e470d0a1a0a')+b'y'*50})
+    pg.evaluate("window.compress=async f=>new Blob(['y'],{type:'image/jpeg'})")
+    pg.click('#submit'); pg.wait_for_selector('#copyid'); calls2=[c for c in calls(pg) if c['name']=='submit_booking']
+    check('the second booking uses a NEW submission ID and its own details', len(calls2)==2 and calls2[1]['args']['p_submission_id']!=sid1 and calls2[1]['args']['p_people'][0]['name']=='Amy', calls2); b.close()
+    b,pg,errs=done_page("{show_about:true,ask_email:true,ask_feedback:false}"); pg.click('#again'); pg.wait_for_selector('#n0'); check('"Register another booking" still gives an empty form', pg.input_value('#n0')==''); b.close()
+    # a failed send keeps the same ID so a re-tap can never create a duplicate
+    b,pg,errs=page(p,"window.__N=0;window.__R.submit_booking=a=>(++window.__N===1?{data:null,error:{message:'network down'}}:{data:{booking_code:'AB12CD34',status:'pending',amount_expected:250,tickets:[{name:'Zed',food:'Veg'}]},error:null});"); pg.wait_for_timeout(300); pg.click('#go-register'); pg.wait_for_selector('#n0')
+    pg.fill('#n0','Zed'); pg.fill('#t0','9876543210'); pg.fill('#e0','z@e.com'); pg.click('input[name="p0_loc"][value="In Bengaluru"]',force=True); pg.click('input[name="p0_att"][value="Surely"]',force=True); pg.click('input[name="p0_food"][value="Veg"]',force=True)
+    pg.click('#review'); pg.click('#topay'); pg.wait_for_selector('#shot',state='attached'); pg.set_input_files('#shot',{'name':'s.png','mimeType':'image/png','buffer':bytes.fromhex('89504e470d0a1a0a')+b'x'*50}); pg.evaluate("window.compress=async f=>new Blob(['x'],{type:'image/jpeg'})")
+    pg.click('#submit'); pg.wait_for_selector('text=Tapping again will not create a duplicate'); pg.click('#submit'); pg.wait_for_selector('#copyid'); c3=[c for c in calls(pg) if c['name']=='submit_booking']
+    check('after a failed send, the retry keeps the same submission ID (no duplicate)', len(c3)==2 and c3[0]['args']['p_submission_id']==c3[1]['args']['p_submission_id'], c3); b.close()
     # ===== look and feel (logo, header, share preview, phone width)
     b,pg,errs=page(p,"window.__R.get_site_flags={show_about:true};",w=360); pg.wait_for_timeout(300)
     check('look: home has the logo in the invitation card and the slim header is hidden there', pg.query_selector('.invite img.logo') is not None and not pg.is_visible('.top'))

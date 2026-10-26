@@ -697,6 +697,11 @@ function compress(file){return new Promise(res=>{
     c.toBlob(b=>{URL.revokeObjectURL(u);res(b&&b.size?b:file)},"image/jpeg",.8)}catch(_){res(file)}};
   img.onerror=()=>{URL.revokeObjectURL(u);res(file)};img.src=u})}
 
+/* A finished booking must never leave its form data or its submission ID behind: the ID is what makes a re-tap idempotent, so reusing it would hand back the OLD booking and ignore new details. */
+function resetBookingForm(){
+  S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;
+  try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}
+  S.file=null;S.fileUrl=null;S.errs=[];S.payErr="";S.fb=null}
 async function submit(){
   if(S.busy)return;
   if(!S.file){$("#ferr").textContent="Upload your payment screenshot to continue.";return}
@@ -712,7 +717,7 @@ async function submit(){
       const{data,error}=await db.rpc("submit_booking",{p_submission_id:S.sid,
         p_people:S.people.map(p=>({name:p.name.trim(),phone:p.phone,email:askEmail()?p.email.trim().toLowerCase():"",loc:p.loc,att:p.att,food:p.food})),p_screenshot_path:path});
       if(error)throw error;
-      S.result=data;S.step="done";
+      S.result=data;S.step="done";resetBookingForm();
       try{localStorage.setItem("mm_last",JSON.stringify({code:data.booking_code}))}catch(_){}
       remember("mm_mine",data.booking_code,20);
     }
@@ -794,7 +799,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
     if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:"Pay ₹"+shownAmt()})}catch(_){}}
     else{await download();toast("Sharing isn't supported here, so the QR was downloaded")}}
   if(id==="submit")submit();
-  if(id==="again"){S.sid=uuid();S.graceLost=false;S.people=[blank()];S.n=1;S.friends=false;try{if(S.fileUrl)URL.revokeObjectURL(S.fileUrl)}catch(_){}S.file=null;S.fileUrl=null;S.result=null;S.errs=[];S.step="loading";render();load()}
+  if(id==="again"){resetBookingForm();S.result=null;S.step="loading";render();load()}
 });
 render();loadEvent().then(()=>{if(S.step==="home")render()});
 loadPay().then(()=>{if(["home","closed","done"].includes(S.step))render()});
