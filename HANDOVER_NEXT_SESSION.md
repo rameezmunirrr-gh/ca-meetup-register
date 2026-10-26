@@ -3,6 +3,7 @@
 **Project:** Ehsaas'26 meetup registration app (repo `rameezmunirrr-gh/ca-meetup-register`, public; GitHub Pages + Supabase project `CA-meetup-2026`).
 **Rewritten:** 26 Oct 2026 (evening, India time), by the session that took the project over from the previous Claude session after its credits ran out. It replaces the earlier version, which had grown into three layers (a 23 Oct body under two "override" blocks) and described a world where nothing was applied yet.
 **How it was checked:** against the repo (`main` at `abb7817`, PR #12 merged), the live database snapshot of 26 Oct 11:17 UTC (`b86a59c`, run by the owner by hand on request), and a test database rebuilt from the repo in this session. Where something was NOT verified, the line says so.
+**Updated later on 26 Oct 2026 (same day):** the owner's answers to the section-1 questions are recorded in section 1 and 0.1; `PROJECT_NOTES.md` was brought up to date (commit `b53fee7`, verified); the task list in section 11 is updated.
 **Read order:** (1) this file, (2) `PROJECT_NOTES.md` (decision log and database design; **it is NOT yet updated for r2_08 to r2_11, the restyle or the three switches, see 0.3**), (3) the SQL in `sql/` and the tests in `scratch-db/` only when you work on them.
 **Where the two documents disagree:** trust the live snapshot and the SQL files + tests first, then this file, then the notes, and tell the owner.
 
@@ -14,27 +15,36 @@
 - Registration for up to 5 people per booking with a UPI QR for the exact total, a payment screenshot, manual verification by admins (with in-browser OCR to catch reused or fake proofs), numbers given only when a booking is marked paid, QR tickets (JPG/PDF) and a gate scanner.
 - **Release 2 is LIVE** (applied by the owner on 25 Oct 2026): ticket lookup by **Booking ID + phone**, email per person (admin-only table), **private and public ticket transfers** through one code flow (admin phone call = identity check), an IP flag (flag only), and the Admin tools for all of it (Transfers tab, money panel, settings).
 - Added 25 to 26 Oct and also live: coordinators can transfer (`r2_08`); an About link with an on/off switch (`r2_09`); an Email-box on/off switch (`r2_10`); optional feedback questions on the Booking ID page with a switch and an admin Feedback tab (`r2_11`); a resubmit bug fix; the **restyle** (public pages navy/amber/ivory with the Mallu Articles Bengaluru logo; Admin and Gate "Midnight Emerald").
-- **Registration is closed and transfers are OFF** at the last record (25 to 26 Oct, from the previous session). Not re-checked live in this session: ask the owner (section 1).
+- **Owner's answers, 26 Oct 2026 (late):** registration is switched **ON for testing only**; there is **test data only, no real bookings**; **transfers are OFF**; the app is **not ready for launch** (still being modified; the owner will fix all settings when all work is done); the gate members' logins are **not created or tested**; Supabase sign-ups are **OFF** (verified by the owner on 26 Oct). No deadline pressure: the 31 Oct deadline is not to be considered; accuracy and quality come first. See section 1.
 
 **0.2 What is verified, what is not**
 - **Verified in this session (26 Oct):** all 10 database suites pass, **675 checks** (62, 54, 153, 157, 77, 68, 36, 14, 26, 28). The live database structure equals the tested one: every function body and execute right, all columns, constraints, indexes, views, row-level security and triggers are identical between the live snapshot and a scratch copy built from the pre-Release-2 snapshot plus `r2_01` to `r2_11`. Remaining differences are Supabase's own items (storage policies, event triggers, `rls_auto_enable`) and Supabase default privilege letters on older objects (see G15).
 - **NOT re-run in this session:** the browser suites (`scratch-db/browser/`: last reported by the previous session: public 101, admin 47, gate 9). Chromium could not be installed in this chat's sandbox (the install produced no browser; the likely cause is that the download host is not in the sandbox's network allowlist, not confirmed; the owner can add it in the chat's network settings). A page change therefore cannot be browser-tested here until that is solved (section 9).
 - **Never verified by anyone:** a real payment in a real UPI app; the new screens on every device. The owner checked the rehearsal on their own phone on 25 Oct.
 
-**0.3 Stale documents (known)**
-- `PROJECT_NOTES.md` (last edited 25 Oct 16:19 UTC): no mention of `r2_08` to `r2_11`, the restyle or the switches; section 5 still lists the dropped old transfer tables and functions and `lookup_booking`; section 6 still describes the Booking-ID-only Tickets page; section 4 omits `assets/`, `scratch-db/` and most SQL files; sections 11 and 12 are pre-launch plans written on 16 to 17 Oct. **Bringing it up to date is the first task after this file (section 11).**
+**0.3 Documents (state on 26 Oct 2026, later)**
+- `PROJECT_NOTES.md`: **brought up to date on 26 Oct 2026** (commit `b53fee7`; the old Release 2 design and audit sections were removed from it and remain in git history, commit `55c4176`). It describes Release 2, `r2_08` to `r2_11`, the restyle, the switches, the files table and the pre-launch checklist.
 - `README.md` contains only the repo name. `sql/README.md` is the owner's guide to the sql folder (not reviewed in this session).
 
 **0.4 Owner:** a beginner working alone, in the browser only (GitHub web editor + Supabase SQL editor). Plain language, step by step, complete files, never "just edit line 40". Standing order: structure and safety first, looks last (looks are now done).
 
 ---
 
-## 1. FIRST QUESTIONS TO ASK THE OWNER (before touching anything)
+## 1. FIRST QUESTIONS TO ASK THE OWNER (ANSWERED 26 Oct 2026; re-ask only what has changed)
+
+**Owner's answers (26 Oct 2026):**
+1. *Situation:* registration is ON for testing; test data only, no real bookings; transfers OFF.
+2. *Dates:* the deadline is 31 Oct 2026, but Claude is **not to mind it**: focus only on accurate, high-quality working results, wasting no time, credits or effort. The real opening date is not fixed.
+3. *Pre-launch checklist:* **not ready for launch**; still under modification; the owner will fix all settings when all work is done. Gate members' logins **not tested** (not created). **Supabase sign-ups: OFF, verified by the owner on 26 Oct 2026.** Real UPI ID / payee / WhatsApp, the real test payment and the final price: not asked yet (still to do at launch time).
+4. *Delivery:* the previous Claude session was disconnected from the repo and is not linked to anything. Claude is now the owner's **instructor** and delivers **complete files** for upload in the GitHub web editor, then verifies against a fresh download. (Verified working on 26 Oct: `git clone` and `curl` on raw URLs.)
+5. *SQL after `r2_11`:* not asked; the snapshot of 26 Oct 11:17 UTC shows nothing newer than `r2_11`. Ask again if the owner reports running anything.
+
+The original questions follow, for reference.
 
 1. **What is today's real situation?** Is registration still closed? Are there real bookings, or test data again since the clean-up on 25 Oct (`r2_07`)? Are transfers still OFF?
 2. **Dates.** The last record says: deadline 31 Oct 2026 23:59:59 IST (check Admin → Settings), event Sunday 22 Nov 2026 2 PM at Savoury Business Hotel, Madiwala. What is the real opening date, and should the deadline move?
 3. **Pre-launch checklist** (notes section 11, status unknown): real UPI ID, payee name and WhatsApp number entered; a small real test payment scanned in two UPI apps; the gate members' logins created and tested; price final (₹250 and cap 150 were the last recorded values); sign-ups still off in Supabase Auth.
-4. **How changes are delivered now.** The previous session pushed branches and pull requests through a GitHub connection; the owner merged each PR. That connection is being removed. Unless the owner chooses another route, deliver **complete files** for the owner to upload in the GitHub web editor, then verify against a fresh download of the repo.
+4. **How changes are delivered now.** The previous session pushed branches and pull requests through a GitHub connection; the owner merged each PR. That connection has been removed (owner, 26 Oct 2026). Unless the owner chooses another route, deliver **complete files** for the owner to upload in the GitHub web editor, then verify against a fresh download of the repo.
 5. If any SQL was run in Supabase after `r2_11`: ask for it, add it to `sql/changes.sql`, and run the Database Snapshot workflow.
 
 ---
@@ -252,8 +262,8 @@ One open transfer per seat; a code is unique among active codes; Transfer needs 
 ## 8. OPEN ITEMS AND RISKS
 
 ### 8.1 Open decisions and unknowns (ask the owner)
-1. **Registration opening date and the deadline** (section 1, question 2).
-2. **The pre-launch checklist** (section 1, question 3), including a real payment in a real UPI app (never verified).
+1. **Registration opening date and the deadline** (section 1, question 2). Owner, 26 Oct: not fixed; not to be considered for now.
+2. **The pre-launch checklist** (section 1, question 3), including a real payment in a real UPI app (never verified). Owner, 26 Oct: not ready; sign-ups confirmed off; gate logins not created.
 3. **Daily pause and transfers:** should transfers pause too? Default in use: no.
 4. **About page content** (text, reels as links, photos with permission for faces) and the logo as an **SVG** (only a PNG exists).
 5. **After the event:** run `select admin_ip_flags();` once to review, then `select admin_clear_client_ips();` to delete every stored address. Decide what to do with emails, feedback comments and payment screenshots (nothing sends email yet; no retention rule exists).
@@ -277,7 +287,7 @@ One open transfer per seat; a code is unique among active codes; Transfer needs 
 
 ### 8.3 New findings of this session (26 Oct 2026)
 - **G15 (low, optional):** Supabase's default privileges (TRUNCATE, REFERENCES, TRIGGER, MAINTAIN) exist on a few older objects for the API roles: `keepalive` (anon and authenticated), `report` (anon), and for `service_role` on most tables. They are not reachable through the API (it cannot issue TRUNCATE) and the new tables carry only staff SELECT. If the owner wants it tidy: revoke truncate, references and trigger on `keepalive` and `report` from `anon, authenticated` in the SQL editor, then re-run the snapshot. **Not applied, not tested.**
-- **G16:** the documents were stale (section 0.3). This file is the fix for itself; the notes are next.
+- **G16:** the documents were stale (section 0.3). **Resolved 26 Oct 2026:** this file was rewritten and `PROJECT_NOTES.md` brought up to date.
 - **G17:** `scratch-db/test_r2_08.py` and `test_r2_09.py` hardcode the SQL folder as `/home/claude/ca-meetup-register/scratch-db/`, so they fail unless copies of the SQL files are placed there (section 9 does this; do not commit those copies). Cleaner fix: make them use `/home/claude/ca-meetup-register/sql/` like `test_r2_10.py`.
 - **G18:** the test counts in the old files said `test_r2_02` has 55 checks (572 in total); it has 54 (675 in total across all ten suites). No test fails.
 - **G19:** the browser suites could not be run here (section 0.2 and 9).
@@ -332,12 +342,13 @@ for n in 01 02 03 04 05 06 08 09 10 11; do python3 test_r2_$n.py | tail -1; done
 
 ## 11. THE NEXT SESSION'S TASK LIST (in order, with "done when")
 
-1. **Ask the section-1 questions.** Done when the real state and dates are known.
-2. **Bring `PROJECT_NOTES.md` up to date** (0.3): header and status, files table, database section (remove the old transfer tables and `lookup_booking`, add `ticket_emails`, `transfers`, `transfer_buyers`, `booking_ips`, `booking_feedback`, the new settings columns and functions), pages section (section 4 of this file), decisions (6.1), change log for 25 to 26 Oct, and replace the pre-launch plan in sections 11 and 12 by what is left. Done when the owner has reviewed it and uploaded it.
-3. **Pre-launch checks with the owner** (section 1, question 3), then opening registration when they decide. Done when each item is confirmed in Admin → Settings and the Actions tab shows green ticks.
+1. ~~Ask the section-1 questions.~~ **Done 26 Oct 2026** (answers in section 1).
+2. ~~Bring `PROJECT_NOTES.md` up to date.~~ **Done 26 Oct 2026** (commit `b53fee7`, verified identical to what Claude sent). Keep it true after each task.
+3. **Further modification** of the app as the owner asks (this is the current stage; the owner says the app is not ready for launch). For each change: read the current files, write complete files, test, say what was not verified, update the notes and this file.
 4. **Restore browser testing** (section 9) and re-run the three browser suites; record the method. Done when 101 / 47 / 9 (or the new counts) pass.
 5. Small housekeeping when convenient: fix G17, optionally G15, delete merged branches, write a real `README.md`.
-6. **After the event:** section 8.1 item 5.
+6. **Pre-launch checks with the owner** (section 1, question 3; `PROJECT_NOTES.md` section 11), then opening registration when the owner decides. Done when each item is confirmed in Admin → Settings and the Actions tab shows green ticks.
+7. **After the event:** section 8.1 item 5.
 
 After each task: update `PROJECT_NOTES.md` (changelog + status) and this file's state lines, and say what was not verified.
 
