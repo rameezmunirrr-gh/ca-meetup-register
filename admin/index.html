@@ -45,7 +45,7 @@ const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true
 const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
 const S={staff:null,tab:"overview",bookings:[],tickets:[],scans:[],settings:null,mode:"both",f:{q:"",food:"",loc:"",att:"",pay:"",type:"",review:false},msg:"",charts:[],scanning:false,alert:null,log:[],payOpen:false,
-  emails:{},emailsOk:false,transfers:[],buyers:[],tReady:false,money:null,ipf:null,showMoved:false};
+  emails:{},emailsOk:false,fb:[],fbOk:false,transfers:[],buyers:[],tReady:false,money:null,ipf:null,showMoved:false};
 function toast(t,ms){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),ms||2400)}
 
 /* ---------- boot / auth ---------- */
@@ -65,6 +65,7 @@ async function load(){
   try{const r=await db.from("settings_log").select("*").order("id",{ascending:false}).limit(200);S.log=r.error?[]:r.data}catch(_){S.log=[]}
   /* emails live in their own admin-only table; transfers and IP flags exist only after the Release 2 database update */
   try{const r=await db.from("ticket_emails").select("ticket_id,email");S.emailsOk=!r.error;S.emails=r.error?{}:Object.fromEntries(r.data.map(x=>[x.ticket_id,x.email]))}catch(_){S.emailsOk=false;S.emails={}}
+  try{const r=await db.from("booking_feedback").select("booking_id,rating,comment,created_at,updated_at").order("updated_at",{ascending:false});S.fbOk=!r.error;S.fb=r.error?[]:r.data}catch(_){S.fbOk=false;S.fb=[]}
   try{const[x,y]=await Promise.all([db.from("transfers").select("*").order("created_at",{ascending:false}),db.from("transfer_buyers").select("*")]);
     S.tReady=!x.error&&!y.error;S.transfers=x.error?[]:x.data;S.buyers=y.error?[]:y.data;S.money=null;
     if(S.tReady){const m=await db.rpc("admin_transfer_money");S.money=m.error?null:m.data}}catch(_){S.tReady=false;S.transfers=[];S.buyers=[]}
@@ -137,11 +138,12 @@ function view(){
     <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" style="width:100%"><p><button id="login">Sign in</button></p></div>`;return}
   if(S.staff.role!=="admin"){a.innerHTML=`<h1>Hello, ${esc(S.staff.name)}</h1><div class="card">This page is for admins. <a href="../gate/">Open the gate scanner</a>.</div><button class="ghost" id="logout">Sign out</button>`;return}
   const todo=S.tReady?S.transfers.filter(x=>x.status==="pending_admin").length+S.transfers.filter(x=>x.return_due&&!x.returned_at).length+S.transfers.filter(x=>x.kind==="public"&&x.status==="done"&&!x.seller_paid_at).length:0;
-  const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],...(S.tReady?[["transfers","Transfers"+(todo?" ("+todo+")":"")]]:[]),["scan","Scan screenshots"],["settings","Settings"]];
+  const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],...(S.tReady?[["transfers","Transfers"+(todo?" ("+todo+")":"")]]:[]),["scan","Scan screenshots"],...(S.fbOk?[["feedback","Feedback"+(S.fb.length?" ("+S.fb.length+")":"")]]:[]),["settings","Settings"]];
+  if(S.tab==="feedback"&&!S.fbOk)S.tab="overview";
   if(S.tab==="transfers"&&!S.tReady)S.tab="overview";
   a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--brand);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--brand)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
   ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner()+ipBanner():""}<div id="v"></div>`;
-  ({overview:vOverview,bookings:vBookings,people:vPeople,transfers:vTransfers,scan:vScan,settings:vSettings})[S.tab]();
+  ({overview:vOverview,bookings:vBookings,people:vPeople,transfers:vTransfers,scan:vScan,feedback:vFeedback,settings:vSettings})[S.tab]();
 }
 function vOverview(){
   const P=live(),liveP=P.filter(p=>p.b.status!=="rejected"),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending");
@@ -315,6 +317,7 @@ function vSettings(){const s=S.settings;
   ${ipCard(s)}
   ${aboutCard(s)}
   ${emailCard(s)}
+  ${feedbackCard(s)}
   <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
   <p class="mute">A reminder list. Nothing here is checked automatically.</p>
   <label style="font-weight:400"><input type="checkbox"> Payment details above (UPI ID, payee name) are the final ones, and a test payment reached the right account</label>
@@ -419,6 +422,19 @@ function aboutCard(s){
   <p class="mute" style="margin-top:0">Shows an "About" button on the home page of the registration site. For now it opens an "Under construction" page. Switch it off to hide the button completely.</p>
   <label><input type="checkbox" id="aboutshow" ${s.show_about?"checked":""}> Show the About link on the home page</label>
   <p><button id="aboutsave">Save</button></p></div>`}
+function vFeedback(){
+  const rated=S.fb.filter(x=>x.rating),avg=rated.length?rated.reduce((a,x)=>a+x.rating,0)/rated.length:0,dist=[5,4,3,2,1].map(n=>[n,rated.filter(x=>x.rating===n).length]);
+  const bk=Object.fromEntries(S.bookings.map(b=>[b.id,b])),who=id=>{const t=S.tickets.filter(x=>x.booking_id===id).sort((a,b)=>(a.reg_seq||0)-(b.reg_seq||0))[0];return t?t.name:"–"};
+  $("#v").innerHTML=`<div class="grid"><div class="card stat"><span class="mute">Answers received</span><b>${S.fb.length}</b><span class="mute">${S.bookings.filter(b=>b.kind==="registration").length} registration bookings</span></div>
+  <div class="card stat"><span class="mute">Average excitement</span><b>${rated.length?avg.toFixed(1)+" / 5":"–"}</b><span class="mute">${rated.length} ratings · ${dist.map(d=>d[0]+"★ "+d[1]).join(" · ")}</span></div></div>
+  <div class="card wrap"><table><tr><th>When</th><th>Booking</th><th>Name</th><th>Excitement</th><th>Suggestions / ideas / expectations</th></tr>`+
+  (S.fb.length?S.fb.map(x=>`<tr><td>${esc(new Date(x.updated_at).toLocaleString())}</td><td>${esc(bk[x.booking_id]?bk[x.booking_id].booking_code:"–")}</td><td>${esc(who(x.booking_id))}</td><td>${x.rating?x.rating+" / 5":"–"}</td><td style="white-space:pre-wrap;max-width:420px">${esc(x.comment||"")}</td></tr>`).join(""):`<tr><td colspan="5" class="mute">Nothing yet.</td></tr>`)+`</table></div>`}
+function feedbackCard(s){
+  if(s.ask_feedback===undefined)return"";
+  return `<div class="card" style="max-width:520px"><h2>Feedback questions</h2>
+  <p class="mute" style="margin-top:0">When on, the "This is your Booking ID" page asks two optional questions: how excited they are (1 to 5) and any suggestions, ideas or expectations. When off, the questions are hidden and no new answers are accepted. Answers already received are kept and shown in the Feedback tab.</p>
+  <label><input type="checkbox" id="askfb" ${s.ask_feedback?"checked":""}> Ask the two feedback questions after booking</label>
+  <p><button id="askfbsave">Save</button></p></div>`}
 function emailCard(s){
   if(s.ask_email===undefined)return"";
   return `<div class="card" style="max-width:520px"><h2>Email box</h2>
@@ -464,6 +480,7 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
     const r=await db.rpc("admin_set_transfer_settings",{p_open:on,p_food_locked:$("#tfood").checked,p_code_hours:h,p_clear_cutoff:!cv&&!!s0.transfer_cutoff_at,p_cutoff:cv?new Date(cv+":00+05:30").toISOString():null});
     if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Transfer settings saved")}
   if(id==="askemailsave"){const r=await db.rpc("admin_set_ask_email",{p_ask:$("#askemail").checked});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Email setting saved")}
+  if(id==="askfbsave"){const r=await db.rpc("admin_set_ask_feedback",{p_ask:$("#askfb").checked});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Feedback setting saved")}
   if(id==="aboutsave"){const r=await db.rpc("admin_set_show_about",{p_show:$("#aboutshow").checked});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("About link saved")}
   if(id==="ipsave"){const n=+$("#ipth").value;if(!(n>=2&&n<=1000))return toast("Use a number from 2 to 1000",4000);
     const r=await db.rpc("admin_set_transfer_settings",{p_ip_threshold:n});if(r.error)return toast(terr(r.error),6000);await load();view();return toast("Saved")}

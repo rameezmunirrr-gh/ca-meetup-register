@@ -1,3 +1,6 @@
+-- 26 Oct 2026: feedback questions after booking (full file: r2_11_feedback.sql, run after r2_10)
+-- settings.ask_feedback, booking_feedback table (admin read), submit_feedback(), admin_set_ask_feedback(), get_site_flags() adds ask_feedback.
+
 -- 26 Oct 2026: Email box on/off switch (full file: r2_10_email_switch.sql)
 -- settings.ask_email (default true), admin_set_ask_email(boolean), transfer_buyers.email nullable, get_site_flags() adds ask_email,
 -- submit_booking / transfer_submit / admin_transfer_approve skip email when off.
