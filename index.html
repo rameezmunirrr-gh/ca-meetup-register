@@ -286,11 +286,12 @@ function vForm(){
     h+=`<div class="card"><h2>${S.n>1?"Person "+(i+1):"Your details"}</h2>
     <label for="n${i}">Name</label><input type="text" id="n${i}" data-i="${i}" data-k="name" value="${esc(p.name)}" maxlength="80" autocomplete="${i?"off":"name"}">
     <label for="t${i}">Phone number</label><div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="t${i}" data-i="${i}" data-k="phone" value="${esc(p.phone)}" inputmode="numeric" placeholder="10 digits" autocomplete="${i?"off":"tel-national"}" aria-label="Phone number, 10 digits, India +91"></div>
+    <label for="e${i}">Email</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
+    <p class="note" style="margin:6px 0 0">Only the organisers can see it. We use it to send event updates and to reach you if something is wrong with your booking.</p>
     <div class="lbl">Where are you currently?</div><div class="opts">${opt(i,"loc","In Bengaluru",p.loc)}${opt(i,"loc","Outside Bengaluru",p.loc)}</div>
     <div class="lbl">Will you attend?</div><div class="opts">${opt(i,"att","Surely",p.att)}${opt(i,"att","Most probably",p.att)}</div>
     <div class="lbl">Food preference</div><div class="opts">${opt(i,"food","Veg",p.food)}${opt(i,"food","Non-veg",p.food)}</div>
-    <label for="e${i}">Email</label><input type="text" id="e${i}" data-i="${i}" data-k="email" value="${esc(p.email)}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="${i?"off":"email"}" placeholder="you@example.com">
-    <p class="note" style="margin:6px 0 0">Used for event updates and to help recover your ticket. Only the organisers can see it.</p></div>`;
+    </div>`;
   });
   return h+`<div class="row"><button class="ghost" id="go-home">Home</button><button id="review">Review details</button></div>`;
 }

@@ -46,6 +46,7 @@ with sync_playwright() as p:
     # ===== 1. registration form: +91 prefix, email, payload
     b,pg,errs=page(p); pg.click('#go-register'); pg.wait_for_selector('#n0')
     check('form has a fixed +91 box next to the phone field', pg.inner_text('.pf span')=='+91' and pg.query_selector('#t0').get_attribute('class')=='ph')
+    check('form order: Email comes right after Phone number', pg.evaluate("(()=>{const ids=[...document.querySelectorAll('#app input[type=text],#app input[type=tel]')].map(e=>e.id);return ids.indexOf('t0')+1===ids.indexOf('e0')})()"))
     check('form has an email field with the reason line', pg.query_selector('#e0') is not None and 'Only the organisers can see it' in pg.inner_text('#app'))
     pg.fill('#n0','Zed'); pg.fill('#t0','+91 98765-43210abc'); check('a pasted "+91 98765-43210abc" becomes exactly the 10 digits 9876543210', pg.input_value('#t0')=='9876543210', pg.input_value('#t0'))
     pg.fill('#t0','09876543210'); check('a pasted 0-prefixed number loses the 0', pg.input_value('#t0')=='9876543210', pg.input_value('#t0'))
