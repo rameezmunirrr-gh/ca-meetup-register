@@ -102,6 +102,18 @@ with sync_playwright() as p:
     check('saving sends ask = false', c and c[-1]['args']=={'p_ask':False}, c); b.close()
     b, pg, errs = open_page(p, db(), 'settings')
     check('Email card is hidden before the database update (no crash)', pg.query_selector('#askemail') is None and not errs); b.close()
+    # ---- 9d. Feedback switch and tab
+    d = db(tables=dict(booking_feedback=[dict(booking_id=BOOKINGS[0]['id'],rating=5,comment='Cannot wait!\nMore snacks',created_at='2026-10-26T10:00:00Z',updated_at='2026-10-26T10:00:00Z'),dict(booking_id=BOOKINGS[1]['id'],rating=3,comment=None,created_at='2026-10-26T11:00:00Z',updated_at='2026-10-26T11:00:00Z')]))
+    d['tables']['settings']=dict(d['tables']['settings'], ask_feedback=True); d['rpc']['admin_set_ask_feedback']=None
+    b, pg, errs = open_page(p, d, 'settings')
+    check('Feedback card shows, ticked', pg.query_selector('#askfb') and pg.is_checked('#askfb'))
+    pg.uncheck('#askfb'); pg.click('#askfbsave'); pg.wait_for_timeout(200)
+    c=[x for x in pg.evaluate('window.__CALLS') if x['name']=='admin_set_ask_feedback']
+    check('saving sends ask = false', c and c[-1]['args']=={'p_ask':False}, c)
+    pg.click('button[data-tab="feedback"]'); t=pg.inner_text('#v')
+    check('Feedback tab shows count, average 4.0 / 5 and the comment', 'Answers received' in t and '4.0 / 5' in t and 'More snacks' in t and not errs, (t[:300], errs)); b.close()
+    b, pg, errs = open_page(p, db(), 'settings')
+    check('no Feedback tab and no card before the database update (no crash)', pg.query_selector('button[data-tab="feedback"]') is None and pg.query_selector('#askfb') is None and not errs); b.close()
     # ---- 10. IP flag banner and booking flag
     d = db(rpc=dict(admin_ip_flags={'threshold':2,'ips':[{'ip':'203.0.113.9','bookings':2,'people':3,'pending':1,'paid':1,'rejected':0,'last_at':'2026-10-24T10:00:00Z'}],'by_booking':{'CODE0001':{'ip':'203.0.113.9','count':2},'CODE0002':{'ip':'203.0.113.9','count':2}}}))
     b, pg, errs = open_page(p, d)

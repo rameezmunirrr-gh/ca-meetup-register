@@ -30,6 +30,9 @@ input::placeholder{color:#66728A}
 input[type=text]:focus,input[type=tel]:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(10,33,71,.12);outline:none}
 input[type=file]{border-style:dashed;background:#fffcf3;padding:14px}
 input[type=file]::file-selector-button{margin-right:14px;border:1px solid var(--brand);background:transparent;color:var(--brand);border-radius:10px;padding:8px 14px;font:500 .95rem "Jost",sans-serif;cursor:pointer}
+textarea{width:100%;font:inherit;padding:14px 16px;border:1px solid var(--line2);border-radius:12px;background:#fff;color:var(--ink);resize:vertical;min-height:96px;transition:border-color .15s,box-shadow .15s}
+textarea:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(10,33,71,.12);outline:none}
+.opts.rate span{min-width:46px;text-align:center;padding:11px 0}
 .opts{display:flex;gap:10px;flex-wrap:wrap}
 .opts label{margin:0;font-weight:400;position:relative}
 .opts input{position:absolute;opacity:0;pointer-events:none}
@@ -331,11 +334,33 @@ function vPay(){
   ${S.file&&S.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(S.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="shot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Images only.</div>`}<div class="err" id="ferr"></div></div>
   <div class="row"><button class="ghost" id="back" ${S.busy?"disabled":""}>Back</button><button id="submit">Submit registration</button></div>`;
 }
+const fbOn=()=>!!(S.flags&&S.flags.ask_feedback===true);
+function fbCard(r){
+  if(!fbOn())return"";
+  if(!S.fb||S.fb.code!==r.booking_code)S.fb={code:r.booking_code,rating:0,comment:"",busy:false,sent:false,err:""};
+  const f=S.fb;
+  if(f.sent)return `<div class="card"><h2>Thank you!</h2><p style="margin:0">Your answer has reached the organisers.</p></div>`;
+  return `<div class="card"><h2>Two quick questions <span class="note">(optional)</span></h2>
+  <div class="lbl">Tell us how excited are you!</div>
+  <div class="opts rate" role="radiogroup" aria-label="Excitement, 1 to 5">${[1,2,3,4,5].map(n=>`<label><input type="radio" name="fb_r" data-fb="rating" value="${n}" ${f.rating===n?"checked":""}><span>${n}</span></label>`).join("")}</div>
+  <p class="note" style="margin:6px 0 0">1 = a little, 5 = can't wait!</p>
+  <label for="fb_c">Any suggestions/ideas/expectations from your side</label><textarea id="fb_c" data-fb="comment" maxlength="1000" rows="4">${esc(f.comment)}</textarea>
+  ${f.err?`<p class="err" role="alert">${esc(f.err)}</p>`:""}
+  <div class="row"><button id="fbsend" ${f.busy?"disabled":""}>${f.busy?"Sending…":"Send"}</button></div></div>`}
+async function fbSend(){
+  const f=S.fb;if(!f||f.busy)return;const c=f.comment.trim();
+  if(!f.rating&&!c){f.err="Pick a number or write a few words first.";render();return}
+  f.busy=true;f.err="";render();
+  try{const{data,error}=await db.rpc("submit_feedback",{p_booking_code:f.code,p_rating:f.rating||null,p_comment:c||null});
+    if(error)throw error;if(!data||!data.ok){f.err=xerr(data);f.busy=false;render();return}
+    f.sent=true;f.busy=false;render()}
+  catch(_){f.err="Could not send. Please check your internet and try again.";f.busy=false;render()}}
 function vDone(){
   const r=S.result;
   return '<div class="seal" aria-hidden="true">✓</div>'+head("Registration received","Save your Booking ID. When the organisers confirm your payment, open Tickets on this page and enter your Booking ID and phone number to download your tickets.")+
   `<div class="card idcard"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div>
   <div class="row"><button class="ghost" id="copyid">Copy Booking ID</button></div></div>
+  ${fbCard(r)}
   <div class="card wrap"><table><tr><th>Name</th><th>Food</th></tr>`+
   r.tickets.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.food)}</td></tr>`).join("")+
   `</table></div><div class="card"><span class="pill p-wait">Pending verification</span>
@@ -355,7 +380,7 @@ const okMail=e=>{e=String(e||"").trim();return e.length>=5&&e.length<=120&&/^[^@
 const XERR={MISMATCH:"Submission failed due to details mismatch. Please check the Booking ID, the ticket number and the phone number of that ticket.",TRANSFERS_CLOSED:"Ticket transfers are not open right now.",CUTOFF_PASSED:"The last date for ticket transfers has passed.",NOT_CONFIRMED:"This ticket is not confirmed yet, so it cannot be transferred.",
   COORDINATOR:"Coordinator tickets cannot be transferred here. Please contact the organisers.",ALREADY_CHECKED_IN:"This ticket has already been used at the entry.",ALREADY_TRANSFERRED:"This ticket has already been transferred.",ALREADY_PENDING:"A buyer has already applied for this ticket. The organisers are handling it. Please wait or contact them.",
   TRY_AGAIN:"Something collided. Please tap the button again.",INVALID_UPI:"That payout UPI ID or phone number doesn't look right. Use name@bank or a 10-digit number.",INVALID_CODE:"Invalid code. Please check it, or ask for a new one. Codes stop working after a while.",NOT_AVAILABLE:"This ticket is no longer available for transfer.",
-  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Phone must be exactly 10 digits.",INVALID_EMAIL:"Please enter a valid email address.",INVALID_LOCATION:"Please choose where you are currently.",INVALID_ATTENDANCE:"Please choose Surely or Most probably.",INVALID_FOOD:"Please choose Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
+  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Phone must be exactly 10 digits.",INVALID_EMAIL:"Please enter a valid email address.",FEEDBACK_OFF:"Sorry, answers are not being collected any more.",EMPTY_FEEDBACK:"Pick a number or write a few words first.",INVALID_RATING:"Please pick a number from 1 to 5.",INVALID_COMMENT:"That message is too long. Please keep it under 1000 characters.",BOOKING_NOT_FOUND:"We could not find this booking.",INVALID_LOCATION:"Please choose where you are currently.",INVALID_ATTENDANCE:"Please choose Surely or Most probably.",INVALID_FOOD:"Please choose Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
   CONTACT_ADMIN:"A buyer has already applied. Only the organisers can end this now. Please contact them.",NOTHING_TO_CANCEL:"There is no active code to cancel.",NOT_ACTIVE:"This transfer is no longer open.",PAYMENT_NOT_REQUESTED:"The organisers have not asked for payment yet.",ALREADY_SUBMITTED:"You have already uploaded a payment screenshot.",SCREENSHOT_MISSING:"The screenshot did not upload. Please select it again."};
 const xerr=r=>XERR[r&&r.error]||"Something went wrong. Please try again.";
 const waTxt=t=>contactBtn(t,"Contact the organisers");
@@ -711,12 +736,14 @@ document.addEventListener("input",e=>{const t=e.target;
   if(t.dataset.xs)S.xs[t.dataset.xs]=t.value;
   if(t.dataset.xb)S.xb[t.dataset.xb]=t.value;
   if(t.dataset.x)S.xb[t.dataset.x]=t.value;
+  if(t.dataset.fb==="comment"&&S.fb)S.fb.comment=t.value;
   if(t.dataset.k)S.people[+t.dataset.i][t.dataset.k]=t.value});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="bq"||e.target.id==="tkph")){e.preventDefault();doSearch()}if(e.key==="Enter"&&e.target.id==="xb_c"){e.preventDefault();xOpenCode()}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="fr"){S.friends=t.checked;setN(t.checked?2:1);render()}
   else if(t.name==="cnt"){setN(+t.value);render()}
   else if(t.dataset&&t.dataset.x&&t.type==="radio"){S.xb[t.dataset.x]=t.value}
+  else if(t.dataset&&t.dataset.fb==="rating"&&S.fb){S.fb.rating=+t.value}
   else if(t.id==="xf_ok"){S.xb.consent=t.checked}
   else if(t.id==="tshot"){const f=t.files[0],P=S.xp;
     if(f&&(!f.type.startsWith("image/")||f.size>25*1048576)){P.err="Choose an image file (a screenshot or photo).";t.value="";P.file=null;P.fileUrl=null;render()}
@@ -742,6 +769,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="go-xbuy"){S.step="xbuy";render()}
   if(id==="xopen")xOpenCode();
   if(id==="xsubmit")xSubmit();
+  if(id==="fbsend")fbSend();
   if(id==="copyxid"){try{await navigator.clipboard.writeText(S.xb.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
   if(ds.xcancel&&S.tk.code){if(!confirm("Cancel this transfer code? Nobody will be able to use it."))return;
     try{const{data,error}=await db.rpc("transfer_cancel",{p_booking_code:S.tk.code,p_ticket:ds.xcancel,p_phone:S.tk.ph});if(error)throw error;

@@ -205,6 +205,27 @@ with sync_playwright() as p:
     ts=last(pg,'transfer_submit'); check('email OFF: the transfer is sent with an empty email', ts and ts['args']['p_buyer']['email']=='' and not errs, (ts, errs)); b.close()
     b,pg,errs=page(p,"window.__R.get_site_flags={show_about:true,ask_email:true};"); pg.wait_for_timeout(300); pg.click('#go-register'); pg.wait_for_selector('#n0')
     check('email ON (flag true): the Email box is shown', pg.query_selector('#e0') is not None); b.close()
+    # ===== Feedback on the Booking ID page
+    def done_page(flags):
+        b,pg,errs=page(p,"window.__R.get_site_flags="+flags+";"+"window.__R.submit_feedback=a=>({data:{ok:true},error:null});"); pg.wait_for_timeout(300); pg.click('#go-register'); pg.wait_for_selector('#n0')
+        pg.fill('#n0','Zed'); pg.fill('#t0','9876543210'); pg.fill('#e0','z@e.com') if pg.query_selector('#e0') else None
+        pg.click('input[name="p0_loc"][value="In Bengaluru"]',force=True); pg.click('input[name="p0_att"][value="Surely"]',force=True); pg.click('input[name="p0_food"][value="Veg"]',force=True)
+        pg.click('#review'); pg.click('#topay'); pg.wait_for_selector('#shot',state='attached')
+        pg.set_input_files('#shot',{'name':'s.png','mimeType':'image/png','buffer':bytes.fromhex('89504e470d0a1a0a')+b'x'*50})
+        pg.evaluate("window.compress=async f=>new Blob(['x'],{type:'image/jpeg'})")
+        pg.click('#submit'); pg.wait_for_selector('#copyid'); return b,pg,errs
+    b,pg,errs=done_page("{show_about:true,ask_email:true,ask_feedback:true}"); t=pg.inner_text('#app')
+    check('feedback ON: Booking ID page shows both questions', 'Tell us how excited are you!' in t and 'Any suggestions/ideas/expectations from your side' in t and len(pg.query_selector_all('input[name="fb_r"]'))==5, t[:400])
+    pg.click('#fbsend'); pg.wait_for_timeout(100); check('feedback: sending nothing is stopped with a message, no server call', 'Pick a number' in pg.inner_text('#app') and not last(pg,'submit_feedback'))
+    pg.click('input[name="fb_r"][value="4"]',force=True); pg.fill('#fb_c','More snacks please'); pg.click('#fbsend'); pg.wait_for_selector('text=Thank you!')
+    f=last(pg,'submit_feedback'); check('feedback: sends booking ID, rating 4 and the comment', f and f['args']=={'p_booking_code':'AB12CD34','p_rating':4,'p_comment':'More snacks please'} and not errs, (f, errs))
+    check('feedback: after sending the questions are replaced by a thank-you', pg.query_selector('#fbsend') is None); b.close()
+    b,pg,errs=done_page("{show_about:true,ask_email:true,ask_feedback:true}"); pg.fill('#fb_c','Only words'); pg.click('#fbsend'); pg.wait_for_selector('text=Thank you!'); f=last(pg,'submit_feedback')
+    check('feedback: comment only is sent with rating null', f['args']['p_rating'] is None and f['args']['p_comment']=='Only words', f); b.close()
+    b,pg,errs=done_page("{show_about:true,ask_email:true,ask_feedback:false}")
+    check('feedback OFF: no questions on the Booking ID page', 'Tell us how excited' not in pg.inner_text('#app') and pg.query_selector('#fbsend') is None); b.close()
+    b,pg,errs=done_page("{show_about:true,ask_email:true}")
+    check('feedback flag unknown (database not updated yet): no questions, no crash', pg.query_selector('#fbsend') is None and not errs); b.close()
     # ===== look and feel (logo, header, share preview, phone width)
     b,pg,errs=page(p,"window.__R.get_site_flags={show_about:true};",w=360); pg.wait_for_timeout(300)
     check('look: home has the logo in the invitation card and the slim header is hidden there', pg.query_selector('.invite img.logo') is not None and not pg.is_visible('.top'))
