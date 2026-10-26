@@ -730,16 +730,14 @@ async function downloadAll(kind){
   else for(const i of idx){saveBlob(await jpegBlob(S.cv[i]),fname(r.tickets[i])+".jpg");await sleep(500)}
 }
 
-/* Payment QR only (the ticket QR is drawn elsewhere and is NOT changed). Error-correction level Q with a small logo patch in the middle,
-   22% of the QR's width. Tested 26 Oct 2026 (OpenCV, ZXing, jsQR; shrunk, blurred and JPEG copies): fully readable up to about 28%, failing from 35%.
+/* Payment QR only (the ticket QR is drawn elsewhere and is NOT changed). Error-correction level Q with a small round logo patch in the middle,
+   24% of the QR's width (a circle covers less than a square of that width). Tested 26 Oct 2026 (OpenCV, ZXing, jsQR; shrunk, blurred and JPEG copies): fully readable up to about 28%, failing from 35%.
    Level H was tried and is WORSE: it makes the QR so dense that decoders start missing it. Do not make the logo bigger or switch to H without re-testing. */
 const QRLOGO=new Image();QRLOGO.src="assets/logo-mark.png";
 function paintLogo(c,m,k,pad){
-  const x=c.getContext("2d"),s=Math.round(m*k*.22),o=Math.round((c.width-s)/2),r=Math.round(s*.18);
-  x.fillStyle="#0A2147";x.beginPath();
-  if(x.roundRect)x.roundRect(o,o,s,s,r);else x.rect(o,o,s,s);
-  x.fill();
-  if(QRLOGO.naturalWidth){const lw=s*.74,lh=lw*QRLOGO.naturalHeight/QRLOGO.naturalWidth;x.drawImage(QRLOGO,o+(s-lw)/2,o+(s-lh)/2,lw,lh)}
+  const x=c.getContext("2d"),s=Math.round(m*k*.24),o=Math.round((c.width-s)/2);
+  x.fillStyle="#0A2147";x.beginPath();x.arc(c.width/2,c.width/2,s/2,0,Math.PI*2);x.fill();   /* a circle of diameter s */
+  if(QRLOGO.naturalWidth){const lw=s*.64,lh=lw*QRLOGO.naturalHeight/QRLOGO.naturalWidth;x.drawImage(QRLOGO,o+(s-lw)/2,o+(s-lh)/2,lw,lh)}
 }
 function drawQR(c,text){
   const q=qrcode(0,"Q");q.addData(text);q.make();const m=q.getModuleCount(),k=8,pad=4*k;
