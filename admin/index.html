@@ -2,38 +2,50 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<link rel="icon" type="image/png" href="../assets/icon-192.png"><link rel="apple-touch-icon" href="../assets/apple-touch-icon.png"><meta name="theme-color" content="#062A1F">
+<link rel="icon" type="image/png" href="../assets/icon-192.png"><link rel="apple-touch-icon" href="../assets/apple-touch-icon.png"><meta name="theme-color" content="#04140F">
 <title>Organiser · Meetup 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#EAF2EE;--card:#fff;--ink:#0C1F18;--mute:#4D655A;--brand:#0B5D45;--accent:#B8860B;--line:#C9DAD0;--err:#b3261e;--ok:#17803d;--warn:#a96b00;--on:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#06120E;--card:#0C1F18;--ink:#E3F1EA;--mute:#9DB9AC;--brand:#3FD0A0;--accent:#E6B450;--line:#1B3A2E;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#04130C}}
-:root[data-theme="dark"]{--bg:#06120E;--card:#0C1F18;--ink:#E3F1EA;--mute:#9DB9AC;--brand:#3FD0A0;--accent:#E6B450;--line:#1B3A2E;--err:#ff8a80;--ok:#6fd39a;--warn:#ffc15a;--on:#04130C}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*:before,*:after{box-sizing:inherit}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
-.kasavu{height:6px;background:repeating-linear-gradient(90deg,#D9A93F 0 22px,#062A1F 22px 26px,#1E8A68 26px 40px,#062A1F 40px 44px)}
-.top{background:#062A1F;color:#EAF5EF;padding:9px 14px;padding-top:calc(9px + env(safe-area-inset-top,0px))}.top div{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:11px}.top img{height:28px;width:auto;display:block}.top span{font-weight:700;font-size:.98rem;letter-spacing:.01em}.top small{margin-left:auto;color:#E6B450;font-weight:600}
+:root{color-scheme:dark;--bg:#04140F;--card:#0A2219;--card2:#0F2D22;--ink:#EAF6F0;--mute:#9DBBAD;--brand:#2FD39B;--brand2:#18A878;--accent:#F0A000;--line:#1D4636;--err:#FF8A80;--ok:#5EE2A6;--warn:#FFC15A;--on:#03150E;--r:16px;box-sizing:border-box}
+*,*:before,*:after{box-sizing:inherit}html{scroll-padding-top:70px;-webkit-text-size-adjust:100%}
+body{margin:0;background:radial-gradient(900px 500px at 85% -10%,#0B3A2B 0,transparent 60%),var(--bg);background-attachment:fixed;color:var(--ink);font:500 15px/1.5 Manrope,system-ui,sans-serif;padding-bottom:env(safe-area-inset-bottom,0px)}
+.top{background:rgba(4,20,15,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:var(--ink);padding:9px 14px;padding-top:calc(9px + env(safe-area-inset-top,0px));border-bottom:1px solid var(--line)}
+.top div{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:11px}.top img{height:28px;width:auto;display:block}.top span{font-weight:800;font-size:.98rem;letter-spacing:.01em}.top small{margin-left:auto;color:var(--accent);font-weight:700;letter-spacing:.08em;font-size:.72rem}
+.kasavu{height:4px;background:linear-gradient(90deg,var(--accent),var(--brand),#2D6BFF,#C0307E,var(--accent))}
 main{max-width:1100px;margin:0 auto;padding:16px 14px 60px}
-h1{font-size:1.6rem;margin:10px 0 4px;font-weight:800}h2{font-size:1.1rem;margin:0 0 10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 12px}
+h1{font-size:1.45rem;margin:6px 0 4px;font-weight:800;letter-spacing:-.01em}h2{font-size:1.1rem;margin:0 0 10px;font-weight:800}
+a{color:var(--brand)}
+.card{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--brand);border-radius:var(--r);padding:14px;margin:0 0 12px}
 .mute{color:var(--mute)}.err{color:var(--err)}
-input,select{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
-label{display:block;font-weight:600;margin:10px 0 4px}
-button{font:inherit;font-weight:600;border-radius:8px;padding:9px 13px;border:1px solid var(--brand);background:var(--brand);color:var(--on);cursor:pointer}
-button.ghost{background:transparent;color:var(--brand)}button.bad{background:var(--err);border-color:var(--err);color:#fff}button.sm{padding:5px 9px;font-size:.85rem}
-button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.tabs button{background:transparent;color:var(--ink);border-color:var(--line)}.tabs button.on{background:var(--brand);color:var(--on);border-color:var(--brand)}
-.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat b{display:block;font-size:1.7rem;line-height:1.1}
-.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.charts .card{height:300px}
+input,select{font:inherit;padding:10px 11px;min-height:42px;border:1px solid var(--line);border-radius:12px;background:#06180F;color:var(--ink);max-width:100%}
+label{display:block;font-weight:700;margin:10px 0 4px}
+button{font:inherit;font-weight:700;border-radius:12px;padding:10px 14px;min-height:42px;border:1px solid var(--brand);background:var(--brand);color:var(--on);cursor:pointer;transition:transform .12s,filter .12s}
+button:active{transform:scale(.97)}button:hover{filter:brightness(1.08)}
+button.ghost{background:transparent;color:var(--brand)}button.bad{background:var(--err);border-color:var(--err);color:#2b0705}button.sm{padding:6px 11px;min-height:36px;font-size:.88rem}
+button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+label>input[type=checkbox]{width:22px;height:22px;min-height:0;accent-color:var(--brand)}
+.hdr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 6px}.hdr .who{flex:1 1 180px;min-width:0}.hdr .who small{display:block;color:var(--mute);font-weight:600}.hdr .who h1{margin:0}.hdr .acts{display:flex;gap:6px;flex-wrap:wrap}
+a.lnk{display:inline-flex;align-items:center;text-decoration:none;border:1px solid var(--brand);border-radius:12px;padding:6px 11px;min-height:36px;font-weight:700;font-size:.88rem;color:var(--brand)}
+.tabs{display:flex;gap:6px;margin:10px -14px 14px;padding:8px 14px;overflow-x:auto;white-space:nowrap;position:sticky;top:0;z-index:5;background:rgba(4,20,15,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);scrollbar-width:none;-webkit-overflow-scrolling:touch}.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:0 0 auto;background:transparent;color:var(--ink);border-color:var(--line);border-radius:999px;min-height:40px;padding:8px 15px}.tabs button.on{background:var(--brand);color:var(--on);border-color:var(--brand)}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}.grid .card{margin:0}
+.stat{position:relative;overflow:hidden}.stat>span:first-child{font-size:.78rem;font-weight:700;letter-spacing:.06em;color:var(--mute)}.stat b{display:block;font-size:2rem;line-height:1.15;font-weight:800;margin:2px 0 2px}.stat>span:last-child{font-size:.85rem}
+.stat.c-pink{border-top-color:#D82890}.stat.c-amber{border-top-color:var(--accent)}.stat.c-blue{border-top-color:#4D78FF}.stat.c-violet{border-top-color:#9A55F0}.stat.c-teal{border-top-color:#20C8A0}
+.meter{height:10px;border-radius:999px;background:#06180F;border:1px solid var(--line);overflow:hidden;margin:8px 0 6px;display:flex}.meter i{display:block;height:100%}.meter .m1{background:var(--brand)}.meter .m2{background:var(--accent)}
+.charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.charts .card{margin:0}.charts h3{margin:0 0 6px;font-size:1rem;font-weight:800}
+.pie{position:relative;height:210px}.pie canvas{max-height:100%}
+.leg{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}.leg li{display:flex;align-items:center;gap:8px}.leg i{width:12px;height:12px;border-radius:4px;flex:0 0 auto}.leg b{margin-left:auto}.leg em{font-style:normal;color:var(--mute);min-width:3.2em;text-align:right}
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
-.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}td.n{white-space:normal}
-.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.8rem;font-weight:600;border:1px solid var(--line)}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 7px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}th{color:var(--mute);font-size:.78rem;letter-spacing:.05em}td.n{white-space:normal}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;border:1px solid var(--line)}
 .p-paid{color:var(--ok);border-color:var(--ok)}.p-pending{color:var(--warn);border-color:var(--warn)}.p-rejected{color:var(--err);border-color:var(--err)}
 .flag{display:block;font-size:.82rem;color:var(--warn);white-space:normal;max-width:300px}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto;z-index:9}
-.modal .box{background:var(--card);border-radius:12px;padding:14px;max-width:960px;width:100%}.modal img{max-width:100%;max-height:78vh;border-radius:8px;display:block;margin:6px auto}.two{display:flex;gap:10px;flex-wrap:wrap}.two>div{flex:1 1 300px}
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;z-index:10}
+.modal{position:fixed;inset:0;background:rgba(0,8,5,.82);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto;z-index:9}
+.modal .box{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:var(--r);padding:14px;max-width:960px;width:100%}.modal img{max-width:100%;max-height:78vh;border-radius:12px;display:block;margin:6px auto}.two{display:flex;gap:10px;flex-wrap:wrap}.two>div{flex:1 1 300px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;z-index:10;font-weight:700}
+@media(max-width:560px){main{padding:12px 12px 60px}.tabs{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}.stat b{font-size:1.7rem}.grid{grid-template-columns:1fr 1fr}.pie{height:200px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
 <body><header class="top"><div><img src="../assets/logo-mark.png" alt="" width="41" height="28"><span>Mallu Articles Bengaluru</span><small>Organiser</small></div></header><div class="kasavu"></div><main id="app"></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
@@ -141,7 +153,7 @@ function view(){
   const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],...(S.tReady?[["transfers","Transfers"+(todo?" ("+todo+")":"")]]:[]),["scan","Scan screenshots"],...(S.fbOk?[["feedback","Feedback"+(S.fb.length?" ("+S.fb.length+")":"")]]:[]),["settings","Settings"]];
   if(S.tab==="feedback"&&!S.fbOk)S.tab="overview";
   if(S.tab==="transfers"&&!S.tReady)S.tab="overview";
-  a.innerHTML=`<div class="bar"><h1 style="flex:1">Meetup 2026 · ${esc(S.staff.name)}</h1><a class="ghost sm" href="../gate/" style="text-decoration:none;border:1px solid var(--brand);border-radius:8px;padding:5px 9px;font-weight:600;font-size:.85rem;color:var(--brand)">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div>
+  a.innerHTML=`<div class="hdr"><div class="who"><small>Signed in as</small><h1>${esc(S.staff.name)}</h1></div><div class="acts"><a class="lnk" href="../gate/">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div></div>
   ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner()+ipBanner():""}<div id="v"></div>`;
   ({overview:vOverview,bookings:vBookings,people:vPeople,transfers:vTransfers,scan:vScan,feedback:vFeedback,settings:vSettings})[S.tab]();
 }
@@ -150,21 +162,27 @@ function vOverview(){
   const money=st=>S.bookings.filter(b=>b.status===st).reduce((s,b)=>s+b.amount_expected,0),here=P.filter(p=>p.checked_in_at&&p.b.status==="paid").length;
   const used=liveP.length,left=Math.max(S.settings.cap-used,0),coords=liveP.filter(p=>p.kind==="coordinator"),pcoords=paid.filter(p=>p.kind==="coordinator");
   $("#v").innerHTML=regBar()+`<div class="grid">
-      <div class="card stat"><span class="mute">Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span></div>
-   <div class="card stat"><span class="mute">Spots used</span><b>${used}</b><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span></div>
-   <div class="card stat"><span class="mute">Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span></div>
-   <div class="card stat"><span class="mute">Expected total</span><b>${inr(money("paid")+money("pending"))}</b><span class="mute">compare with your bank</span></div>
-   <div class="card stat"><span class="mute">Present at event</span><b>${here}</b><span class="mute">rejected: ${P.length-used}</span></div>
-   <div class="card stat"><span class="mute">Coordinators</span><b>${coords.length}</b><span class="mute">${coords.filter(p=>p.b.status==="paid").length} confirmed</span></div></div>
+      <div class="card stat c-teal"><span>Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span></div>
+   <div class="card stat c-amber"><span>Spots used</span><b>${used}</b><div class="meter" role="img" aria-label="${paid.length} active, ${pend.length} pending, ${left} left"><i class="m1" style="width:${Math.min(100,paid.length/Math.max(S.settings.cap,1)*100)}%"></i><i class="m2" style="width:${Math.min(100,pend.length/Math.max(S.settings.cap,1)*100)}%"></i></div><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span></div>
+   <div class="card stat c-pink"><span>Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span></div>
+   <div class="card stat c-blue"><span>Expected total</span><b>${inr(money("paid")+money("pending"))}</b><span class="mute">compare with your bank</span></div>
+   <div class="card stat c-violet"><span>Present at event</span><b>${here}</b><span class="mute">rejected: ${P.length-used}</span></div>
+   <div class="card stat c-teal"><span>Coordinators</span><b>${coords.length}</b><span class="mute">${coords.filter(p=>p.b.status==="paid").length} confirmed</span></div></div>
    <div class="bar"><b>Count:</b><select id="mode"><option value="both" ${S.mode==="both"?"selected":""}>Confirmed + Pending</option><option value="paid" ${S.mode==="paid"?"selected":""}>Confirmed only</option></select>
    <span class="mute">Use "Confirmed only" for final food and hall numbers.</span></div>
-   <div class="charts"><div class="card"><canvas id="c1"></canvas></div><div class="card"><canvas id="c2"></canvas></div><div class="card"><canvas id="c3"></canvas></div></div>`;
-  if(Chart.defaults)Chart.defaults.color=getComputedStyle(document.documentElement).getPropertyValue("--ink").trim()||"#888";
+   <div class="charts">${["c1","c2","c3"].map(i=>`<div class="card"><h3 id="${i}t"></h3><div class="pie"><canvas id="${i}" role="img"></canvas></div><ul class="leg" id="${i}l"></ul></div>`).join("")}</div>`;
+  if(Chart.defaults){Chart.defaults.color="#EAF6F0";if(Chart.defaults.font)Chart.defaults.font.family="Manrope, system-ui, sans-serif"}
   const set=S.mode==="paid"?paid:paid.concat(pend),cnt=(k,vals)=>vals.map(v=>set.filter(p=>p[k]===v).length);
-  const mk=(id,title,labels,data,colors)=>S.charts.push(new Chart($(id),{type:"doughnut",data:{labels:labels.map((l,i)=>l+" ("+data[i]+")"),datasets:[{data,backgroundColor:colors}]},options:{maintainAspectRatio:false,plugins:{title:{display:true,text:title+" · "+set.length+" people"},legend:{position:"bottom"}}}}));
-  mk("#c1","Food",["Veg","Non-veg"],cnt("food",["Veg","Non-veg"]),["#2e9e6b","#c9692b"]);
-  mk("#c2","Location",["In Bengaluru","Outside Bengaluru"],cnt("location",["In Bengaluru","Outside Bengaluru"]),["#2f6fd1","#8a56c9"]);
-  mk("#c3","Attendance",["Surely","Most probably"],cnt("attendance",["Surely","Most probably"]),["#17803d","#c9962b"]);
+  const pctLabels={id:"pctLabels",afterDatasetsDraw(ch){const d=ch.data.datasets[0].data,tot=d.reduce((x,y)=>x+y,0),ctx=ch.ctx;if(!tot)return;ch.getDatasetMeta(0).data.forEach((arc,k)=>{if(!d[k]||d[k]/tot<.06)return;const pt=arc.tooltipPosition();ctx.save();ctx.fillStyle="#04140F";ctx.font="800 14px Manrope, system-ui, sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(Math.round(d[k]/tot*100)+"%",pt.x,pt.y);ctx.restore()})}};
+  const mk=(id,title,labels,data,colors)=>{
+    const tot=data.reduce((x,y)=>x+y,0);
+    $(id+"t").textContent=title+" · "+set.length+" people";
+    $(id).setAttribute("aria-label",title+": "+labels.map((l,i)=>l+" "+data[i]).join(", "));
+    $(id+"l").innerHTML=labels.map((l,i)=>`<li><i style="background:${colors[i]}"></i>${esc(l)}<b>${data[i]}</b><em>${tot?Math.round(data[i]/tot*100):0}%</em></li>`).join("");
+    S.charts.push(new Chart($(id),{type:"pie",data:{labels,datasets:[{data,backgroundColor:colors,borderColor:"#0A2219",borderWidth:3,hoverOffset:6}]},plugins:[pctLabels],options:{maintainAspectRatio:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),plugins:{legend:{display:false}}}}))};
+  mk("#c1","Food",["Veg","Non-veg"],cnt("food",["Veg","Non-veg"]),["#2FD39B","#E86818"]);
+  mk("#c2","Location",["In Bengaluru","Outside Bengaluru"],cnt("location",["In Bengaluru","Outside Bengaluru"]),["#4D78FF","#C0307E"]);
+  mk("#c3","Attendance",["Surely","Most probably"],cnt("attendance",["Surely","Most probably"]),["#F0A000","#9A55F0"]);
 }
 function filtBar(withPeople){
   const f=S.f,o=(v,l)=>`<option value="${v}" ${f.pay===v?"selected":""}>${l}</option>`;
@@ -279,7 +297,7 @@ function evCard(s){
 const FIELD_NAMES={upi_id:"UPI ID",payee_name:"payee name",whatsapp_number:"WhatsApp number"};
 function alertBanner(){const a=S.alert;if(!a)return"";
   const f=(a.fields||[]).map(x=>FIELD_NAMES[x]||x).join(", ");
-  return `<div class="card" role="alert" style="border:2px solid ${a.by_me?"var(--line)":"#b45309"};background:${a.by_me?"#fff":"#fff7ed"}"><b>${a.by_me?"You changed":esc(a.who)+" changed"} the payment details</b> (${esc(f)}) on ${esc(new Date(a.at).toLocaleString("en-IN",{timeZone:"Asia/Calcutta",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}.${a.by_me?"":" If this was not agreed, check Settings now: payments go to the UPI ID shown there."}</div>`}
+  return `<div class="card" role="alert" style="border:2px solid ${a.by_me?"var(--line)":"var(--warn)"};background:${a.by_me?"var(--card)":"var(--card2)"}"><b>${a.by_me?"You changed":esc(a.who)+" changed"} the payment details</b> (${esc(f)}) on ${esc(new Date(a.at).toLocaleString("en-IN",{timeZone:"Asia/Calcutta",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}.${a.by_me?"":" If this was not agreed, check Settings now: payments go to the UPI ID shown there."}</div>`}
 function payCard(s){const set=s.upi_id&&s.payee_name&&s.whatsapp_number,ro=!S.payOpen;
   return `<div class="card" style="max-width:520px"><h2>Payment details</h2>
   ${set?"":`<p class="err">Not set up yet. The registration page cannot take payments until all three are filled in.</p>`}
