@@ -45,6 +45,12 @@ a.lnk{display:inline-flex;align-items:center;text-decoration:none;border:1px sol
 .modal .box{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:var(--r);padding:14px;max-width:960px;width:100%}.modal img{max-width:100%;max-height:78vh;border-radius:12px;display:block;margin:6px auto}.two{display:flex;gap:10px;flex-wrap:wrap}.two>div{flex:1 1 300px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;z-index:10;font-weight:700}
 @media(max-width:560px){main{padding:12px 12px 60px}.tabs{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}.stat b{font-size:1.7rem}.grid{grid-template-columns:1fr 1fr}.pie{height:200px}}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 12px}.chip{background:transparent;color:var(--ink);border-color:var(--line);border-radius:999px;min-height:40px;padding:8px 14px}.chip span{display:inline-block;min-width:1.5em;margin-left:4px;padding:0 6px;border-radius:999px;background:var(--card2);color:var(--mute);font-size:.82rem;text-align:center}.chip.on{background:var(--brand);color:var(--on);border-color:var(--brand)}.chip.on span{background:rgba(3,21,14,.18);color:var(--on)}.chips .rev{margin:0 0 0 auto;display:flex;align-items:center;gap:8px;font-weight:600}
+.bks{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}.bk{margin:0;display:flex;flex-direction:column;gap:10px}.bk.st-pending{border-top-color:var(--warn)}.bk.st-paid{border-top-color:var(--ok)}.bk.st-rejected{border-top-color:var(--err)}
+.bk-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.bk-h b{font-size:1.1rem}.bk-r{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px}.bk-amt{font-size:1.35rem;font-weight:800}
+.bk-p{display:grid;gap:2px}.bk-id{font-size:.88rem;word-break:break-all}.bk-f .flag{max-width:none}
+.bk-a{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:auto}.bk-a button{min-height:46px;padding:10px 8px}
+@media(max-width:560px){.chip{padding:8px 10px}.chip span{margin-left:2px}.bks{grid-template-columns:1fr}.chips .rev{margin-left:0;flex:1 1 100%}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
 <body><header class="top"><div><img src="../assets/logo-mark.png" alt="" width="41" height="28"><span>Mallu Articles Bengaluru</span><small>Organiser</small></div></header><div class="kasavu"></div><main id="app"></main>
@@ -195,8 +201,11 @@ function filtBar(withPeople){
   ${S.tickets.some(t=>t.transferred_out_at)?`<label style="margin:0;font-weight:400"><input type="checkbox" id="fmoved" ${S.showMoved?"checked":""}> Show transferred tickets</label>`:""}
   <button class="ghost" id="csv">Download Excel (CSV)</button>`:`<label style="margin:0"><input type="checkbox" id="frev" ${f.review?"checked":""}> Needs review only</label>`}</div>`;
 }
-function vBookings(){const nT=S.bookings.filter(b=>b.kind==="transfer").length;
-  $("#v").innerHTML=filtBar(false)+(nT?`<p class="mute">${nT} transfer booking${nT===1?"":"s"} not shown here: they have no payment screenshot and are handled in the Transfers tab.</p>`:"")+`<div class="card wrap" id="tbl"></div>`;tBookings()}
+function vBookings(){const nT=S.bookings.filter(b=>b.kind==="transfer").length,B=S.bookings.filter(b=>b.kind!=="transfer"),
+  c=st=>B.filter(b=>b.status===st).length,chip=(v,l,n)=>`<button class="chip ${S.f.pay===v?"on":""}" data-chip="${v}">${l} <span>${n}</span></button>`;
+  $("#v").innerHTML=`<div class="bar"><input id="q" type="search" placeholder="Search name, phone or booking ID" value="${esc(S.f.q)}" style="flex:1 1 240px"></div>
+  <div class="chips">${chip("pending","Pending",c("pending"))}${chip("paid","Paid",c("paid"))}${chip("rejected","Rejected",c("rejected"))}${chip("","All",B.length)}
+  <label class="rev"><input type="checkbox" id="frev" ${S.f.review?"checked":""}> Needs review only</label></div>`+(nT?`<p class="mute">${nT} transfer booking${nT===1?"":"s"} not shown here: they have no payment screenshot and are handled in the Transfers tab.</p>`:"")+`<div id="tbl"></div>`;tBookings()}
 function amtRemark(b,s){if(!s)return"";if(!s.amounts)return'<div class="mute">Amount: re-scan to check</div>';
   if(!s.amounts.length)return`<div class="err">Amount: couldn't find one</div>`;
   return s.amounts.map(Number).includes(Number(b.amount_expected))?`<div style="color:var(--ok)">Amount ✓ ${inr(b.amount_expected)} found</div>`:`<div class="err">Amount ✗ ${inr(b.amount_expected)} not found</div>`}
@@ -207,13 +216,14 @@ function tBookings(){
     const names=S.tickets.filter(t=>t.booking_id===b.id);
     if(S.f.pay&&b.status!==S.f.pay)return false;if(S.f.review&&!(F[b.id]||[]).length)return false;
     return !q||b.booking_code.toLowerCase().includes(q)||names.some(t=>t.name.toLowerCase().includes(q)||t.phone.includes(q))}).reverse();
-  $("#tbl").innerHTML=`<table><tr><th>Booking</th><th>People</th><th>Amount</th><th>Status</th><th>ID read</th><th>Review flags</th><th>Actions</th></tr>`+rows.map(b=>{
+  const rank={pending:0,paid:1,rejected:2};rows.sort((x,y)=>rank[x.status]-rank[y.status]);   // pending first, newest first inside each group
+  $("#tbl").innerHTML=`<p class="mute" style="margin:0 0 8px">${rows.length} booking${rows.length===1?"":"s"} shown${S.f.pay==="" ?"":" · "+S.f.pay}</p><div class="bks">`+rows.map(b=>{
     const ts=S.tickets.filter(t=>t.booking_id===b.id),fl=F[b.id]||[];
-    return `<tr><td><b>${esc(b.booking_code)}</b><div class="mute">${new Date(b.created_at).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></td>
-    <td class="n">${ts.map(t=>esc(tlabel(t))+" "+esc(t.name)).join("<br>")}</td><td>${inr(b.amount_expected)}</td>
-    <td><span class="pill p-${b.status}">${b.status}</span></td><td class="n">${idRead(b.id)}</td><td>${fl.map(x=>`<span class="flag">⚑ ${esc(x)}</span>`).join("")||'<span class="mute">—</span>'}</td>
-    <td><button class="sm ghost" data-shot="${b.id}">Screenshot</button> ${b.status!=="paid"?`<button class="sm" data-st="paid" data-b="${b.id}">Paid</button>`:""}
-    ${b.status!=="rejected"?`<button class="sm bad" data-st="rejected" data-b="${b.id}">Reject</button>`:""} ${b.status!=="pending"?`<button class="sm ghost" data-st="pending" data-b="${b.id}">Pending</button>`:""}</td></tr>`}).join("")+`</table>${rows.length?"":'<p class="mute">Nothing to show.</p>'}`;
+    return `<div class="card bk st-${b.status}"><div class="bk-h"><div><b>${esc(b.booking_code)}</b><div class="mute">${new Date(b.created_at).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></div><div class="bk-r"><span class="bk-amt">${inr(b.amount_expected)}</span><span class="pill p-${b.status}">${b.status}</span></div></div>
+    <div class="bk-p">${ts.map(t=>`<div><span class="mute">${esc(tlabel(t))}</span> ${esc(t.name)}</div>`).join("")}</div>
+    <div class="bk-id"><span class="mute">Payment ID read</span><br>${idRead(b.id)}</div>
+    ${fl.length?`<div class="bk-f">${fl.map(x=>`<span class="flag">⚑ ${esc(x)}</span>`).join("")}</div>`:""}
+    <div class="bk-a"><button class="ghost" data-shot="${b.id}">Screenshot</button>${b.status!=="paid"?`<button data-st="paid" data-b="${b.id}">Paid</button>`:""}${b.status!=="rejected"?`<button class="bad" data-st="rejected" data-b="${b.id}">Reject</button>`:""}${b.status!=="pending"?`<button class="ghost" data-st="pending" data-b="${b.id}">Pending</button>`:""}</div></div>`}).join("")+`</div>${rows.length?"":'<p class="mute">Nothing to show.</p>'}`;
 }
 function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
   return people().filter(p=>(S.showMoved||!p.transferred_out_at)&&(!f.pay||p.b.status===f.pay)&&(!f.food||p.food===f.food)&&(!f.loc||p.location===f.loc)&&(!f.att||p.attendance===f.att)&&(!f.type||p.kind===f.type)&&(!q||p.name.toLowerCase().includes(q)||p.phone.includes(q)||tlabel(p).toLowerCase().includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)))}
@@ -480,6 +490,7 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
     await load();view();return toast("Check-in undone");
   }
   if(id==="csv")return csv();
+  if(t.dataset.chip!==undefined){S.f.pay=t.dataset.chip;vBookings();return}
   if(t.dataset.shot){const b=bk(t.dataset.shot),F=flags()[b.id]||[],items=[{path:b.screenshot_path,label:b.booking_code}];
     S.scans.filter(s=>s.booking_id!==b.id).forEach(s=>{const o=bk(s.booking_id);if(F.some(x=>x.includes(o.booking_code)))items.push({path:o.screenshot_path,label:o.booking_code+" (flagged match)"})});return shots(items)}
   if(t.dataset.st){const r=await db.rpc("set_booking_status",{p_booking:t.dataset.b,p_status:t.dataset.st});if(r.error)return toast("Failed: "+r.error.message);await load();view();return toast("Marked "+t.dataset.st+(t.dataset.st==="paid"?". Ticket numbers given.":""))}
