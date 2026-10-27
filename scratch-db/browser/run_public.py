@@ -101,7 +101,7 @@ with sync_playwright() as p:
     check('menu offers Private sell, Public sell and ONE buy button (the code decides the mode)', all(pg.query_selector(f'[data-xgo="{k}"]') for k in ['private-sell','private-buy','public-sell']) and not pg.query_selector('[data-xgo="public-buy"]') and len(pg.query_selector_all('[data-xgo$="-buy"]'))==1)
     pg.click('[data-xgo="private-sell"]'); pg.wait_for_selector('#xs_c')
     pg.fill('#xs_c','AB12CD34'); pg.fill('#xs_t','E26-009'); pg.fill('#xs_p','9000000002'); pg.click('#xsell'); pg.wait_for_timeout(300)
-    check('wrong details: the exact mismatch sentence, nothing else revealed', 'Submission failed due to details mismatch' in pg.inner_text('#app'), pg.inner_text('#app')[:300])
+    check('wrong details: the exact mismatch sentence, nothing else revealed', "The details don't match" in pg.inner_text('#app'), pg.inner_text('#app')[:300])
     check('form keeps what was typed', pg.input_value('#xs_c')=='AB12CD34')
     pg.fill('#xs_t','e26-002'); pg.click('#xsell'); pg.wait_for_selector('#copycode'); t=pg.inner_text('#app')
     check('right details: the code and its expiry are shown', '67Y659' in t and 'Valid until' in t)
@@ -112,7 +112,7 @@ with sync_playwright() as p:
     b,pg,errs=page(p,SELL); pg.click('#go-tickets'); pg.wait_for_selector('#go-xmenu'); pg.click('#go-xmenu'); pg.click('[data-xgo="public-sell"]'); pg.wait_for_selector('#xs_u')
     check('seller form hints that coordinators type their E26-001C style number', 'E26-001C' in (pg.get_attribute('#xs_t','placeholder') or ''))
     pg.fill('#xs_c','AB12CD34'); pg.fill('#xs_t','E26-002'); pg.fill('#xs_p','9000000002'); pg.click('#xsell'); pg.wait_for_timeout(200)
-    check('public sell without a payout UPI is stopped before any server call', 'fill in every box' in pg.inner_text('#app') and not last(pg,'public_sell'))
+    check('public sell without a payout UPI is stopped before any server call', 'fill in all the fields' in pg.inner_text('#app') and not last(pg,'public_sell'))
     pg.fill('#xs_u','asha@okbank'); pg.click('#xsell'); pg.wait_for_selector('#copycode'); ps=last(pg,'public_sell')
     check('public_sell sends the payout UPI', ps['args'].get('p_upi')=='asha@okbank', ps); check('public text tells the seller the organisers find a buyer', 'find a buyer' in pg.inner_text('#app')); check('wording: organisers MAY call (never "will call")', 'may call your registered number' in pg.inner_text('#app') and 'will call' not in pg.inner_text('#app')); b.close()
     # ===== 7. buyer flow
@@ -120,18 +120,18 @@ with sync_playwright() as p:
            "window.__R.transfer_open=a=>({data:a.p_code==='67Y659'?{ok:true,mode:'private',seller_name:'Ben',expires_at:'2030-01-01T00:00:00Z',food_locked:window.__LOCK||false,food:window.__LOCK?'Non-veg':null}:{ok:false,error:'INVALID_CODE'},error:null});"
            "window.__R.transfer_submit=a=>({data:{ok:true,mode:'private',booking_code:'C6157147',status:'pending'},error:null});")
     b,pg,errs=page(p,BUY); pg.click('#go-tickets'); pg.wait_for_selector('#go-xmenu'); pg.click('#go-xmenu'); pg.click('[data-xgo="private-buy"]'); pg.wait_for_selector('#xb_c')
-    pg.fill('#xb_c','zzzzzz'); pg.click('#xopen'); pg.wait_for_timeout(300); check('wrong code: plain "Invalid code" message', 'Invalid code' in pg.inner_text('#app'), pg.inner_text('#app')[:200])
+    pg.fill('#xb_c','zzzzzz'); pg.click('#xopen'); pg.wait_for_timeout(300); check('wrong code: plain "not valid" message', "This code isn't valid" in pg.inner_text('#app'), pg.inner_text('#app')[:200])
     pg.fill('#xb_c','67y 659'); pg.click('#xopen'); pg.wait_for_selector('#xf_n'); t=pg.inner_text('#app')
-    check('right code (typed with a space, lower-case): form opens with the seller NAME only', 'Buying Ben' in t and 'Transfer Form' in t)
-    check('private form text: money is between the two people', 'payment between me and the seller is our own matter' in t)
+    check('right code (typed with a space, lower-case): form opens with the seller NAME only', 'taking over Ben' in t and 'Transfer details' in t)
+    check('private form text: money is between the two people', 'payment between me and the seller is our own arrangement' in t)
     check('buyer form has +91, email, location, attendance, food and a consent tick', all(pg.query_selector(x) for x in ['.pf span','#xf_e','#xf_ok','input[name="x_loc"]','input[name="x_att"]','input[name="x_food"]']))
     pg.click('#xsubmit'); pg.wait_for_timeout(200); check('empty form: lists what is missing, no server call', 'enter your name' in pg.inner_text('#app') and not last(pg,'transfer_submit'))
     pg.fill('#xf_n','Dan Buyer'); pg.fill('#xf_p','9000000004'); pg.fill('#xf_e','Dan@Example.com'); pg.click('input[name="x_loc"][value="In Bengaluru"]',force=True); pg.click('input[name="x_att"][value="Surely"]',force=True); pg.click('input[name="x_food"][value="Veg"]',force=True)
     pg.click('#xsubmit'); pg.wait_for_timeout(200); check('consent tick is required', 'tick the box' in pg.inner_text('#app') and not last(pg,'transfer_submit'))
     pg.check('#xf_ok'); pg.click('#xsubmit'); pg.wait_for_selector('#copyxid'); t=pg.inner_text('#app'); ts=last(pg,'transfer_submit')
     check('submit sends code, a submission id and the clean buyer details', ts['args']['p_code']=='67Y659' and len(ts['args']['p_submission_id'])==36 and ts['args']['p_buyer']['email']=='Dan@Example.com'.strip() and ts['args']['p_buyer']['phone']=='9000000004' and ts['args']['p_buyer']['consent']=='true', ts)
-    check('done: new Booking ID, pending, the exact organisers message, no ticket yet', 'C6157147' in t and 'The organizers (admins) will be notified of this request, and will take necessary actions soon.' in t and 'You do not have a ticket or a seat until the transfer is completed' in t)
-    check('done: Contact now button present', 'Contact now' in t)
+    check('done: new Booking ID, pending, the exact organisers message, no ticket yet', 'C6157147' in t and 'The organisers have been notified of your request and will take the next steps shortly.' in t and "You won't have a ticket or a seat until the transfer is complete" in t)
+    check('done: Contact the organisers button present', 'Contact the organisers' in t)
     check('booking ID saved to this device for the chips', 'C6157147' in pg.evaluate("localStorage.getItem('mm_mine')"))
     check('no page errors in buyer flow', not errs, errs); b.close()
     # food lock
@@ -142,7 +142,7 @@ with sync_playwright() as p:
     # retry of the same form reuses the same submission id; a different code gets a new one
     b,pg,errs=page(p,BUY+"window.__N=0;window.__R.transfer_submit=a=>(++window.__N===1?{data:null,error:{message:'Failed to fetch'}}:{data:{ok:true,mode:'private',booking_code:'C6157147',status:'pending'},error:null});"); pg.click('#go-tickets'); pg.wait_for_selector('#go-xmenu'); pg.click('#go-xmenu'); pg.click('[data-xgo="private-buy"]'); pg.fill('#xb_c','67Y659'); pg.click('#xopen'); pg.wait_for_selector('#xf_n')
     pg.fill('#xf_n','Dan'); pg.fill('#xf_p','9000000004'); pg.fill('#xf_e','d@e.com'); pg.click('input[name="x_loc"][value="In Bengaluru"]',force=True); pg.click('input[name="x_att"][value="Surely"]',force=True); pg.click('input[name="x_food"][value="Veg"]',force=True); pg.check('#xf_ok')
-    pg.click('#xsubmit'); pg.wait_for_timeout(300); check('network failure: a friendly message, the form is kept', 'Could not reach the server' in pg.inner_text('#app') and pg.input_value('#xf_n')=='Dan')
+    pg.click('#xsubmit'); pg.wait_for_timeout(300); check('network failure: a friendly message, the form is kept', "We couldn't reach the server" in pg.inner_text('#app') and pg.input_value('#xf_n')=='Dan')
     pg.click('#xsubmit'); pg.wait_for_selector('#copyxid'); sids=[c['args']['p_submission_id'] for c in calls(pg) if c['name']=='transfer_submit']
     check('the retry reuses the SAME submission id (no duplicate request)', len(sids)==2 and sids[0]==sids[1], sids); b.close()
     # ===== 8. buyer pays (public) from the Tickets page
@@ -155,7 +155,7 @@ with sync_playwright() as p:
     pg.evaluate("window.compress=async f=>new Blob(['x'],{type:'image/jpeg'})"); pg.set_input_files('#tshot',{'name':'s.png','mimeType':'image/png','buffer':b'x'*60}); pg.wait_for_timeout(100)
     pg.evaluate("window.__ST='payment_submitted'"); pg.click('#tp-submit'); pg.wait_for_timeout(500); tp=last(pg,'transfer_pay'); up=[c for c in calls(pg) if c['name']=='UPLOAD']
     check('upload goes to <submission id>.jpg and transfer_pay gets the same path', up and tp and tp['args']['p_screenshot_path']==up[-1]['args']['path'] and tp['args']['p_screenshot_path'].startswith(tp['args']['p_submission_id']), (up,tp))
-    check('after paying, the Tickets page re-checks and shows the new state', 'Payment received for checking' in pg.inner_text('#app'), pg.inner_text('#app')[:300])
+    check('after paying, the Tickets page re-checks and shows the new state', 'Payment submitted' in pg.inner_text('#app'), pg.inner_text('#app')[:300])
     check('no page errors in payment flow', not errs, errs); b.close()
     # every transfer-booking state reads correctly
     for st,txt in [('pending','Pending verification'),('payment_verified','Payment verified'),('rejected','Not approved'),('return_due','refund due'),('returned','Payment returned')]:
@@ -182,7 +182,7 @@ with sync_playwright() as p:
     b,pg,errs=page(p,"window.__R.get_site_flags={show_about:true};"); pg.wait_for_selector('#go-about')
     check('About: switched ON, the link shows the organiser name', 'About Mallu Articles Bengaluru' in pg.inner_text('#go-about'))
     pg.click('#go-about'); pg.wait_for_selector('#go-home'); ta=pg.inner_text('#app')
-    check('About: opens a page that says Under construction', 'Under construction' in ta and not errs, (ta, errs))
+    check('About: opens a page that says Coming soon', 'Coming soon' in ta and not errs, (ta, errs))
     check('About: sideways scroll never happens at phone width', pg.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'))
     pg.click('#go-home'); pg.wait_for_selector('#go-register'); check('About: Home button goes back to the home page', pg.query_selector('#go-about') is not None); b.close()
     # ===== Email switch OFF

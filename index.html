@@ -131,6 +131,7 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 2
 .foot{text-align:center;margin:36px 0 0;color:var(--mute);font:600 .95rem var(--sans)}
 .amt,h1,h2,.when dd,.when dt,.pres,.foot{font-variant-numeric:lining-nums}
 .idcard .amt{font:800 2.4rem/1.1 var(--sans);letter-spacing:.1em;font-variant-numeric:lining-nums;color:var(--accent)}
+label>input[type=checkbox]{accent-color:var(--accent);width:22px;height:22px}
 /* review screen (stacked, phone friendly) */
 .who{padding:14px 0;border-bottom:1px solid var(--line)}.who:first-child{padding-top:2px}.who:last-child{border-bottom:0;padding-bottom:2px}
 .who-n{display:flex;gap:12px;align-items:center}.who-n .note{word-break:break-word;margin-top:2px}
@@ -314,7 +315,7 @@ function vHome(){
   <button class="big ghost" id="go-tickets">Tickets</button>${S.flags&&S.flags.show_about?`<button class="big ghost" id="go-about">About ${esc(CONFIG.organiserName)}</button>`:""}</div>`+
   (n?`<p class="note" style="text-align:center;margin-top:18px">${n===1?"Your booking is":n+" bookings are"} saved on this device. Open Tickets and enter your phone number to view ${n===1?"it":"them"}.</p>`:"");
 }
-function vAbout(){return head("About "+esc(CONFIG.organiserName),"Under construction")+`<div class="card"><p style="margin:0">This page is under construction. Please check back soon.</p></div><div class="row"><button class="ghost" id="go-home">Home</button></div>`}
+function vAbout(){return head("About "+esc(CONFIG.organiserName),"Coming soon")+`<div class="card"><p style="margin:0">We're putting this page together. Please check back soon.</p></div><div class="row"><button class="ghost" id="go-home">Home</button></div>`}
 function loadFlags(){if(!db)return Promise.resolve();return db.rpc("get_site_flags").then(r=>{S.flags=r.error?null:r.data}).catch(()=>{S.flags=null})}
 function vError(){return head("We couldn't load this page","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
 function vClosed(){
@@ -422,16 +423,16 @@ function vDone(){
 
 /* ---------- Tickets page ---------- */
 /* ---------- helpers for phone (fixed +91) and the transfer screens ---------- */
-const phoneBox=(id,attr,val,ph)=>`<div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="${id}" ${attr} value="${esc(val||"")}" inputmode="numeric" placeholder="${ph||"10 digits"}" autocomplete="off" aria-label="Phone number, 10 digits, India +91"></div>`;
+const phoneBox=(id,attr,val,ph)=>`<div class="pf"><span aria-hidden="true">+91</span><input type="tel" class="ph" id="${id}" ${attr} value="${esc(val||"")}" inputmode="numeric" placeholder="${ph||"10-digit mobile number"}" autocomplete="off" aria-label="Phone number, 10 digits, India +91"></div>`;
 const optX=(k,v,cur)=>`<label><input type="radio" name="x_${k}" data-x="${k}" value="${v}" ${cur===v?"checked":""}><span>${v}</span></label>`;
 /* a pasted number such as "+91 98765-43210", "919876543210" or "09876543210" becomes the plain 10 digits */
 const cleanPhone=v=>{let d=String(v||"").replace(/\D/g,"");if(d.length===12&&d.startsWith("91"))d=d.slice(2);else if(d.length===11&&d[0]==="0")d=d.slice(1);return d.slice(0,10)};
 const okMail=e=>{e=String(e||"").trim();return e.length>=5&&e.length<=120&&/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)};
-const XERR={MISMATCH:"Submission failed due to details mismatch. Please check the Booking ID, the ticket number and the phone number of that ticket.",TRANSFERS_CLOSED:"Ticket transfers are not open right now.",CUTOFF_PASSED:"The last date for ticket transfers has passed.",NOT_CONFIRMED:"This ticket is not confirmed yet, so it cannot be transferred.",
-  COORDINATOR:"Coordinator tickets cannot be transferred here. Please contact the organisers.",ALREADY_CHECKED_IN:"This ticket has already been used at the entry.",ALREADY_TRANSFERRED:"This ticket has already been transferred.",ALREADY_PENDING:"A buyer has already applied for this ticket. The organisers are handling it. Please wait or contact them.",
-  TRY_AGAIN:"Something collided. Please tap the button again.",INVALID_UPI:"That payout UPI ID or phone number doesn't look right. Use name@bank or a 10-digit number.",INVALID_CODE:"Invalid code. Please check it, or ask for a new one. Codes stop working after a while.",NOT_AVAILABLE:"This ticket is no longer available for transfer.",
-  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Phone must be exactly 10 digits.",INVALID_EMAIL:"Please enter a valid email address.",FEEDBACK_OFF:"Sorry, answers are not being collected any more.",EMPTY_FEEDBACK:"Please pick a number or write a few words first.",INVALID_RATING:"Please pick a number from 1 to 5.",INVALID_COMMENT:"That message is too long. Please keep it under 1000 characters.",BOOKING_NOT_FOUND:"We could not find this booking.",INVALID_LOCATION:"Please choose where you are currently.",INVALID_ATTENDANCE:"Please choose Surely or Most probably.",INVALID_FOOD:"Please choose Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
-  CONTACT_ADMIN:"A buyer has already applied. Only the organisers can end this now. Please contact them.",NOTHING_TO_CANCEL:"There is no active code to cancel.",NOT_ACTIVE:"This transfer is no longer open.",PAYMENT_NOT_REQUESTED:"The organisers have not asked for payment yet.",ALREADY_SUBMITTED:"You have already uploaded a payment screenshot.",SCREENSHOT_MISSING:"The screenshot did not upload. Please select it again."};
+const XERR={MISMATCH:"The details don't match. Please check the Booking ID, the ticket number and the phone number registered for that ticket.",TRANSFERS_CLOSED:"Ticket transfers aren't open right now.",CUTOFF_PASSED:"The deadline for ticket transfers has passed.",NOT_CONFIRMED:"This ticket isn't confirmed yet, so it can't be transferred.",
+  COORDINATOR:"Coordinator tickets can't be transferred here. Please contact the organisers.",ALREADY_CHECKED_IN:"This ticket has already been used at the entry.",ALREADY_TRANSFERRED:"This ticket has already been transferred.",ALREADY_PENDING:"A buyer has already applied for this ticket and the organisers are handling it. Please wait, or contact them.",
+  TRY_AGAIN:"That didn't go through. Please tap the button again.",INVALID_UPI:"That payout UPI ID or phone number doesn't look right. Use name@bank or a 10-digit number.",INVALID_CODE:"This code isn't valid. Please check it, or ask for a new one. Codes expire after a while.",NOT_AVAILABLE:"This ticket is no longer available for transfer.",
+  INVALID_NAME:"Please enter your name.",INVALID_PHONE:"Please enter a 10-digit phone number.",INVALID_EMAIL:"Please enter a valid email address.",FEEDBACK_OFF:"Sorry, we are no longer collecting responses.",EMPTY_FEEDBACK:"Please pick a number or write a few words first.",INVALID_RATING:"Please pick a number from 1 to 5.",INVALID_COMMENT:"That message is too long. Please keep it under 1000 characters.",BOOKING_NOT_FOUND:"We couldn't find this booking.",INVALID_LOCATION:"Please select where you are currently based.",INVALID_ATTENDANCE:"Please select Surely or Most probably.",INVALID_FOOD:"Please select Veg or Non-veg.",INVALID_CONSENT:"Please tick the box to confirm you understand.",INVALID_DATA:"Some details were not accepted. Please check each field.",
+  CONTACT_ADMIN:"A buyer has already applied. Only the organisers can end this now. Please contact them.",NOTHING_TO_CANCEL:"There is no active code to cancel.",NOT_ACTIVE:"This transfer is no longer open.",PAYMENT_NOT_REQUESTED:"The organisers haven't asked for payment yet.",ALREADY_SUBMITTED:"You've already uploaded a payment screenshot.",SCREENSHOT_MISSING:"The screenshot didn't upload. Please select it again."};
 const xerr=r=>XERR[r&&r.error]||"Something went wrong. Please try again.";
 const waTxt=t=>contactBtn(t,"Contact the organisers");
 
@@ -446,12 +447,12 @@ function transferNote(tr){
   const L={code_active:"Code active",pending_admin:"A buyer has applied",done:"Transferred",rejected:"Not approved",withdrawn:"Closed",replaced:"Replaced by a newer code",expired:"Code expired"};
   return `<div class="card"><b>Your transfers</b>`+tr.transfers.map(x=>{
     let h=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)"><div class="sw"><span>${esc(x.ticket_label||"")} · ${x.mode==="public"?"Public":"Private"}</span>${pill(x.status==="done"?"ok":x.status==="rejected"||x.status==="withdrawn"||x.status==="expired"?"bad":"wait",L[x.status]||esc(x.status))}</div>`;
-    if(x.status==="code_active"&&x.code)h+=`<div class="note" style="margin-top:6px">Code <b style="letter-spacing:.15em;font-size:1.1rem">${esc(x.code)}</b> · valid until ${esc(fmtWhen(x.expires_at))}</div><div class="row"><button class="ghost" data-xcancel="${esc(x.ticket_label)}">Cancel this code</button></div>`;
-    if(x.status==="pending_admin")h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?esc(x.buyer_name)+" has applied. ":""}The organisers may call your registered number to confirm before anything changes. Your ticket stays valid until then.</p>`;
+    if(x.status==="code_active"&&x.code)h+=`<div class="note" style="margin-top:6px">Code <b style="letter-spacing:.15em;font-size:1.1rem">${esc(x.code)}</b> · Valid until ${esc(fmtWhen(x.expires_at))}</div><div class="row"><button class="ghost" data-xcancel="${esc(x.ticket_label)}">Cancel this code</button></div>`;
+    if(x.status==="pending_admin")h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?esc(x.buyer_name)+" has applied. ":""}The organisers may call your registered number to confirm. Your ticket stays valid until the transfer is complete.</p>`;
     if(x.status==="done"){h+=`<p class="note" style="margin:6px 0 0">${x.buyer_name?"Your ticket now belongs to "+esc(x.buyer_name)+".":"Your ticket was transferred."}`;
-      if(x.mode==="public"&&x.amount_to_receive)h+=x.payout==="paid"?` You have been paid ₹${esc(x.amount_to_receive)}.`:` The organisers will pay you ₹${esc(x.amount_to_receive)} on the payout UPI ID / number you gave.`;
+      if(x.mode==="public"&&x.amount_to_receive)h+=x.payout==="paid"?` You have been paid ₹${esc(x.amount_to_receive)}.`:` The organisers will pay you ₹${esc(x.amount_to_receive)} using the UPI ID or number you provided.`;
       h+=`</p>`}
-    if(x.status==="rejected")h+=`<p class="note" style="margin:6px 0 0">The organisers did not approve this transfer. Your ticket is unchanged.</p>`;
+    if(x.status==="rejected")h+=`<p class="note" style="margin:6px 0 0">The organisers didn't approve this transfer. Your ticket remains unchanged.</p>`;
     return h+`</div>`}).join("")+`</div>`}
 function bookingCard(d){
   const msg="Hi, I'm checking on my "+CONFIG.eventName+" booking, ID "+d.booking_code+".";
@@ -462,11 +463,11 @@ function bookingCard(d){
     const tr=d.transfer||{},st=tr.state,w=(c,t)=>`<div class="sw">${idl}${pill(c,t)}</div>`;
     if(d.status==="paid")return `<div class="card">${w("ok","Confirmed")}<p style="margin:10px 0 0">Your transfer is complete. This is now your ticket.</p>${names}<div class="row"><button data-view="1">View Ticket</button></div></div>`;
     const T={pending:["wait","Pending verification","The organisers have been notified. They may call the seller to confirm"+(tr.type==="public"?", then ask you to pay the standard ticket price here":"")+". Please check back here."],
-      payment_due:["wait","Payment needed","The organisers confirmed with the seller. Please pay ₹"+esc(tr.amount_due)+" and upload the payment screenshot."],
-      payment_submitted:["wait","Payment received for checking","Your screenshot is with the organisers. They are checking it against the bank."],
+      payment_due:["wait","Payment needed","The organisers have confirmed with the seller. Please pay ₹"+esc(tr.amount_due)+" and upload your payment screenshot."],
+      payment_submitted:["wait","Payment submitted","The organisers have your screenshot and are verifying it against the bank statement."],
       payment_verified:["wait","Payment verified","Your payment is verified. The organisers will complete the transfer shortly."],
       rejected:["bad","Not approved","This transfer was not approved. Please contact the organisers."],
-      return_due:["bad","Not approved · refund due","This transfer could not be completed. Your payment will be returned. Please contact the organisers if it takes long."],
+      return_due:["bad","Not approved · refund due","This transfer could not be completed. Your payment will be returned. If this takes long, please contact the organisers."],
       returned:["ok","Payment returned","This transfer could not be completed and your payment has been returned."]}[st]||["wait","Pending verification",""];
     return `<div class="card">${w(T[0],T[1])}<p style="margin:10px 0 0">${T[2]}</p><div class="row">${st==="payment_due"?`<button data-tpay="1">Pay ₹${esc(tr.amount_due)}</button>`:""}${contactBtn(msg)}</div></div>`}
   if(d.status==="paid")return `<div class="card"><div class="sw">${idl}${pill("ok","Confirmed")}</div>${names}<div class="row">${live.length?`<button data-view="1">View Ticket${live.length>1?"s":""}</button>`:""}${live.length&&xOpen()?`<button class="ghost" data-xstart="1">Transfer a ticket</button>`:""}</div>${moved.length&&!live.length?`<p class="note">This ticket was transferred to someone else.</p>`:""}</div>`+transferNote(d.xstatus);
@@ -496,7 +497,7 @@ async function doSearch(){
       if(data.kind==="registration"&&data.status==="paid"){try{const x=await db.rpc("transfer_status",{p_booking_code:code,p_phone:ph});data.xstatus=x.error||!x.data||!x.data.found?null:x.data}catch(_){}}
       T.res=data;T.code=code;T.ph=ph;
     }else T.nf=true;
-  }catch(_){T.msg="Could not reach the server. Check your internet and try again."}
+  }catch(_){T.msg="We couldn't reach the server. Please check your internet and try again."}
   T.busy=false;const y=window.scrollY;render();window.scrollTo(0,y);
 }
 function openTickets(pre){S.step="tickets";const T=S.tk;T.res=null;T.nf=false;T.msg="";T.phone="";T.q=pre||"";render();(S.pay?Promise.resolve():loadPay()).then(loadTI).then(()=>{if(S.step==="tickets")render()})}
@@ -505,107 +506,107 @@ function viewTickets(){const d=S.tk.res;if(!d)return;const live=d.tickets.filter
 /* ---------- Transfer tickets ---------- */
 S.xs={mode:"private",code:"",ticket:"",phone:"",upi:"",busy:false,err:"",res:null};S.xb={};S.xp={};
 function vXMenu(){
-  if(!S.ti)return head("Transfer tickets","Checking…")+`<div class="row"><button class="ghost" id="go-tickets">Back</button></div>`;
-  if(!xOpen())return head("Transfer tickets",S.ti.open?"The last date for ticket transfers has passed.":"Ticket transfers are not open right now.")+`<div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`;
-  return head("Transfer tickets","Can't come? Give your seat to someone else. The number of seats never changes, and the organisers check every transfer by phone.")+
-  `<div class="card"><h2>Private transfer</h2><p class="note" style="margin-top:0">You already know who will take your seat. You settle the money between yourselves; the organisers are not involved in it.</p><div class="row"><button data-xgo="private-sell">I want to sell</button></div></div>
-  <div class="card"><h2>Public transfer</h2><p class="note" style="margin-top:0">You have no buyer. The organisers find one, collect the ticket price from them and pay you.</p><div class="row"><button data-xgo="public-sell">I want to sell</button></div></div>
-  <div class="card"><h2>Buying a ticket</h2><p class="note" style="margin-top:0">Got a code from a seller or from the organisers? The code decides whether it is a private or a public transfer, so there is only one place to type it.</p><div class="row"><button data-xgo="private-buy">I want to buy</button></div></div>
+  if(!S.ti)return head("Transfer tickets","Checking availability…")+`<div class="row"><button class="ghost" id="go-tickets">Back</button></div>`;
+  if(!xOpen())return head("Transfer tickets",S.ti.open?"The deadline for ticket transfers has passed.":"Ticket transfers aren't open right now.")+`<div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`;
+  return head("Transfer tickets","Can't make it? You can pass your seat to someone else. The total number of seats stays the same, and the organisers verify every transfer by phone.")+
+  `<div class="card"><h2>Private transfer</h2><p class="note" style="margin-top:0">You already have someone in mind. You settle the payment with them directly; the organisers are not involved in the money.</p><div class="row"><button data-xgo="private-sell">I want to sell</button></div></div>
+  <div class="card"><h2>Public transfer</h2><p class="note" style="margin-top:0">You don't have a buyer. The organisers will find one, collect the ticket price from them and pay you.</p><div class="row"><button data-xgo="public-sell">I want to sell</button></div></div>
+  <div class="card"><h2>Buying a ticket</h2><p class="note" style="margin-top:0">Have a code from a seller or from the organisers? Enter it here. The code tells us whether it is a private or a public transfer.</p><div class="row"><button data-xgo="private-buy">I want to buy</button></div></div>
   <div class="row"><button class="ghost" id="go-tickets">Back to Tickets</button></div>`}
 function vXSell(){
   const x=S.xs,pub=x.mode==="public";
-  return head((pub?"Public":"Private")+" transfer: sell","Enter the details exactly as they are for the ticket you want to give up.")+
+  return head("Sell your ticket",(pub?"Public":"Private")+" transfer. Enter the details exactly as they appear for the ticket you want to give up.")+
   (x.err?`<div class="card errbox" role="alert">${esc(x.err)}</div>`:"")+
   `<div class="card"><label for="xs_c">Booking ID</label><input type="text" id="xs_c" data-xs="code" value="${esc(x.code)}" maxlength="14" autocapitalize="characters" autocomplete="off">
   <label for="xs_t">Ticket number</label><input type="text" id="xs_t" data-xs="ticket" value="${esc(x.ticket)}" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="e.g. E26-007 or E26-001C">
-  <label for="xs_p">Phone number entered for that ticket</label>${phoneBox("xs_p",'data-xs="phone"',x.phone)}
-  ${pub?`<label for="xs_u">Where should we pay you? (UPI ID or 10-digit UPI phone number)</label><input type="text" id="xs_u" data-xs="upi" value="${esc(x.upi)}" maxlength="80" autocomplete="off" placeholder="name@bank">
-  <p class="note">Public transfer: the organisers find a buyer, collect the ticket price from them, and pay you exactly what they receive after the transfer is done. They may call your registered number to confirm.</p>`
-  :`<p class="note">Private transfer: you get a code. Give it to the person taking your seat. The organisers may call your registered number before anything changes.</p>`}
+  <label for="xs_p">Phone number registered for this ticket</label>${phoneBox("xs_p",'data-xs="phone"',x.phone)}
+  ${pub?`<label for="xs_u">Your UPI ID or UPI-linked phone number (for your payout)</label><input type="text" id="xs_u" data-xs="upi" value="${esc(x.upi)}" maxlength="80" autocomplete="off" placeholder="name@bank">
+  <p class="note">The organisers will find a buyer, collect the ticket price from them, and pay you exactly the amount they receive once the transfer is complete. They may call your registered number to confirm.</p>`
+  :`<p class="note">You will get a code. Give it to the person taking your seat. The organisers may call your registered number to confirm before the transfer is completed.</p>`}
   <div class="row"><button class="ghost" id="go-xmenu">Back</button><button id="xsell" ${x.busy?"disabled":""}>${x.busy?"Please wait…":"Get my code"}</button></div></div>`}
 function vXCode(){
   const r=S.xs.res,pub=S.xs.mode==="public";
   return '<div class="seal" aria-hidden="true">✓</div>'+head("Your transfer code","Ticket "+esc(r.ticket_label))+
   `<div class="card idcard"><div class="note">Code</div><div class="amt" style="letter-spacing:.2em">${esc(r.code)}</div><div class="note">Valid until ${esc(fmtWhen(r.expires_at))}</div><div class="row"><button class="ghost" id="copycode">Copy code</button></div></div>
-  <div class="card">${pub?`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Contact the organisers. They will find a buyer and give them this code. They may call your registered number to confirm before the ticket moves, and pay you after the transfer.</p>`
-  :`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Give this code to the person taking your seat. They open Tickets, then Transfer tickets, then Private transfer, then “I want to buy”, and type the code. After they apply, the organisers may call your registered number to confirm. Until then your ticket stays valid.</p>`}
-  <p class="note">If the code runs out, just make a new one. A new code makes the old one stop working. You can check or cancel it any time from Tickets (Booking ID + phone).</p></div>
+  <div class="card">${pub?`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Please contact the organisers. They will find a buyer and share this code with them. They may call your registered number to confirm before the ticket is transferred, and they will pay you once the transfer is complete.</p>`
+  :`<p style="margin-top:0"><b>What happens next</b></p><p class="note">Give this code to the person taking your seat. They need to open Tickets, tap Transfer tickets, then I want to buy, and enter the code. After they apply, the organisers may call your registered number to confirm. Your ticket stays valid until the transfer is complete.</p>`}
+  <p class="note">If the code expires, simply create a new one; the old code stops working. You can check or cancel your code any time from Tickets, using your Booking ID and phone number.</p></div>
   <div class="row">${contactBtn("Hi, I made a ticket transfer code ("+r.code+") for ticket "+r.ticket_label+" for "+CONFIG.eventName+".","Contact the organisers")}<button class="ghost" id="go-tickets">Back to Tickets</button></div>`}
 function vXBuy(){
   const b=S.xb;
-  return head("Buy a ticket","Type the code you were given by the seller or by the organisers.")+
+  return head("Buy a ticket","Enter the code you received from the seller or the organisers.")+
   (b.err?`<div class="card errbox" role="alert">${esc(b.err)}</div>`:"")+
-  `<div class="card"><label for="xb_c">Code</label><input type="text" id="xb_c" data-xb="code" value="${esc(b.code||"")}" maxlength="10" autocapitalize="characters" autocomplete="off" placeholder="6 letters and numbers" style="letter-spacing:.2em;text-transform:uppercase">
+  `<div class="card"><label for="xb_c">Code</label><input type="text" id="xb_c" data-xb="code" value="${esc(b.code||"")}" maxlength="10" autocapitalize="characters" autocomplete="off" placeholder="6-character code" style="letter-spacing:.2em;text-transform:uppercase">
   <div class="row"><button class="ghost" id="go-xmenu">Back</button><button id="xopen" ${b.busy?"disabled":""}>${b.busy?"Checking…":"Continue"}</button></div></div>`}
 function vXForm(){
   const b=S.xb,pub=b.mode==="public";
-  return head("Transfer Form","Buying "+esc(b.seller_name)+"'s ticket")+
+  return head("Transfer details","You are taking over "+esc(b.seller_name)+"'s ticket")+
   (b.err?`<div class="card errbox" role="alert">${esc(b.err)}</div>`:"")+
-  `<div class="card"><label for="xf_n">Your name</label><input type="text" id="xf_n" data-x="name" value="${esc(b.name||"")}" maxlength="80" autocomplete="name">
+  `<div class="card"><label for="xf_n">Full name</label><input type="text" id="xf_n" data-x="name" value="${esc(b.name||"")}" maxlength="80" autocomplete="name">
   <label for="xf_p">Phone number</label>${phoneBox("xf_p",'data-x="phone"',b.phone)}
-  ${askEmail()?`<label for="xf_e">Email</label><input type="text" id="xf_e" data-x="email" value="${esc(b.email||"")}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="you@example.com">`:""}
-  <div class="lbl">Where are you currently?</div><div class="opts">${optX("loc","In Bengaluru",b.loc)}${optX("loc","Outside Bengaluru",b.loc)}</div>
-  <div class="lbl">Will you attend?</div><div class="opts">${optX("att","Surely",b.att)}${optX("att","Most probably",b.att)}</div>
-  ${b.food_locked?`<div class="lbl">Food preference</div><p class="note" style="margin-top:0">The food order has been placed, so your food is the same as the seller's: <b>${esc(b.food)}</b>.</p>`:`<div class="lbl">Food preference</div><div class="opts">${optX("food","Veg",b.food)}${optX("food","Non-veg",b.food)}</div>`}
-  <label style="display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:18px"><input type="checkbox" id="xf_ok" ${b.consent?"checked":""} style="margin-top:5px;flex:none"><span>${pub?"I understand that the organisers will ask me to pay the standard ticket price after they confirm with the seller, and that the seat is mine only after they complete the transfer.":"I understand that the payment between me and the seller is our own matter, and the organisers are not responsible for it."}</span></label>
-  ${askEmail()?`<p class="note">Only the organisers can see your email. It is used to send event updates and to reach you if something is wrong with your transfer.</p>`:""}
+  ${askEmail()?`<label for="xf_e">Email address</label><input type="text" id="xf_e" data-x="email" value="${esc(b.email||"")}" maxlength="120" inputmode="email" autocapitalize="off" autocomplete="email" placeholder="you@example.com">`:""}
+  <div class="lbl">Where are you currently based?</div><div class="opts">${optX("loc","In Bengaluru",b.loc)}${optX("loc","Outside Bengaluru",b.loc)}</div>
+  <div class="lbl">Will you be attending?</div><div class="opts">${optX("att","Surely",b.att)}${optX("att","Most probably",b.att)}</div>
+  ${b.food_locked?`<div class="lbl">Food preference</div><p class="note" style="margin-top:0">The food order has already been placed, so your meal will be the same as the seller's: <b>${esc(b.food)}</b>.</p>`:`<div class="lbl">Food preference</div><div class="opts">${optX("food","Veg",b.food)}${optX("food","Non-veg",b.food)}</div>`}
+  <label style="display:flex;gap:10px;align-items:flex-start;font-weight:400;margin-top:18px"><input type="checkbox" id="xf_ok" ${b.consent?"checked":""} style="margin-top:5px;flex:none"><span>${pub?"I understand that the organisers will ask me to pay the standard ticket price once they have confirmed with the seller, and that the seat becomes mine only after they complete the transfer.":"I understand that any payment between me and the seller is our own arrangement, and the organisers are not responsible for it."}</span></label>
+  ${askEmail()?`<p class="note">Only the organisers can see this. We will use it to share event updates, or to reach you if there is an issue with your transfer.</p>`:""}
   <div class="row"><button class="ghost" id="go-xbuy">Back</button><button id="xsubmit" ${b.busy?"disabled":""}>${b.busy?"Submitting…":"Submit"}</button></div></div>`}
 function vXDone(){
   const r=S.xb.result,pub=S.xb.mode==="public";
-  return '<div class="seal" aria-hidden="true">✓</div>'+head("Request received","Save your Booking ID.")+
+  return '<div class="seal" aria-hidden="true">✓</div>'+head("Request received","Please save your Booking ID.")+
   `<div class="card idcard"><div class="note">Booking ID</div><div class="amt" style="letter-spacing:.08em">${esc(r.booking_code)}</div><div class="row"><button class="ghost" id="copyxid">Copy Booking ID</button></div></div>
-  <div class="card"><span class="pill p-wait">Pending verification</span><p>The organizers (admins) will be notified of this request, and will take necessary actions soon.</p>
-  <p class="note">${pub?"They will confirm with the seller first, then ask you here to pay the standard ticket price. Open Tickets with your Booking ID and phone number to see the next step.":"They will confirm with the seller by phone. When it is done, open Tickets with your Booking ID and phone number to get your ticket."} You do not have a ticket or a seat until the transfer is completed.</p></div>
-  <div class="row">${contactBtn("Hi, I submitted a ticket transfer request for "+CONFIG.eventName+". My Booking ID is "+r.booking_code+".","Contact now")}<button class="ghost" id="go-tickets">Go to Tickets</button></div>`}
+  <div class="card"><span class="pill p-wait">Pending verification</span><p>The organisers have been notified of your request and will take the next steps shortly.</p>
+  <p class="note">${pub?"They will confirm with the seller first, then ask you to pay the standard ticket price here. Open Tickets with your Booking ID and phone number to see the next step.":"They will confirm with the seller by phone. Once it is done, open Tickets with your Booking ID and phone number to get your ticket."} You won't have a ticket or a seat until the transfer is complete.</p></div>
+  <div class="row">${contactBtn("Hi, I submitted a ticket transfer request for "+CONFIG.eventName+". My Booking ID is "+r.booking_code+".","Contact the organisers")}<button class="ghost" id="go-tickets">Go to Tickets</button></div>`}
 function vTPay(){
   const p=S.xp;
   if(S.payLoading)return head("Payment","Loading the payment details…");
   if(S.payFail)return head("Couldn't load the payment details","Please check your internet connection and try again.")+`<div class="row"><button class="ghost" id="tp-back">Back</button><button id="tp-retry">Try again</button></div>`;
-  if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers haven't finished setting up payments. Please try again a little later.")+`<div class="row"><button class="ghost" id="tp-back">Back</button>${contactBtn("Hi, I couldn't pay for my ticket transfer because the payment details are missing.","Contact the organisers")}</div>`;
+  if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers are still setting up payments. Please try again shortly.")+`<div class="row"><button class="ghost" id="tp-back">Back</button>${contactBtn("Hi, I couldn't pay for my ticket transfer because the payment details are missing.","Contact the organisers")}</div>`;
   return head("Pay ₹"+p.amount,"Ticket transfer payment")+(p.err?`<div class="card errbox" role="alert">${esc(p.err)}</div>`:"")+
   `<div class="card" style="text-align:center"><div class="amt">₹${p.amount}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${p.amount}"></canvas>
-  <p class="note" style="margin:0 0 6px">Scan this QR with your UPI app, or pay to the UPI ID below.</p><div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
+  <p class="note" style="margin:0 0 6px">Scan this QR with any UPI app, or pay to the UPI ID below.</p><div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div></div>
-  <div class="card"><label for="tshot">Upload payment screenshot</label><input type="file" id="tshot" accept="image/*" ${p.file?'style="display:none"':""}>
-  ${p.file&&p.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(p.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="tshot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Images only.</div>`}</div>
+  <div class="card"><label for="tshot">Upload your payment screenshot</label><input type="file" id="tshot" accept="image/*" ${p.file?'style="display:none"':""}>
+  ${p.file&&p.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(p.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="tshot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Please upload an image of your payment confirmation.</div>`}</div>
   <div class="row"><button class="ghost" id="tp-back" ${p.busy?"disabled":""}>Back</button><button id="tp-submit" ${p.busy?"disabled":""}>${p.busy?"Submitting…":"Submit payment"}</button></div>`}
 
 async function xSell(){
   const x=S.xs;if(x.busy)return;x.err="";
   const code=normCode(x.code),ph=String(x.phone||"").replace(/\D/g,"");
-  if(!/^[0-9A-F]{8}$/.test(code)||!x.ticket.trim()||!/^\d{10}$/.test(ph)||(x.mode==="public"&&!x.upi.trim())){x.err="Please fill in every box. The phone number must be 10 digits.";return render()}
+  if(!/^[0-9A-F]{8}$/.test(code)||!x.ticket.trim()||!/^\d{10}$/.test(ph)||(x.mode==="public"&&!x.upi.trim())){x.err="Please fill in all the fields. The phone number must be 10 digits.";return render()}
   x.busy=true;render();
   try{
     const a={p_booking_code:code,p_ticket:x.ticket.trim(),p_phone:ph};if(x.mode==="public")a.p_upi=x.upi.trim();
     const{data,error}=await db.rpc(x.mode==="public"?"public_sell":"private_sell",a);if(error)throw error;
     if(data&&data.ok){x.res=data;S.step="xcode";x.busy=false;return render()}
     x.err=xerr(data);
-  }catch(_){x.err="Could not reach the server. Check your internet and try again."}
+  }catch(_){x.err="We couldn't reach the server. Please check your internet and try again."}
   x.busy=false;render();
 }
 async function xOpenCode(){
   const b=S.xb;if(b.busy)return;b.err="";const c=String(b.code||"").toUpperCase().replace(/[\s-]/g,"");
-  if(!/^[A-Z2-9]{6}$/.test(c)){b.err="Please type the 6-character code.";return render()}
+  if(!/^[A-Z2-9]{6}$/.test(c)){b.err="Please enter the 6-character code.";return render()}
   b.busy=true;render();
   try{
     const{data,error}=await db.rpc("transfer_open",{p_code:c});if(error)throw error;
     if(data&&data.ok){if(b.sidFor!==c){b.sid=uuid();b.sidFor=c}   /* one submission ID per code: a retry of the same form is safe, a different code is a new request */
       Object.assign(b,{mode:data.mode,seller_name:data.seller_name,food_locked:!!data.food_locked,food:data.food||"",code:c});if(b.food_locked)b.food=data.food;S.step="xform";b.busy=false;return render()}
     b.err=xerr(data);
-  }catch(_){b.err="Could not reach the server. Check your internet and try again."}
+  }catch(_){b.err="We couldn't reach the server. Please check your internet and try again."}
   b.busy=false;render();
 }
 async function xSubmit(){
   const b=S.xb;if(b.busy)return;b.err="";
-  const e=[];if(!String(b.name||"").trim())e.push("enter your name");if(!/^\d{10}$/.test(b.phone||""))e.push("phone must be exactly 10 digits");if(askEmail()&&!okMail(b.email))e.push("enter a valid email address");
-  if(!b.loc)e.push("choose where you are currently");if(!b.att)e.push("choose Surely or Most probably");if(!b.food_locked&&!b.food)e.push("choose Veg or Non-veg");if(!b.consent)e.push("tick the box to confirm you understand");
-  if(e.length){b.err="Please "+e.join("; ")+".";return render()}
+  const e=[];if(!String(b.name||"").trim())e.push("enter your name");if(!/^\d{10}$/.test(b.phone||""))e.push("enter a 10-digit phone number");if(askEmail()&&!okMail(b.email))e.push("enter a valid email address");
+  if(!b.loc)e.push("select where you are currently based");if(!b.att)e.push("select Surely or Most probably");if(!b.food_locked&&!b.food)e.push("select Veg or Non-veg");if(!b.consent)e.push("tick the box to confirm you understand");
+  if(e.length){b.err="Please complete the following: "+e.join("; ")+".";return render()}
   b.busy=true;render();
   try{
     const{data,error}=await db.rpc("transfer_submit",{p_code:b.code,p_submission_id:b.sid,p_buyer:{name:b.name.trim(),phone:b.phone,email:askEmail()?String(b.email||"").trim():"",loc:b.loc,att:b.att,food:b.food_locked?"":b.food,consent:"true"}});if(error)throw error;
     if(data&&data.ok){b.result=data;remember("mm_mine",data.booking_code,20);S.step="xdone";b.busy=false;return render()}
     b.err=xerr(data);
-  }catch(_){b.err="Could not reach the server. Check your internet and tap Submit again. Tapping again will not create a duplicate request."}
+  }catch(_){b.err="We couldn't reach the server. Please check your internet and tap Submit again. Tapping again won't create a duplicate request."}
   b.busy=false;render();
 }
 async function tPaySubmit(){
@@ -622,7 +623,7 @@ async function tPaySubmit(){
       if(data&&data.ok){p.busy=false;toast("Payment received. The organisers will check it.",3500);S.step="tickets";S.tk.q=p.code;S.tk.phone=p.ph;return doSearch()}
       p.err=xerr(data);
     }
-  }catch(_){p.err="Could not reach the server. Check your internet and tap Submit again. Tapping again will not create a duplicate."}
+  }catch(_){p.err="We couldn't reach the server. Please check your internet and tap Submit again. Tapping again won't create a duplicate."}
   p.busy=false;render();
 }
 
@@ -839,7 +840,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="copyxid"){try{await navigator.clipboard.writeText(S.xb.result.booking_code);toast("Booking ID copied")}catch(_){toast("Press and hold the ID to copy")}}
   if(ds.xcancel&&S.tk.code){if(!confirm("Cancel this transfer code? Nobody will be able to use it."))return;
     try{const{data,error}=await db.rpc("transfer_cancel",{p_booking_code:S.tk.code,p_ticket:ds.xcancel,p_phone:S.tk.ph});if(error)throw error;
-      if(data&&data.ok){toast("Code cancelled");await doSearch()}else toast(xerr(data),4500)}catch(_){toast("Could not reach the server. Try again.",3500)}}
+      if(data&&data.ok){toast("Code cancelled");await doSearch()}else toast(xerr(data),4500)}catch(_){toast("We couldn't reach the server. Please try again.",3500)}}
   if(ds.tpay&&S.tk.res&&S.tk.res.transfer){S.xp={code:S.tk.code,ph:S.tk.ph,amount:S.tk.res.transfer.amount_due,sid:uuid(),file:null,fileUrl:null,busy:false,err:""};S.step="tpay";S.payLoading=true;S.payFail=false;render();loadPay().then(ok=>{S.payLoading=false;S.payFail=!ok;if(S.step==="tpay")render()})}
   if(id==="tp-back"&&!S.xp.busy){S.step="tickets";render()}
   if(id==="tp-retry"){S.payLoading=true;S.payFail=false;render();loadPay().then(ok=>{S.payLoading=false;S.payFail=!ok;if(S.step==="tpay")render()})}
