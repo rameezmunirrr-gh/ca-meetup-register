@@ -57,6 +57,9 @@ a.lnk{display:inline-flex;align-items:center;text-decoration:none;border:1px sol
 .pc-t{display:flex;flex-wrap:wrap;gap:6px}.tg{padding:3px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:.8rem;font-weight:600}
 .pc-a{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}.pc-a .here{color:var(--ok);font-weight:800;margin-right:auto}.pc-a button{min-height:42px}
 @media(max-width:560px){.pcs{grid-template-columns:1fr}}
+.sgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));align-items:start}.sgrid>.card{margin:0}.sgrid>.slog{grid-column:1/-1}
+.sgrid label:has(>input[type=checkbox]){display:flex;gap:10px;align-items:flex-start}.sgrid label>input[type=checkbox]{flex:0 0 auto;margin:1px 0 0}
+@media(max-width:560px){.sgrid{grid-template-columns:1fr}#snav{flex-wrap:nowrap;overflow-x:auto;margin-right:-12px;padding-bottom:4px;scrollbar-width:none}#snav::-webkit-scrollbar{display:none}#snav .chip{flex:0 0 auto}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
 <body><header class="top"><div><img src="../assets/logo-mark.png" alt="" width="41" height="28"><span>Mallu Articles Bengaluru</span><small>Organiser</small></div></header><div class="kasavu"></div><main id="app"></main>
@@ -309,8 +312,8 @@ async function runScan(list){
 }
 function istInput(iso){return new Date(new Date(iso).getTime()+5.5*3600e3).toISOString().slice(0,16)}
 function evCard(s){
-  if(s.event_at===undefined)return `<div class="card" style="max-width:520px"><h2>Event details</h2><p class="err" style="margin:0"><b>One setup step is missing.</b> Run <code>event-details.sql</code> in the Supabase SQL editor, then reload this page.</p></div>`;
-  return `<div class="card" style="max-width:520px"><h2>Event details</h2>
+  if(s.event_at===undefined)return `<div class="card"><h2>Event details</h2><p class="err" style="margin:0"><b>One setup step is missing.</b> Run <code>event-details.sql</code> in the Supabase SQL editor, then reload this page.</p></div>`;
+  return `<div class="card"><h2>Event details</h2>
   <p class="mute" style="margin-top:0">Shown to participants on the home page, the registration form and on every ticket.</p>
   <label for="sev">Event date and time (India time)</label><input id="sev" type="datetime-local" value="${istInput(s.event_at)}">
   <label for="svenue">Venue</label><input id="svenue" type="text" maxlength="120" style="width:100%" value="${esc(s.venue||"")}">
@@ -323,7 +326,7 @@ function alertBanner(){const a=S.alert;if(!a)return"";
   const f=(a.fields||[]).map(x=>FIELD_NAMES[x]||x).join(", ");
   return `<div class="card" role="alert" style="border:2px solid ${a.by_me?"var(--line)":"var(--warn)"};background:${a.by_me?"var(--card)":"var(--card2)"}"><b>${a.by_me?"You changed":esc(a.who)+" changed"} the payment details</b> (${esc(f)}) on ${esc(new Date(a.at).toLocaleString("en-IN",{timeZone:"Asia/Calcutta",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}.${a.by_me?"":" If this was not agreed, check Settings now: payments go to the UPI ID shown there."}</div>`}
 function payCard(s){const set=s.upi_id&&s.payee_name&&s.whatsapp_number,ro=!S.payOpen;
-  return `<div class="card" style="max-width:520px"><h2>Payment details</h2>
+  return `<div class="card"><h2>Payment details</h2>
   ${set?"":`<p class="err">Not set up yet. The registration page cannot take payments until all three are filled in.</p>`}
   <p class="mute" style="margin-top:0">Shown to participants on the pay screen and used for the QR code and the WhatsApp buttons. They are locked: press Change to edit.</p>
   <label for="pupi">UPI ID</label><input id="pupi" value="${esc(s.upi_id||"")}" ${ro?"readonly":""} autocomplete="off" placeholder="name@bank">
@@ -332,12 +335,12 @@ function payCard(s){const set=s.upi_id&&s.payee_name&&s.whatsapp_number,ro=!S.pa
   <p>${ro?`<button id="pchange">Change</button>`:`<button id="psave">Save payment details</button> <button class="ghost" id="pcancel">Cancel</button>`}</p></div>`}
 function logCard(){
   const rows=S.log.map(l=>`<tr><td>${esc(new Date(l.at).toLocaleString("en-IN",{timeZone:"Asia/Calcutta",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}))}</td><td>${esc(l.who)}</td><td>${esc(l.field)}</td><td>${l.area==="settings"&&["upi_id","whatsapp_number"].includes(l.field)?esc(l.old_value||"–"):esc(l.old_value||"–")}</td><td>${esc(l.new_value||"–")}</td></tr>`).join("");
-  return `<div class="card" style="max-width:720px;overflow-x:auto"><h2>Settings log</h2><p class="mute" style="margin-top:0">Every change to the settings and the organiser list. It cannot be edited or deleted. "database" means someone changed it directly in Supabase.</p>
+  return `<div class="card slog" style="overflow-x:auto"><h2>Settings log</h2><p class="mute" style="margin-top:0">Every change to the settings and the organiser list. It cannot be edited or deleted. "database" means someone changed it directly in Supabase.</p>
   ${rows?`<table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Before</th><th>After</th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="mute">Nothing logged yet.</p>`}</div>`}
 const PAY_ERR={INVALID_UPI:"That UPI ID doesn't look right. It should look like name@bank.",INVALID_PAYEE:"Type the payee name (up to 60 letters).",INVALID_WHATSAPP:"The WhatsApp number needs the country code, for example 91XXXXXXXXXX.",NOT_ALLOWED:"Only admins can change this."};
 function vSettings(){const s=S.settings;
   const hm=x=>String(x||"").slice(0,5);
-  $("#v").innerHTML=regBar()+`<div class="card" style="max-width:520px"><h2>Registration settings</h2>
+  $("#v").innerHTML=regBar()+`<div class="chips" id="snav"></div><div class="sgrid"><div class="card"><h2>Registration settings</h2>
   <label><input type="checkbox" id="sopen" ${s.is_open?"checked":""}> Registration open</label>
   <p class="mute" style="margin-top:0">When you switch registration off, anyone already filling the form gets 10 minutes to finish.</p>
   <div id="pausebox" style="display:${s.is_open?"block":"none"};border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0 12px">
@@ -360,14 +363,16 @@ function vSettings(){const s=S.settings;
   ${aboutCard(s)}
   ${emailCard(s)}
   ${feedbackCard(s)}
-  <div class="card" style="max-width:520px"><h2>Before you open registration</h2>
+  <div class="card"><h2>Before you open registration</h2>
   <p class="mute">A reminder list. Nothing here is checked automatically.</p>
   <label style="font-weight:400"><input type="checkbox"> Payment details above (UPI ID, payee name) are the final ones, and a test payment reached the right account</label>
   <label style="font-weight:400"><input type="checkbox"> WhatsApp number above is the organisers' number</label>
   <label style="font-weight:400"><input type="checkbox"> A ₹1 test payment was scanned in two UPI apps</label>
   <label style="font-weight:400"><input type="checkbox"> All test bookings deleted and the payment-proofs storage emptied</label>
   <label style="font-weight:400"><input type="checkbox"> "Allow new users to sign up" is off in Supabase</label>
-  <label style="font-weight:400"><input type="checkbox"> The other organiser logins are created</label></div>${logCard()}`}
+  <label style="font-weight:400"><input type="checkbox"> The other organiser logins are created</label></div>${logCard()}</div>`;
+  const SH={"Registration settings":"Registration","Payment details":"Payment","Event details":"Event","Ticket transfers":"Transfers","Repeat-registration flag":"Repeat flag","About link":"About","Email box":"Email","Feedback questions":"Feedback","Before you open registration":"Checklist","Settings log":"Log"};
+  $("#snav").innerHTML=[...document.querySelectorAll(".sgrid>.card")].map((c,i)=>{c.id="s-"+i;const h=c.querySelector("h2")?.textContent||"Section";return `<button class="chip" data-jump="s-${i}">${esc(SH[h]||h)}</button>`}).join("")}
 
 /* ---------- IP flag banner (flag only: nothing is ever blocked) ---------- */
 function ipBanner(){const f=S.ipf;if(!f||!f.ips||!f.ips.length)return"";
@@ -447,8 +452,8 @@ async function tAction(act,id){
 
 /* ---------- settings cards for transfers and the repeat-registration flag ---------- */
 function trCard(s){
-  if(s.private_code_hours===undefined)return `<div class="card" style="max-width:520px"><h2>Ticket transfers</h2><p class="err" style="margin:0"><b>One setup step is missing.</b> The transfer database update has not been applied yet.</p></div>`;
-  return `<div class="card" style="max-width:520px"><h2>Ticket transfers</h2>
+  if(s.private_code_hours===undefined)return `<div class="card"><h2>Ticket transfers</h2><p class="err" style="margin:0"><b>One setup step is missing.</b> The transfer database update has not been applied yet.</p></div>`;
+  return `<div class="card"><h2>Ticket transfers</h2>
   <p class="mute" style="margin-top:0">Lets a ticket holder who cannot come hand the seat to someone else. Keep this OFF until it has been tested.</p>
   <label><input type="checkbox" id="topen" ${s.transfers_open?"checked":""}> Transfers open</label>
   <label for="tcut">Last moment for new transfers (India time, optional)</label><input id="tcut" type="datetime-local" value="${s.transfer_cutoff_at?istInput(s.transfer_cutoff_at):""}">
@@ -460,7 +465,7 @@ function trCard(s){
   <p><button id="tsave">Save transfer settings</button></p></div>`}
 function aboutCard(s){
   if(s.show_about===undefined)return"";
-  return `<div class="card" style="max-width:520px"><h2>About link</h2>
+  return `<div class="card"><h2>About link</h2>
   <p class="mute" style="margin-top:0">Shows an "About" button on the home page of the registration site. For now it opens an "Under construction" page. Switch it off to hide the button completely.</p>
   <label><input type="checkbox" id="aboutshow" ${s.show_about?"checked":""}> Show the About link on the home page</label>
   <p><button id="aboutsave">Save</button></p></div>`}
@@ -473,19 +478,19 @@ function vFeedback(){
   (S.fb.length?S.fb.map(x=>`<tr><td>${esc(new Date(x.updated_at).toLocaleString())}</td><td>${esc(bk[x.booking_id]?bk[x.booking_id].booking_code:"–")}</td><td>${esc(who(x.booking_id))}</td><td>${x.rating?x.rating+" / 5":"–"}</td><td style="white-space:pre-wrap;max-width:420px">${esc(x.comment||"")}</td></tr>`).join(""):`<tr><td colspan="5" class="mute">Nothing yet.</td></tr>`)+`</table></div>`}
 function feedbackCard(s){
   if(s.ask_feedback===undefined)return"";
-  return `<div class="card" style="max-width:520px"><h2>Feedback questions</h2>
+  return `<div class="card"><h2>Feedback questions</h2>
   <p class="mute" style="margin-top:0">When on, the "This is your Booking ID" page asks two optional questions: how excited they are (1 to 5) and any suggestions, ideas or expectations. When off, the questions are hidden and no new answers are accepted. Answers already received are kept and shown in the Feedback tab.</p>
   <label><input type="checkbox" id="askfb" ${s.ask_feedback?"checked":""}> Ask the two feedback questions after booking</label>
   <p><button id="askfbsave">Save</button></p></div>`}
 function emailCard(s){
   if(s.ask_email===undefined)return"";
-  return `<div class="card" style="max-width:520px"><h2>Email box</h2>
+  return `<div class="card"><h2>Email box</h2>
   <p class="mute" style="margin-top:0">When on, the booking and transfer forms ask for an email address (required). When off, the Email box is hidden and no email is asked for or saved. Emails already saved are kept.</p>
   <label><input type="checkbox" id="askemail" ${s.ask_email?"checked":""}> Ask for an email address on the forms</label>
   <p><button id="askemailsave">Save</button></p></div>`}
 function ipCard(s){
   if(s.ip_flag_threshold===undefined)return"";
-  return `<div class="card" style="max-width:520px"><h2>Repeat-registration flag</h2>
+  return `<div class="card"><h2>Repeat-registration flag</h2>
   <p class="mute" style="margin-top:0">Marks bookings when one network address makes this many registrations or more. It only flags: nobody is ever blocked.</p>
   <label for="ipth">Flag at this many registrations (2 to 1000)</label><input id="ipth" type="number" min="2" max="1000" value="${s.ip_flag_threshold}">
   <p><button id="ipsave">Save</button> <button class="ghost bad" id="ipclear">Delete all stored network addresses</button></p>
@@ -504,6 +509,7 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
     await load();view();return toast("Check-in undone");
   }
   if(id==="csv")return csv();
+  if(t.dataset.jump){document.getElementById(t.dataset.jump)?.scrollIntoView({behavior:"smooth",block:"start"});return}
   if(t.dataset.chip!==undefined){S.f.pay=t.dataset.chip;vBookings();return}
   if(t.dataset.shot){const b=bk(t.dataset.shot),F=flags()[b.id]||[],items=[{path:b.screenshot_path,label:b.booking_code}];
     S.scans.filter(s=>s.booking_id!==b.id).forEach(s=>{const o=bk(s.booking_id);if(F.some(x=>x.includes(o.booking_code)))items.push({path:o.screenshot_path,label:o.booking_code+" (flagged match)"})});return shots(items)}
