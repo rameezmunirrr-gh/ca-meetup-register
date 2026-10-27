@@ -51,6 +51,12 @@ a.lnk{display:inline-flex;align-items:center;text-decoration:none;border:1px sol
 .bk-p{display:grid;gap:2px}.bk-id{font-size:.88rem;word-break:break-all}.bk-f .flag{max-width:none}
 .bk-a{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:auto}.bk-a button{min-height:46px;padding:10px 8px}
 @media(max-width:560px){.chip{padding:8px 10px}.chip span{margin-left:2px}.bks{grid-template-columns:1fr}.chips .rev{margin-left:0;flex:1 1 100%}}
+.flt{margin:0 0 10px}.flt summary{cursor:pointer;font-weight:700;color:var(--brand);padding:8px 14px;min-height:42px;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--brand);border-radius:12px;list-style:none}.flt summary::-webkit-details-marker{display:none}.flt summary::after{content:"▾";transition:transform .15s}.flt[open] summary::after{transform:rotate(180deg)}.flt .bar{margin-top:4px}
+.pcs{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}.pc{margin:0;display:flex;flex-direction:column;gap:9px}.pc.co{border-top-color:var(--accent)}.pc.moved{opacity:.6;border-top-color:var(--line)}
+.pc-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-h b{font-size:1.08rem}.pc-c{display:flex;flex-direction:column;gap:2px;word-break:break-all}.pc-c a{font-weight:700;text-decoration:none}
+.pc-t{display:flex;flex-wrap:wrap;gap:6px}.tg{padding:3px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:.8rem;font-weight:600}
+.pc-a{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto}.pc-a .here{color:var(--ok);font-weight:800;margin-right:auto}.pc-a button{min-height:42px}
+@media(max-width:560px){.pcs{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
 <body><header class="top"><div><img src="../assets/logo-mark.png" alt="" width="41" height="28"><span>Mallu Articles Bengaluru</span><small>Organiser</small></div></header><div class="kasavu"></div><main id="app"></main>
@@ -191,15 +197,17 @@ function vOverview(){
   mk("#c3","Attendance",["Surely","Most probably"],cnt("attendance",["Surely","Most probably"]),["#F0A000","#9A55F0"]);
 }
 function filtBar(withPeople){
-  const f=S.f,o=(v,l)=>`<option value="${v}" ${f.pay===v?"selected":""}>${l}</option>`;
-  return `<div class="bar"><input id="q" placeholder="Search name, phone, booking ID" value="${esc(f.q)}" style="min-width:230px">
-  <select id="fpay">${o("","All payments")}${o("pending","Pending")}${o("paid","Paid")}${o("rejected","Rejected")}</select>
-  ${withPeople?`<select id="ffood"><option value="">Food: all</option><option ${f.food==="Veg"?"selected":""}>Veg</option><option ${f.food==="Non-veg"?"selected":""}>Non-veg</option></select>
-  <select id="floc"><option value="">Location: all</option><option ${f.loc==="In Bengaluru"?"selected":""}>In Bengaluru</option><option ${f.loc==="Outside Bengaluru"?"selected":""}>Outside Bengaluru</option></select>
-  <select id="fatt"><option value="">Attendance: all</option><option ${f.att==="Surely"?"selected":""}>Surely</option><option ${f.att==="Most probably"?"selected":""}>Most probably</option></select>
-  <select id="ftype"><option value="">Type: all</option><option value="guest" ${f.type==="guest"?"selected":""}>Guests only</option><option value="coordinator" ${f.type==="coordinator"?"selected":""}>Coordinators only</option></select>
-  ${S.tickets.some(t=>t.transferred_out_at)?`<label style="margin:0;font-weight:400"><input type="checkbox" id="fmoved" ${S.showMoved?"checked":""}> Show transferred tickets</label>`:""}
-  <button class="ghost" id="csv">Download Excel (CSV)</button>`:`<label style="margin:0"><input type="checkbox" id="frev" ${f.review?"checked":""}> Needs review only</label>`}</div>`;
+  const f=S.f,o=(v,l)=>`<option value="${v}" ${f.pay===v?"selected":""}>${l}</option>`,n=[f.pay,f.food,f.loc,f.att,f.type].filter(Boolean).length;
+  if(!withPeople)return `<div class="bar"><input id="q" type="search" placeholder="Search name, phone or booking ID" value="${esc(f.q)}" style="flex:1 1 240px"><label style="margin:0"><input type="checkbox" id="frev" ${f.review?"checked":""}> Needs review only</label></div>`;
+  return `<div class="bar"><input id="q" type="search" placeholder="Search name, phone, ticket or booking ID" value="${esc(f.q)}" style="flex:1 1 240px"></div>
+  <details class="flt" ${n?"open":""}><summary>Filters${n?" ("+n+" on)":""}</summary><div class="bar">
+  <select id="fpay" aria-label="Payment">${o("","All payments")}${o("pending","Pending")}${o("paid","Paid")}${o("rejected","Rejected")}</select>
+  <select id="ffood" aria-label="Food"><option value="">Food: all</option><option ${f.food==="Veg"?"selected":""}>Veg</option><option ${f.food==="Non-veg"?"selected":""}>Non-veg</option></select>
+  <select id="floc" aria-label="Location"><option value="">Location: all</option><option ${f.loc==="In Bengaluru"?"selected":""}>In Bengaluru</option><option ${f.loc==="Outside Bengaluru"?"selected":""}>Outside Bengaluru</option></select>
+  <select id="fatt" aria-label="Attendance"><option value="">Attendance: all</option><option ${f.att==="Surely"?"selected":""}>Surely</option><option ${f.att==="Most probably"?"selected":""}>Most probably</option></select>
+  <select id="ftype" aria-label="Type"><option value="">Type: all</option><option value="guest" ${f.type==="guest"?"selected":""}>Guests only</option><option value="coordinator" ${f.type==="coordinator"?"selected":""}>Coordinators only</option></select>
+  ${S.tickets.some(t=>t.transferred_out_at)?`<label style="margin:0;font-weight:600;display:flex;align-items:center;gap:8px"><input type="checkbox" id="fmoved" ${S.showMoved?"checked":""}> Show transferred tickets</label>`:""}</div></details>
+  <div class="bar"><button class="ghost sm" id="csv">Download Excel (CSV)</button></div>`;
 }
 function vBookings(){const nT=S.bookings.filter(b=>b.kind==="transfer").length,B=S.bookings.filter(b=>b.kind!=="transfer"),
   c=st=>B.filter(b=>b.status===st).length,chip=(v,l,n)=>`<button class="chip ${S.f.pay===v?"on":""}" data-chip="${v}">${l} <span>${n}</span></button>`;
@@ -227,11 +235,17 @@ function tBookings(){
 }
 function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
   return people().filter(p=>(S.showMoved||!p.transferred_out_at)&&(!f.pay||p.b.status===f.pay)&&(!f.food||p.food===f.food)&&(!f.loc||p.location===f.loc)&&(!f.att||p.attendance===f.att)&&(!f.type||p.kind===f.type)&&(!q||p.name.toLowerCase().includes(q)||p.phone.includes(q)||tlabel(p).toLowerCase().includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)))}
-function vPeople(){$("#v").innerHTML=filtBar(true)+`<div class="card wrap" id="tbl"></div>`;tPeople()}
-function tPeople(){const r=filteredPeople();
-  $("#tbl").innerHTML=`<p class="mute">${r.length} people shown</p><table><tr><th>Ticket</th><th>Type</th><th>Name</th><th>Phone</th>${S.emailsOk?"<th>Email</th>":""}<th>Location</th><th>Attendance</th><th>Food</th><th>Booking</th><th>Payment</th><th>Present</th></tr>`+
-  r.map(p=>p.transferred_out_at?`<tr style="opacity:.6"><td><b>${esc(tlabel(p))}</b></td><td>Guest<div class="mute">transferred to another person</div></td><td>${esc(p.name)}</td><td>${p.phone}</td>${S.emailsOk?`<td>${esc(S.emails[p.id]||"–")}</td>`:""}<td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill">Transferred</span></td><td>—</td></tr>`:
-  `<tr><td><b>${esc(tlabel(p))}</b></td><td>${p.kind==="coordinator"?"Coordinator"+(p.ticket_no!=null?`<div class="mute">guest ${esc("E26-"+pad(p.ticket_no))} cancelled</div>`:"")   :"Guest"+(p.prev_coord_no!=null?`<div class="mute">coordinator ${esc("E26-"+pad(p.prev_coord_no)+"C")} cancelled</div>`:"")}${p.b.status==="rejected"?"":`<div style="margin-top:4px">${p.kind==="coordinator"?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div>`}</td><td>${esc(p.name)}</td><td>${p.phone}</td>${S.emailsOk?`<td>${esc(S.emails[p.id]||"–")}</td>`:""}<td>${p.location}</td><td>${p.attendance}</td><td>${p.food}</td><td>${esc(p.b.booking_code)}</td><td><span class="pill p-${p.b.status}">${p.b.status}</span></td><td>${p.checked_in_at?`Present <button class="sm ghost" data-undo="${p.id}">Undo</button>`:"—"}</td></tr>`).join("")+`</table>`}
+function vPeople(){$("#v").innerHTML=filtBar(true)+`<div id="tbl"></div>`;tPeople()}
+function tPeople(){const r=filteredPeople(),here=r.filter(p=>p.checked_in_at).length;
+  const tag=t=>`<span class="tg">${esc(t)}</span>`;
+  $("#tbl").innerHTML=`<p class="mute" style="margin:0 0 8px">${r.length} people shown${here?" · "+here+" present":""}</p><div class="pcs">`+r.map(p=>{
+    const em=S.emailsOk&&S.emails[p.id]?`<a href="mailto:${esc(S.emails[p.id])}">${esc(S.emails[p.id])}</a>`:(S.emailsOk?'<span class="mute">no email</span>':"");
+    if(p.transferred_out_at)return `<div class="card pc moved"><div class="pc-h"><div><b>${esc(p.name)}</b><div class="mute">${esc(tlabel(p))} · Guest</div></div><span class="pill">Transferred</span></div><div class="mute">Transferred to another person</div><div class="pc-c"><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>${em}</div><div class="pc-t">${tag(p.location)}${tag(p.attendance)}${tag(p.food)}${tag(p.b.booking_code)}</div></div>`;
+    const co=p.kind==="coordinator",old=co?(p.ticket_no!=null?`guest ${"E26-"+pad(p.ticket_no)} cancelled`:""):(p.prev_coord_no!=null?`coordinator ${"E26-"+pad(p.prev_coord_no)+"C"} cancelled`:"");
+    return `<div class="card pc ${co?"co":""}"><div class="pc-h"><div><b>${esc(p.name)}</b><div class="mute">${esc(tlabel(p))} · ${co?"Coordinator":"Guest"}${old?` · ${esc(old)}`:""}</div></div><span class="pill p-${p.b.status}">${p.b.status}</span></div>
+    <div class="pc-c"><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>${em}</div>
+    <div class="pc-t">${tag(p.location)}${tag(p.attendance)}${tag(p.food)}${tag(p.b.booking_code)}</div>
+    <div class="pc-a">${p.checked_in_at?`<span class="here">✔ Present</span><button class="sm ghost" data-undo="${p.id}">Undo</button>`:""}${p.b.status==="rejected"?"":co?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm ghost" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div></div>`}).join("")+`</div>${r.length?"":'<p class="mute">Nobody matches.</p>'}`}
 function csv(){const r=filteredPeople(),h=["Ticket No.","Type","Name","Phone",...(S.emailsOk?["Email"]:[]),"Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at",...(S.showMoved?["Transferred to another person"]:[])];
   const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
   const rows=r.map(p=>[tlabel(p),p.kind==="coordinator"?"Coordinator":"Guest",p.name,p.phone,...(S.emailsOk?[S.emails[p.id]||""]:[]),p.location,p.attendance,p.food,p.b.booking_code,p.b.status,p.b.amount_expected,p.checked_in_at?"Yes":"No",p.checked_in_at||"",...(S.showMoved?[p.transferred_out_at?"Yes":"No"]:[])]);

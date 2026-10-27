@@ -19,9 +19,9 @@ with sync_playwright() as p:
     pg.click('button[data-tab="people"]'); t = pg.inner_text('#tbl')
     check('People: retired Asha hidden by default', 'Asha' not in t and 'Dan' in t, t[:300])
     check('People: email column shown for admins', 'dan@example.com' in t)
-    pg.check('#fmoved'); t = pg.inner_text('#tbl')
+    pg.click('.flt summary'); pg.check('#fmoved'); t = pg.inner_text('#tbl')
     check('People: toggle shows retired ticket as Transferred, with no buttons', 'Asha' in t and 'Transferred' in t)
-    rows = pg.query_selector_all('#tbl tr'); asha=[r for r in rows if 'Asha' in r.inner_text()][0]
+    rows = pg.query_selector_all('#tbl .pc'); asha=[r for r in rows if 'Asha' in r.inner_text()][0]
     check('retired row has no Make-coordinator button', asha.query_selector('button') is None)
     # ---- 4. Scan queue ignores transfer bookings
     pg.click('button[data-tab="scan"]'); t = pg.inner_text('#v')
