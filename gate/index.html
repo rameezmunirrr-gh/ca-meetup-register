@@ -168,6 +168,7 @@ function closeOv(){S.ov=null;S.cool=Date.now()+1500;overlay()}   // short pause 
 const person=r=>`<div class="name">${esc(r.name||"")}</div>${r.label?`<div class="lab">${esc(r.label)}</div>`:""}${r.food?`<div class="sub">${vm(r.food)}</div>`:""}${r.booking_code?`<div class="sub">Booking ${esc(r.booking_code)}${r.people_count>1?" · "+r.people_count+" people":""}</div>`:""}`;
 function showResult(r){
   const kind=r.kind==="coordinator"?`<div class="sub">COORDINATOR</div>`:"";
+  if(r.result==="ok"){r._at=r._at||Date.now()}
   if(r.result==="ok")show("g",`<div class="big">ADMITTED ✓</div>${kind}${person(r)}<button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button><button class="line" data-act="undo">Undo</button>`,{res:r});
   else if(r.result==="already_scanned"){const t=r.checked_in_at?new Date(r.checked_in_at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}):"";
     show("r",`<div class="big">ALREADY SCANNED</div>${kind}${person(r)}<div class="sub">Entered at ${esc(t)}${r.checked_in_by?" · checked by "+esc(r.checked_in_by):""}</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`)}
@@ -178,7 +179,8 @@ function showResult(r){
   else show("r",`<div class="big">INVALID TICKET</div><div class="sub">This ticket is not valid.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`);
 }
 
-/* ---------- undo an admission ---------- */
+/* ---------- undo an admission: gate staff for 2 minutes, admins any time ---------- */
+const UNDO_MS=2*60*1000;
 async function undoAdmit(r){
   if(S.busy)return;S.busy=true;
   try{
@@ -188,7 +190,7 @@ async function undoAdmit(r){
     show("n",`<div class="big">ADMISSION UNDONE</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.label||"")} is marked as not present again.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`);
     await loadData();counts();results();
   }catch(e){const m=String((e&&e.message)||"");
-    show("r",`<div class="big">COULDN'T UNDO</div><div class="name">${esc(r.name||"")}</div><div class="sub">${/NOT_ALLOWED/.test(m)?"Only an admin can undo this. Ask an admin.":/UNDO_EXPIRED/.test(m)?"It is too late to undo here. Ask an admin.":esc(m.slice(0,120)||"Network problem. Try again.")}</div><button data-act="keep">Back</button><button class="line" data-act="home">Home page</button>`,{res:r})}
+    show("r",`<div class="big">COULDN'T UNDO</div><div class="name">${esc(r.name||"")}</div><div class="sub">${/NOT_ALLOWED/.test(m)?"Only an admin can undo this. Ask an admin.":/UNDO_EXPIRED/.test(m)?"It has been more than 2 minutes, so only an admin can undo this. Ask an admin.":esc(m.slice(0,120)||"Network problem. Try again.")}</div><button data-act="keep">Back</button><button class="line" data-act="home">Home page</button>`,{res:r})}
   S.busy=false;
 }
 
@@ -252,7 +254,9 @@ document.addEventListener("click",async e=>{
   if(act==="keep"){const r=S.ov&&S.ov.res;return r?showResult(r):closeOv()}
   if(act==="undo"){const r=S.ov&&S.ov.res;if(!r)return;
     return show("a",`<div class="big">UNDO ADMISSION?</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.label||"")} will be marked as not present again.</div><button data-act="undo2">Yes, undo</button><button class="line" data-act="keep">No, keep admitted</button>`,{res:r})}
-  if(act==="undo2"){const r=S.ov&&S.ov.res;if(!r)return;return undoAdmit(r)}
+  if(act==="undo2"){const r=S.ov&&S.ov.res;if(!r)return;
+    if(S.staff.role!=="admin"&&r._at&&Date.now()-r._at>UNDO_MS)return show("r",`<div class="big">TOO LATE TO UNDO</div><div class="name">${esc(r.name||"")}</div><div class="sub">It has been more than 2 minutes, so only an admin can undo this. Ask an admin.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`);
+    return undoAdmit(r)}
   if(act==="admitpick"){closeOv();S.sheets=[];renderSheet();return admit({p_id:ds.id,p_approve:false})}
   if(act==="shot"){const r=S.ov&&S.ov.res,box=$("#shotbox");if(!r||!box)return;box.textContent="Loading…";
     const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(r.screenshot_path,300);
