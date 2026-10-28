@@ -68,6 +68,8 @@ body.shopen{overflow:hidden}.sheet-bg{position:fixed;inset:0;background:rgba(0,8
 .sh-h{position:sticky;top:0;background:var(--card);display:flex;align-items:center;gap:8px;padding:12px 0 8px;z-index:1}.sh-h h2{flex:1;margin:0;font-size:1.2rem;min-width:0;word-break:break-word}
 .srs{display:grid;gap:0;margin:8px 0}.sr{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}.sr>span:last-child{text-align:right;word-break:break-word}.sh3{font-size:1rem;margin:14px 0 2px}.sh-f{margin:14px 0 0}.sh-f button{width:100%}
 @media(min-width:900px){.sheet-bg{align-items:stretch;justify-content:flex-end}.sheet{max-width:440px;max-height:none;height:100%;border-radius:16px 0 0 16px;border-top:1px solid var(--line);border-left:3px solid var(--brand);animation:none}}
+.stat[data-sheet]{cursor:pointer;transition:transform .12s,border-color .12s}.stat[data-sheet]:hover{border-color:var(--brand)}.stat[data-sheet]:active{transform:scale(.98)}.stat .more{display:block;margin-top:8px;font-size:.78rem;font-weight:700;color:var(--brand)}
+.sum{margin:8px 0;line-height:1.5}.sr.blk{align-items:flex-start}.nm{margin-top:2px;font-size:.9rem;line-height:1.35}.sh3+.sr{border-top:1px solid var(--line)}
 @media(prefers-reduced-motion:reduce){.sheet{animation:none}.flash{animation:none;box-shadow:0 0 0 3px var(--accent)}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
@@ -177,7 +179,7 @@ function view(){
   const T=[["overview","Overview"],["bookings","Bookings"],["people","People"],...(S.tReady?[["transfers","Transfers"+(todo?" ("+todo+")":"")]]:[]),["scan","Scan screenshots"],...(S.fbOk?[["feedback","Feedback"+(S.fb.length?" ("+S.fb.length+")":"")]]:[]),["settings","Settings"]];
   if(S.tab==="feedback"&&!S.fbOk)S.tab="overview";
   if(S.tab==="transfers"&&!S.tReady)S.tab="overview";
-  a.innerHTML=`<div class="hdr"><div class="who"><small>Signed in as</small><h1>${esc(S.staff.name)}</h1></div><div class="acts"><a class="lnk" href="../gate/">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div></div>
+  a.innerHTML=`<div class="hdr"><div class="who"><small>Signed in as</small><h1>${esc(S.staff.name)}</h1></div><div class="acts"><button class="ghost sm" data-sheet="search:">🔍 Find</button><a class="lnk" href="../gate/">Gate scanner</a><button class="ghost sm" id="refresh">Refresh</button><button class="ghost sm" id="logout">Sign out</button></div></div>
   ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}<div class="tabs">${T.map(t=>`<button data-tab="${t[0]}" class="${S.tab===t[0]?"on":""}">${t[1]}</button>`).join("")}</div>${S.tab==="overview"?alertBanner()+ipBanner():""}<div id="v"></div>`;
   ({overview:vOverview,bookings:vBookings,people:vPeople,transfers:vTransfers,scan:vScan,feedback:vFeedback,settings:vSettings})[S.tab]();
   renderSheet();
@@ -187,12 +189,12 @@ function vOverview(){
   const money=st=>S.bookings.filter(b=>b.status===st).reduce((s,b)=>s+b.amount_expected,0),here=P.filter(p=>p.checked_in_at&&p.b.status==="paid").length;
   const used=liveP.length,left=Math.max(S.settings.cap-used,0),coords=liveP.filter(p=>p.kind==="coordinator"),pcoords=paid.filter(p=>p.kind==="coordinator");
   $("#v").innerHTML=regBar()+`<div class="grid">
-      <div class="card stat c-teal"><span>Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span></div>
-   <div class="card stat c-amber"><span>Spots used</span><b>${used}</b><div class="meter" role="img" aria-label="${paid.length} active, ${pend.length} pending, ${left} left"><i class="m1" style="width:${Math.min(100,paid.length/Math.max(S.settings.cap,1)*100)}%"></i><i class="m2" style="width:${Math.min(100,pend.length/Math.max(S.settings.cap,1)*100)}%"></i></div><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span></div>
-   <div class="card stat c-pink"><span>Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span></div>
-   <div class="card stat c-blue"><span>Expected total</span><b>${inr(money("paid")+money("pending"))}</b><span class="mute">compare with your bank</span></div>
-   <div class="card stat c-violet"><span>Present at event</span><b>${here}</b><span class="mute">rejected: ${P.length-used}</span></div>
-   <div class="card stat c-teal"><span>Coordinators</span><b>${coords.length}</b><span class="mute">${coords.filter(p=>p.b.status==="paid").length} confirmed</span></div></div>
+      <div class="card stat c-teal" data-sheet="list:active" role="button" tabindex="0"><span>Active tickets</span><b>${paid.length}</b><span class="mute">${paid.length-pcoords.length} guests · ${pcoords.length} coordinators · ${inr(money("paid"))}</span><span class="more">Details ›</span></div>
+   <div class="card stat c-amber" data-sheet="list:spots" role="button" tabindex="0"><span>Spots used</span><b>${used}</b><div class="meter" role="img" aria-label="${paid.length} active, ${pend.length} pending, ${left} left"><i class="m1" style="width:${Math.min(100,paid.length/Math.max(S.settings.cap,1)*100)}%"></i><i class="m2" style="width:${Math.min(100,pend.length/Math.max(S.settings.cap,1)*100)}%"></i></div><span class="mute">${paid.length} active + ${pend.length} pending · cap ${S.settings.cap}, ${left} left</span><span class="more">Details ›</span></div>
+   <div class="card stat c-pink" data-sheet="list:pending" role="button" tabindex="0"><span>Pending</span><b>${pend.length}</b><span class="mute">${inr(money("pending"))}</span><span class="more">Details ›</span></div>
+   <div class="card stat c-blue" data-sheet="list:expected" role="button" tabindex="0"><span>Expected total</span><b>${inr(money("paid")+money("pending"))}</b><span class="mute">compare with your bank</span><span class="more">Details ›</span></div>
+   <div class="card stat c-violet" data-sheet="list:present" role="button" tabindex="0"><span>Present at event</span><b>${here}</b><span class="mute">rejected: ${P.length-used}</span><span class="more">Details ›</span></div>
+   <div class="card stat c-teal" data-sheet="list:coords" role="button" tabindex="0"><span>Coordinators</span><b>${coords.length}</b><span class="mute">${coords.filter(p=>p.b.status==="paid").length} confirmed</span><span class="more">Details ›</span></div></div>
    <div class="bar"><b>Count:</b><select id="mode"><option value="both" ${S.mode==="both"?"selected":""}>Confirmed + Pending</option><option value="paid" ${S.mode==="paid"?"selected":""}>Confirmed only</option></select>
    <span class="mute">Use "Confirmed only" for final food and hall numbers.</span></div>
    <div class="charts">${["c1","c2","c3"].map(i=>`<div class="card"><h3 id="${i}t"></h3><div class="pie"><canvas id="${i}" role="img"></canvas></div><ul class="leg" id="${i}l"></ul></div>`).join("")}</div>`;
@@ -244,7 +246,7 @@ function tBookings(){
     return `<div class="card bk st-${b.status}" data-bid="${b.id}"><div class="bk-h"><div><b>${esc(b.booking_code)}</b><div class="mute">${new Date(b.created_at).toLocaleString("en-IN",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div></div><div class="bk-r"><span class="bk-amt">${inr(b.amount_expected)}</span><span class="pill p-${b.status}">${b.status}</span></div></div>
     <div class="bk-p">${ts.map(t=>`<div><span class="mute">${esc(tlabel(t))}</span> ${lk("person",t.id,t.name)}</div>`).join("")}</div>
     <div class="bk-id"><span class="mute">Payment ID read</span><br>${idRead(b.id)}</div>
-    ${fl.length?`<div class="bk-f">${fl.map(x=>`<span class="flag">⚑ ${esc(x)}</span>`).join("")}</div>`:""}
+    ${fl.length?`<div class="bk-f">${fl.map(x=>`<span class="flag">⚑ ${flagH(x)}</span>`).join("")}</div>`:""}
     <div class="bk-a"><button class="ghost" data-shot="${b.id}">Screenshot</button>${b.status!=="paid"?`<button data-st="paid" data-b="${b.id}">Paid</button>`:""}${b.status!=="rejected"?`<button class="bad" data-st="rejected" data-b="${b.id}">Reject</button>`:""}${b.status!=="pending"?`<button class="ghost" data-st="pending" data-b="${b.id}">Pending</button>`:""}</div></div>`}).join("")+`</div>${rows.length?"":'<p class="mute">Nothing to show.</p>'}`;
 }
 function filteredPeople(){const f=S.f,q=f.q.toLowerCase();
@@ -275,7 +277,7 @@ async function shots(items){
 function vScan(){
   const un=S.bookings.filter(b=>b.kind!=="transfer"&&b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)),bad=S.scans.filter(s=>(!s.read_ok||!s.amounts)&&bk(s.booking_id).status!=="rejected");
   $("#v").innerHTML=`<div class="card"><h2>Scan screenshots</h2><p>Reads each payment screenshot on <b>this computer</b> (nothing is sent to any outside service), finds the transaction ID, and flags bookings that share an ID or a near-identical image. Participants see nothing.</p>
-  <p><b>${un.length}</b> not scanned yet · <b>${bad.length}</b> unreadable or from before the amount check · <b>${S.scans.length}</b> scanned in total</p>
+  <p>${un.length?`<button class="lk" data-sheet="list:scan_un"><b>${un.length}</b> not scanned yet</button>`:"<b>0</b> not scanned yet"} · ${bad.length?`<button class="lk" data-sheet="list:scan_bad"><b>${bad.length}</b> unreadable or from before the amount check</button>`:"<b>0</b> unreadable or from before the amount check"} · ${S.scans.length?`<button class="lk" data-sheet="list:scan_all"><b>${S.scans.length}</b> scanned in total</button>`:"<b>0</b> scanned in total"}</p>
   <p><button id="scan" ${S.scanning?"disabled":""}>Scan ${un.length} new</button> <button class="ghost" id="rescan" ${S.scanning||!bad.length?"disabled":""}>Re-scan ${bad.length} unreadable / older</button> <button class="ghost" id="rescanall" ${S.scanning||!S.scans.length?"disabled":""}>Re-scan all ${S.scans.length}</button></p>
   <p id="prog" class="mute"></p><p class="mute">Each screenshot is read twice, so allow about 3 seconds each. The first scan downloads the reading engine (a few MB). Keep this tab open while it runs. Results appear as flags under Bookings.</p></div>`;
 }
@@ -388,7 +390,7 @@ function vSettings(){const s=S.settings;
 /* ---------- IP flag banner (flag only: nothing is ever blocked) ---------- */
 function ipBanner(){const f=S.ipf;if(!f||!f.ips||!f.ips.length)return"";
   return `<div class="card" style="border:2px solid var(--warn)"><b>⚑ Many registrations from one network address</b> <span class="mute">(flag only, nothing is blocked; shared WiFi or a mobile network can look the same)</span>
-  <div class="wrap"><table><tr><th>Network address</th><th>Registrations</th><th>People</th><th>Pending</th><th>Paid</th><th>Rejected</th><th>Last</th></tr>${f.ips.map(i=>`<tr><td>${esc(i.ip)}</td><td>${i.bookings}</td><td>${i.people}</td><td>${i.pending}</td><td>${i.paid}</td><td>${i.rejected}</td><td>${esc(fdt(i.last_at))}</td></tr>`).join("")}</table></div>
+  <div class="wrap"><table><tr><th>Network address</th><th>Registrations</th><th>People</th><th>Pending</th><th>Paid</th><th>Rejected</th><th>Last</th></tr>${f.ips.map(i=>`<tr><td><button class="lk" data-sheet="list:ip:${esc(i.ip)}">${esc(i.ip)}</button></td><td>${i.bookings}</td><td>${i.people}</td><td>${i.pending}</td><td>${i.paid}</td><td>${i.rejected}</td><td>${esc(fdt(i.last_at))}</td></tr>`).join("")}</table></div>
   <span class="mute">The affected bookings are marked in the Bookings tab. Flag level: ${f.threshold} or more.</span></div>`}
 
 /* ---------- Transfers tab ---------- */
@@ -401,18 +403,18 @@ async function tcall(fn,args,okMsg){
   if(r.error){toast(terr(r.error),6000);await load();view();return null}
   await load();view();toast(okMsg);return r.data||true}
 function moneyPanel(){const m=S.money;if(!m)return"";
-  const c=(l,k,hint)=>`<div class="card stat"><span class="mute">${l}</span><b>${inr(m[k].amount)}</b><span class="mute">${m[k].count} transfer${m[k].count===1?"":"s"}${hint?" · "+hint:""}</span></div>`;
+  const c=(l,k,hint)=>`<div class="card stat" data-sheet="list:t_${k}" role="button" tabindex="0"><span class="mute">${l}</span><b>${inr(m[k].amount)}</b><span class="mute">${m[k].count} transfer${m[k].count===1?"":"s"}${hint?" · "+hint:""}</span><span class="more">Details ›</span></div>`;
   return `<h2>Transfer money</h2><p class="mute" style="margin-top:0">Only <b>public</b> transfers move money through you. This never mixes with the registration totals on the Overview.</p>
   <div class="grid">${c("Awaiting payment","awaiting_payment","asked, not paid yet")}${c("Awaiting your check","awaiting_verification","screenshot uploaded")}${c("Verified, waiting for Transfer","verified_waiting_transfer")}${c("To pay out to sellers","to_pay_out")}${c("Paid out","paid_out")}${c("To return to buyers","return_due")}${c("Returned","returned")}
-  <div class="card stat" style="border:2px solid var(--accent)"><span class="mute">Held by you right now</span><b>${inr(m.held_now)}</b><span class="mute">should match the bank, apart from the registration money</span></div></div>`}
+  <div class="card stat" data-sheet="list:t_held_now" role="button" tabindex="0" style="border:2px solid var(--accent)"><span class="mute">Held by you right now</span><b>${inr(m.held_now)}</b><span class="mute">should match the bank, apart from the registration money</span><span class="more">Details ›</span></div></div>`}
 function tCard(x){
   const b=buyerOf(x),t=sellerTk(x),pub=x.kind==="public",call=!!x.seller_call_confirmed_at,asked=!!x.payment_requested_at,sub=!!x.payment_submitted_at,ver=!!x.payment_verified_at,canT=call&&(!pub||ver);
   const tick=(ok,txt)=>`<div>${ok?"✅":"⬜"} ${txt}</div>`;
   const here=t&&t.checked_in_at;
-  return `<div class="card" style="border-color:${here?"var(--err)":"var(--line)"}"><div class="bar"><b style="flex:1">${MODE(x.kind)} transfer · ${esc(sellerLbl(x))} ${esc(x.seller_name)} → ${b?esc(b.name):"(no buyer)"}</b><span class="mute">waiting ${tAge(x.updated_at||x.created_at)}</span></div>
+  return `<div class="card" style="border-color:${here?"var(--err)":"var(--line)"}"><div class="bar"><b style="flex:1">${MODE(x.kind)} transfer · ${esc(sellerLbl(x))} ${sellerLk(x)} → ${b?buyerLk(x):"(no buyer)"}</b><span class="mute">waiting ${tAge(x.updated_at||x.created_at)}</span></div>
   ${here?`<p class="err"><b>The seller has already entered the hall.</b> Transfer will be refused. Reject this transfer.</p>`:""}
-  <div class="two"><div><b>Seller (original ticket)</b><div>${esc(x.seller_name)} · ${esc(sellerLbl(x))}</div><div>Registered phone: <b>${esc(x.seller_phone)}</b></div>${pub?`<div>Payout UPI / phone to read back: <b>${esc(x.seller_upi||"")}</b></div>`:""}</div>
-  <div><b>Buyer (new person)</b>${b?`<div>${esc(b.name)} · ${esc(b.phone)}</div><div>${esc(b.email)}</div><div>${esc(b.location)} · ${esc(b.attendance)} · ${esc(b.food)}</div><div class="mute">Applied ${esc(fdt(b.created_at))}</div>`:`<div class="mute">No buyer</div>`}</div></div>
+  <div class="two"><div><b>Seller (original ticket)</b><div>${sellerLk(x)} · ${esc(sellerLbl(x))}</div><div>Registered phone: <b>${esc(x.seller_phone)}</b></div>${pub?`<div>Payout UPI / phone to read back: <b>${esc(x.seller_upi||"")}</b></div>`:""}</div>
+  <div><b>Buyer (new person)</b>${b?`<div>${buyerLk(x)} · ${esc(b.phone)}</div><div>${esc(b.email)}</div><div>${esc(b.location)} · ${esc(b.attendance)} · ${esc(b.food)}</div><div class="mute">Applied ${esc(fdt(b.created_at))}</div>`:`<div class="mute">No buyer</div>`}</div></div>
   <div style="margin:10px 0"><label style="font-weight:600;display:block"><input type="checkbox" data-tcall="${x.id}" ${call?"checked":""}> I phoned the seller's <u>registered</u> number (${esc(x.seller_phone)}), not a number typed in any form</label>
   <p class="mute" style="margin:2px 0 8px">${pub?"Ask: “Is this ticket still yours? Shall we pass it to another person? Your payout goes to the UPI ID I will read back.” Read back the payout UPI ID shown above.":`Ask: “Shall I transfer this ticket to ${esc(b?b.name:"the buyer")}? We assume the payment is settled between you two, as you chose a private transfer.”`}</p></div>
   ${pub?`<div style="margin:6px 0">${tick(call,"Seller called")}${tick(asked,"Buyer asked to pay ₹"+esc(x.amount_due??"…"))}${tick(sub,"Buyer uploaded a screenshot")}${tick(ver,"Payment verified"+(ver?": ₹"+x.amount_received+" received":""))}</div>
@@ -430,14 +432,14 @@ function vTransfers(){
   <h2 style="margin-top:18px">Waiting for you (${open.length})</h2>${open.length?open.map(tCard).join(""):`<p class="mute">Nothing is waiting.</p>`}
   <h2 style="margin-top:18px">Active codes (${codes.length})</h2><p class="mute" style="margin-top:0">A seller made a code and no buyer has used it yet. For a <b>public</b> transfer, find a buyer and give them the code.</p>
   ${codes.length?`<div class="card wrap"><table><tr><th>Seller</th><th>Mode</th><th>Made</th><th>Expires</th><th>Payout</th><th>Actions</th></tr>${codes.map(x=>{const exp=new Date(x.code_expires_at)<new Date();
-    return `<tr><td>${esc(sellerLbl(x))} ${esc(x.seller_name)}<div class="mute">${esc(x.seller_phone)}</div></td><td>${MODE(x.kind)}</td><td>${esc(fdt(x.created_at))}</td><td>${exp?`<span class="pill p-rejected">expired</span> `:""}${esc(fdt(x.code_expires_at))}</td><td>${esc(x.seller_upi||"–")}</td>
+    return `<tr><td>${esc(sellerLbl(x))} ${sellerLk(x)}<div class="mute">${esc(x.seller_phone)}</div></td><td>${MODE(x.kind)}</td><td>${esc(fdt(x.created_at))}</td><td>${exp?`<span class="pill p-rejected">expired</span> `:""}${esc(fdt(x.code_expires_at))}</td><td>${esc(x.seller_upi||"–")}</td>
     <td>${x.kind==="public"?`<b>Code ${esc(x.code||"")}</b> `:""}<button class="sm ghost" data-tact="extend" data-id="${x.id}">Extend</button> <button class="sm bad" data-tact="reject" data-id="${x.id}">Cancel code</button></td></tr>`}).join("")}</table></div>`:`<p class="mute">No active codes.</p>`}
   <h2 style="margin-top:18px">Pay the seller (${payout.length})</h2><p class="mute" style="margin-top:0">Public transfers that went through. Pay the seller <b>exactly the amount received</b>, then record the reference.</p>
-  ${payout.length?`<div class="card wrap"><table><tr><th>Seller</th><th>Pay to</th><th>Amount</th><th></th></tr>${payout.map(x=>`<tr><td>${esc(sellerLbl(x))} ${esc(x.seller_name)}</td><td>${esc(x.seller_upi||"")}</td><td><b>${inr(x.amount_received)}</b></td><td><button class="sm" data-tact="paid" data-id="${x.id}">Mark seller paid</button></td></tr>`).join("")}</table></div>`:`<p class="mute">Nobody to pay.</p>`}
+  ${payout.length?`<div class="card wrap"><table><tr><th>Seller</th><th>Pay to</th><th>Amount</th><th></th></tr>${payout.map(x=>`<tr><td>${esc(sellerLbl(x))} ${sellerLk(x)}</td><td>${esc(x.seller_upi||"")}</td><td><b>${inr(x.amount_received)}</b></td><td><button class="sm" data-tact="paid" data-id="${x.id}">Mark seller paid</button></td></tr>`).join("")}</table></div>`:`<p class="mute">Nobody to pay.</p>`}
   <h2 style="margin-top:18px">Return money to a buyer (${ret.length})</h2><p class="mute" style="margin-top:0">A public transfer failed after the buyer had paid. Send the money back, then record the reference.</p>
-  ${ret.length?`<div class="card wrap"><table><tr><th>Buyer</th><th>Phone</th><th>Amount</th><th></th></tr>${ret.map(x=>{const b=S.buyers.find(y=>y.transfer_id===x.id);return `<tr><td>${b?esc(b.name):"?"}</td><td>${b?esc(b.phone):""}</td><td>${x.amount_received?`<b>${inr(x.amount_received)}</b>`:"check the bank for the amount received"}</td><td><button class="sm" data-tact="returned" data-id="${x.id}">Mark returned</button></td></tr>`}).join("")}</table></div>`:`<p class="mute">Nothing to return.</p>`}
+  ${ret.length?`<div class="card wrap"><table><tr><th>Buyer</th><th>Phone</th><th>Amount</th><th></th></tr>${ret.map(x=>{const b=S.buyers.find(y=>y.transfer_id===x.id);return `<tr><td>${b?buyerLk(x):"?"}</td><td>${b?esc(b.phone):""}</td><td>${x.amount_received?`<b>${inr(x.amount_received)}</b>`:"check the bank for the amount received"}</td><td><button class="sm" data-tact="returned" data-id="${x.id}">Mark returned</button></td></tr>`}).join("")}</table></div>`:`<p class="mute">Nothing to return.</p>`}
   <h2 style="margin-top:18px">Recent history</h2>
-  ${past.length?`<div class="card wrap"><table><tr><th>When</th><th>Mode</th><th>Ticket</th><th>Seller</th><th>Buyer</th><th>Result</th><th>Note</th></tr>${past.map(x=>{const b=S.buyers.find(y=>y.transfer_id===x.id);return `<tr><td>${esc(fdt(x.decided_at||x.updated_at))}</td><td>${MODE(x.kind)}</td><td>${esc(sellerLbl(x))}</td><td>${esc(x.seller_name)}</td><td>${b?esc(b.name):"–"}${x.status==="done"&&x.result_ticket_id?(()=>{const rt=S.tickets.find(t=>t.id===x.result_ticket_id),rb=rt&&bk(rt.booking_id);return rb&&rb.booking_code?`<div class="mute">New Booking ID <b>${esc(rb.booking_code)}</b></div>`:""})():""}</td><td><span class="pill ${x.status==="done"?"p-paid":"p-rejected"}">${x.status==="withdrawn"?"closed":x.status}</span></td><td class="n">${esc(x.decision_note||"")}</td></tr>`}).join("")}</table></div>`:`<p class="mute">Nothing yet.</p>`}`;
+  ${past.length?`<div class="card wrap"><table><tr><th>When</th><th>Mode</th><th>Ticket</th><th>Seller</th><th>Buyer</th><th>Result</th><th>Note</th></tr>${past.map(x=>{const b=S.buyers.find(y=>y.transfer_id===x.id);return `<tr><td>${esc(fdt(x.decided_at||x.updated_at))}</td><td>${MODE(x.kind)}</td><td>${esc(sellerLbl(x))}</td><td>${sellerLk(x)}</td><td>${b?buyerLk(x):"–"}${x.status==="done"&&x.result_ticket_id?(()=>{const rt=S.tickets.find(t=>t.id===x.result_ticket_id),rb=rt&&bk(rt.booking_id);return rb&&rb.booking_code?`<div class="mute">New Booking ID <b>${esc(rb.booking_code)}</b></div>`:""})():""}</td><td><span class="pill ${x.status==="done"?"p-paid":"p-rejected"}">${x.status==="withdrawn"?"closed":x.status}</span></td><td class="n">${esc(x.decision_note||"")}</td></tr>`}).join("")}</table></div>`:`<p class="mute">Nothing yet.</p>`}`;
 }
 async function tAction(act,id){
   const x=S.transfers.find(y=>y.id===id);if(!x)return;const b=buyerOf(x);
@@ -482,11 +484,11 @@ function aboutCard(s){
   <p><button id="aboutsave">Save</button></p></div>`}
 function vFeedback(){
   const rated=S.fb.filter(x=>x.rating),avg=rated.length?rated.reduce((a,x)=>a+x.rating,0)/rated.length:0,dist=[5,4,3,2,1].map(n=>[n,rated.filter(x=>x.rating===n).length]);
-  const bk=Object.fromEntries(S.bookings.map(b=>[b.id,b])),who=id=>{const l=S.tickets.filter(x=>x.booking_id===id).sort((a,b)=>(a.reg_seq||0)-(b.reg_seq||0));return l.length?l[0].name+(l.length>1?" and "+(l.length-1)+(l.length===2?" other":" others"):""):"–"};
+  const bk=Object.fromEntries(S.bookings.map(b=>[b.id,b])),who=id=>{const l=S.tickets.filter(x=>x.booking_id===id).sort((a,b)=>(a.reg_seq||0)-(b.reg_seq||0));return l.length?lk("person",l[0].id,l[0].name)+(l.length>1?` <button class="lk" data-sheet="booking:${id}">and ${l.length-1}${l.length===2?" other":" others"}</button>`:""):"–"};
   $("#v").innerHTML=`<div class="grid"><div class="card stat"><span class="mute">Answers received</span><b>${S.fb.length}</b><span class="mute">${S.bookings.filter(b=>b.kind==="registration").length} registration bookings</span></div>
-  <div class="card stat"><span class="mute">Average excitement</span><b>${rated.length?avg.toFixed(1)+" / 5":"–"}</b><span class="mute">${rated.length} ratings · ${dist.map(d=>d[0]+"★ "+d[1]).join(" · ")}</span></div></div>
+  <div class="card stat"><span class="mute">Average excitement</span><b>${rated.length?avg.toFixed(1)+" / 5":"–"}</b><span class="mute">${rated.length} ratings · ${dist.map(d=>d[1]?`<button class="lk" data-sheet="list:fb:${d[0]}">${d[0]}★ ${d[1]}</button>`:d[0]+"★ 0").join(" · ")}</span></div></div>
   <div class="card wrap"><table><tr><th>When</th><th>Booking</th><th>Name</th><th>Excitement</th><th>Suggestions / ideas / expectations</th></tr>`+
-  (S.fb.length?S.fb.map(x=>`<tr><td>${esc(new Date(x.updated_at).toLocaleString())}</td><td>${esc(bk[x.booking_id]?bk[x.booking_id].booking_code:"–")}</td><td>${esc(who(x.booking_id))}</td><td>${x.rating?x.rating+" / 5":"–"}</td><td style="white-space:pre-wrap;max-width:420px">${esc(x.comment||"")}</td></tr>`).join(""):`<tr><td colspan="5" class="mute">Nothing yet.</td></tr>`)+`</table></div>`}
+  (S.fb.length?S.fb.map(x=>`<tr><td>${esc(new Date(x.updated_at).toLocaleString())}</td><td>${bk[x.booking_id]?lk("booking",x.booking_id,bk[x.booking_id].booking_code):"–"}</td><td>${who(x.booking_id)}</td><td>${x.rating?x.rating+" / 5":"–"}</td><td style="white-space:pre-wrap;max-width:420px">${esc(x.comment||"")}</td></tr>`).join(""):`<tr><td colspan="5" class="mute">Nothing yet.</td></tr>`)+`</table></div>`}
 function feedbackCard(s){
   if(s.ask_feedback===undefined)return"";
   return `<div class="card"><h2>Feedback questions</h2>
@@ -516,10 +518,10 @@ const nav=st=>{try{history.replaceState({...history.state,y:window.scrollY},"")}
   if(tabChanged)view();else renderSheet()};
 const openSheet=(type,id)=>nav({tab:S.tab,sheets:S.sheets.concat([{type,id}])});
 function gotoTab(tab,type,id){const who=type==="person"?people().find(x=>x.id===id):null;
-  if(tab==="people"){S.f={q:"",food:"",loc:"",att:"",pay:"",type:"",review:false,here:""};if(who&&who.transferred_out_at)S.showMoved=true}
-  if(tab==="bookings")S.f={...S.f,q:"",pay:"",review:false};
+  if(tab==="people"){S.f={q:"",food:"",loc:"",att:"",pay:"",type:"",review:false,here:""};if(who&&who.transferred_out_at)S.showMoved=true;if(type==="pf"){const[k,v]=id.split("=");S.f[k]=v}}
+  if(tab==="bookings"){S.f={...S.f,q:"",pay:type==="bf"?id:"",review:false}}
   nav({tab,sheets:[]});
-  const el=document.querySelector(`[data-${type==="person"?"pid":"bid"}="${id}"]`);
+  const el=type==="person"||type==="booking"?document.querySelector(`[data-${type==="person"?"pid":"bid"}="${id}"]`):null;
   if(el){el.scrollIntoView({block:"center"});el.classList.add("flash")}}
 window.addEventListener("popstate",e=>{const st=e.state;if(!S.staff||!st||!st.tab)return;
   const tabChanged=st.tab!==S.tab;S.sheets=(st.sheets||[]).slice();S.tab=st.tab;
@@ -537,27 +539,61 @@ function pSheet(id){
   ${row("At the event",p.transferred_out_at?'<span class="mute">ticket transferred away</span>':p.checked_in_at?`<b style="color:var(--ok)">✔ Present</b> <span class="mute">${esc(fdt(p.checked_in_at))}</span>`:'<span class="mute">not yet</span>')}
   ${row("Booking",lk("booking",p.booking_id,p.b.booking_code||"–"))}
   ${p.b.kind==="transfer"?row("Ticket origin",'<span class="mute">came through a ticket transfer</span>'):""}
-  ${tr.map(x=>{const b=buyerOf(x);return row("Transfer",`${MODE(x.kind)} · ${esc(x.status.replace(/_/g," "))}${b?" → "+esc(b.name):""}`)}).join("")}</div>`,
+  ${tr.map(x=>{const b=buyerOf(x);return row("Transfer",`${MODE(x.kind)} · ${esc(x.status.replace(/_/g," "))}${b?" → "+buyerLk(x):""}`)}).join("")}</div>`,
   tab:["people","Open in People tab ›","person",p.id]}}
 function bSheet(id){
   const b=S.bookings.find(x=>x.id===id);if(!b)return {title:"Booking",html:`<p class="err">This booking is no longer in the list.</p>`};
   const ts=S.tickets.filter(t=>t.booking_id===b.id).sort((x,y)=>(x.reg_seq||0)-(y.reg_seq||0)),fl=flags()[b.id]||[],row=(k,v)=>`<div class="sr"><span class="mute">${k}</span><span>${v}</span></div>`;
   return {title:b.booking_code,html:`<div class="mute">${esc(fdt(b.created_at))}${b.kind==="transfer"?" · transfer booking":""}</div>
   <div class="srs">${row("Status",`<span class="pill p-${b.status}">${esc(b.status)}</span>`)}${row("Amount",`<b>${inr(b.amount_expected)}</b>`)}${b.kind==="transfer"?"":row("Payment ID read",idRead(b.id))}</div>
-  ${fl.length?`<div class="bk-f">${fl.map(x=>`<span class="flag">⚑ ${esc(x)}</span>`).join("")}</div>`:""}
+  ${fl.length?`<div class="bk-f">${fl.map(x=>`<span class="flag">⚑ ${flagH(x)}</span>`).join("")}</div>`:""}
   <h3 class="sh3">People in this booking (${ts.length})</h3>
   <div class="srs">${ts.map(t=>row(esc(tlabel(t)),lk("person",t.id,t.name)+(t.transferred_out_at?' <span class="mute">transferred</span>':t.checked_in_at?' <span style="color:var(--ok)">✔</span>':""))).join("")||'<span class="mute">Nobody.</span>'}</div>
   ${b.screenshot_path&&b.kind!=="transfer"?`<p><button class="ghost sm" data-shot="${b.id}">Payment screenshot</button></p>`:""}`,
   tab:b.kind==="transfer"?null:["bookings","Open in Bookings tab ›","booking",b.id]}}
+const sp=(t,n)=>{const a=t.split(":");return[...a.slice(0,n-1),a.slice(n-1).join(":")]};
+const codeMap=()=>Object.fromEntries(S.bookings.map(b=>[b.booking_code,b.id]));
+const flagH=x=>{const m=codeMap();return esc(x).replace(/\b[A-Z0-9]{8}\b/g,c=>m[c]?lk("booking",m[c],c):c)};
+const bsum=bs=>bs.reduce((a,b)=>a+(b.amount_expected||0),0);
+const srow=(l,r,blk)=>`<div class="sr${blk?" blk":""}"><span>${l}</span><span>${r}</span></div>`;
+const bBlocks=bs=>bs.length?bs.map(b=>{const ts=S.tickets.filter(t=>t.booking_id===b.id);return srow(`${lk("booking",b.id,b.booking_code)}<span class="mute"> · ${esc(fdt(b.created_at))}</span><div class="nm">${ts.map(t=>lk("person",t.id,t.name)).join(", ")||'<span class="mute">no people</span>'}</div>`,`<b>${inr(b.amount_expected)}</b>`,1)}).join(""):'<p class="mute">None.</p>';
+const pRows=(ps,right)=>ps.length?ps.map(p=>srow(`${lk("person",p.id,p.name)}<div class="mute nm">${esc(tlabel(p))} · ${esc(p.b.booking_code||"")}</div>`,right?right(p):`<span class="pill p-${p.b.status}">${esc(p.b.status||"")}</span>`,1)).join(""):'<p class="mute">Nobody.</p>';
+const MF={awaiting_payment:x=>x.status==="pending_admin"&&x.payment_requested_at&&!x.payment_submitted_at,awaiting_verification:x=>x.status==="pending_admin"&&x.payment_submitted_at&&!x.payment_verified_at,verified_waiting_transfer:x=>x.status==="pending_admin"&&x.payment_verified_at,to_pay_out:x=>x.status==="done"&&!x.seller_paid_at,paid_out:x=>!!x.seller_paid_at,return_due:x=>x.return_due&&!x.returned_at,returned:x=>!!x.returned_at,
+  held_now:x=>(x.status==="pending_admin"&&x.payment_verified_at)||(x.status==="done"&&!x.seller_paid_at)||(x.return_due&&!x.returned_at&&x.payment_verified_at)};
+const MAMT={awaiting_payment:x=>x.amount_due,awaiting_verification:x=>x.amount_due,return_due:x=>x.amount_received??x.amount_due,returned:x=>x.amount_received??x.amount_due};
+const MT={awaiting_payment:"Awaiting payment",awaiting_verification:"Awaiting your check",verified_waiting_transfer:"Verified, waiting for Transfer",to_pay_out:"To pay out to sellers",paid_out:"Paid out",return_due:"To return to buyers",returned:"Returned",held_now:"Held by you right now"};
+const buyerTk=x=>S.tickets.find(t=>t.transferred_from===x.ticket_id);
+const sellerLk=x=>{const t=sellerTk(x);return t?lk("person",t.id,x.seller_name):esc(x.seller_name)};
+const buyerLk=x=>{const b=buyerOf(x),t=buyerTk(x);return b?(t?lk("person",t.id,b.name):esc(b.name)):'<span class="mute">no buyer</span>'};
+function lSheet(key){
+  const P=live(),paid=P.filter(p=>p.b.status==="paid"),pend=P.filter(p=>p.b.status==="pending"),liveP=P.filter(p=>p.b.status!=="rejected"),cap=S.settings.cap;
+  const bs=st=>S.bookings.filter(b=>b.status===st),intro=t=>`<p class="sum">${t}</p>`,co=paid.filter(p=>p.kind==="coordinator").length;
+  if(key==="active")return{title:"Active tickets",html:intro(`<b>${paid.length}</b> paid tickets (${paid.length-co} guests + ${co} coordinators) from ${bs("paid").length} paid bookings. Money: <b>${inr(bsum(bs("paid")))}</b>.`)+bBlocks(bs("paid")),tab:["people","Open paid people in People tab ›","pf","pay=paid"]};
+  if(key==="pending")return{title:"Pending",html:intro(`<b>${pend.length}</b> people in ${bs("pending").length} bookings, waiting for you to check the payment. <b>${inr(bsum(bs("pending")))}</b>.`)+bBlocks(bs("pending")),tab:["bookings","Open pending in Bookings tab ›","bf","pending"]};
+  if(key==="expected")return{title:"Expected total",html:intro(`<b>${inr(bsum(bs("paid")))}</b> confirmed + <b>${inr(bsum(bs("pending")))}</b> pending = <b>${inr(bsum(bs("paid"))+bsum(bs("pending")))}</b>. Compare with your bank (registration money only).`)+`<h3 class="sh3">Confirmed bookings (${bs("paid").length}) · ${inr(bsum(bs("paid")))}</h3>`+bBlocks(bs("paid"))+`<h3 class="sh3">Pending bookings (${bs("pending").length}) · ${inr(bsum(bs("pending")))}</h3>`+bBlocks(bs("pending"))};
+  if(key==="spots")return{title:"Spots used",html:intro(`<b>${liveP.length}</b> of ${cap} spots are used: ${paid.length} active + ${pend.length} pending. <b>${Math.max(cap-liveP.length,0)}</b> left. Rejected and transferred-away tickets are not counted.`)+`<h3 class="sh3">Active (${paid.length})</h3>`+pRows(paid)+`<h3 class="sh3">Pending (${pend.length})</h3>`+pRows(pend)};
+  if(key==="present"){const h=paid.filter(p=>p.checked_in_at);return{title:"Present at event",html:intro(`<b>${h.length}</b> of ${paid.length} active tickets have entered.`)+pRows(h,p=>`<span style="color:var(--ok)">✔ ${esc(fdt(p.checked_in_at))}</span>`),tab:["people","Open present people in People tab ›","pf","here=yes"]}}
+  if(key==="coords"){const c=liveP.filter(p=>p.kind==="coordinator");return{title:"Coordinators",html:intro(`<b>${c.length}</b> coordinators, ${c.filter(p=>p.b.status==="paid").length} confirmed.`)+pRows(c),tab:["people","Open coordinators in People tab ›","pf","type=coordinator"]}}
+  if(key.startsWith("t_")){const k=key.slice(2),f=MF[k],am=MAMT[k]||(x=>x.amount_received),L=S.transfers.filter(x=>x.kind==="public"&&f(x)),tot=L.reduce((a,x)=>a+(am(x)||0),0),card=S.money&&S.money[k]!==undefined?(typeof S.money[k]==="object"?S.money[k].amount:S.money[k]):null;
+    return{title:MT[k]||"Transfers",html:intro(`<b>${L.length}</b> public transfer${L.length===1?"":"s"} · <b>${inr(tot)}</b>${k==="held_now"?". This is received money not yet paid out or returned: verified payments waiting for a Transfer, plus completed transfers where the seller is not paid yet, plus verified payments due back to buyers.":"."}`+(card!==null&&card!==tot?` <span class="err">The card says ${inr(card)}, this list adds up to ${inr(tot)}. Press Refresh.</span>`:""))+(L.length?L.map(x=>srow(`${sellerLk(x)} → ${buyerLk(x)}<div class="mute nm">${esc(sellerLbl(x))} · ${esc(x.status.replace(/_/g," "))} · ${esc(tAge(x.updated_at||x.created_at))} ago<br>Seller <a href="tel:${esc(x.seller_phone)}">${esc(x.seller_phone)}</a>${buyerOf(x)?` · Buyer <a href="tel:${esc(buyerOf(x).phone)}">${esc(buyerOf(x).phone)}</a>`:""}</div>`,`<b>${inr(am(x))}</b>`,1)).join(""):'<p class="mute">None.</p>')}}
+  if(key.startsWith("fb:")){const n=+key.slice(3),L=S.fb.filter(x=>x.rating===n);return{title:n+"★ answers",html:L.length?L.map(x=>{const b=S.bookings.find(y=>y.id===x.booking_id)||{},t=S.tickets.filter(y=>y.booking_id===x.booking_id).sort((a,c)=>(a.reg_seq||0)-(c.reg_seq||0));return srow(`${lk("booking",x.booking_id,b.booking_code||"–")}<div class="nm">${t.map(y=>lk("person",y.id,y.name)).join(", ")}</div>${x.comment?`<div class="mute nm" style="white-space:pre-wrap">${esc(x.comment)}</div>`:""}`,"",1)}).join(""):'<p class="mute">None.</p>'}}
+  if(key.startsWith("scan_")){const un=S.bookings.filter(b=>b.kind!=="transfer"&&b.status!=="rejected"&&!S.scans.some(s=>s.booking_id===b.id)),bad=S.scans.filter(s=>(!s.read_ok||!s.amounts)&&bk(s.booking_id).status!=="rejected").map(s=>bk(s.booking_id)),all=S.scans.map(s=>bk(s.booking_id));
+    const L=key==="scan_un"?un:key==="scan_bad"?bad:all;return{title:{scan_un:"Not scanned yet",scan_bad:"Unreadable or older scans",scan_all:"Scanned in total"}[key],html:bBlocks(L.filter(b=>b.id))}}
+  if(key.startsWith("ip:")){const ip=key.slice(3),m=(S.ipf&&S.ipf.by_booking)||{},L=S.bookings.filter(b=>m[b.booking_code]&&m[b.booking_code].ip===ip);return{title:"Network address",html:intro(`${esc(ip)} · ${L.length} bookings`)+bBlocks(L)}}
+  return{title:"Details",html:'<p class="mute">Nothing to show.</p>'}}
+function gSearch(){const q=(S.gq||"").trim().toLowerCase(),el=document.getElementById("sres");if(!el)return;
+  if(q.length<2){el.innerHTML='<p class="mute">Type at least 2 letters or digits: a name, phone number, ticket number or booking ID.</p>';return}
+  const L=people().filter(p=>p.name.toLowerCase().includes(q)||p.phone.includes(q)||tlabel(p).toLowerCase().includes(q)||(p.b.booking_code||"").toLowerCase().includes(q)).slice(0,30);
+  el.innerHTML=L.length?pRows(L,p=>p.transferred_out_at?'<span class="mute">transferred</span>':`<span class="pill p-${p.b.status}">${esc(p.b.status||"")}</span>`):'<p class="mute">Nobody found.</p>'}
 function renderSheet(){
   let m=document.getElementById("sheetbg");
   if(!S.staff||!S.sheets.length){if(m)m.remove();document.body.classList.remove("shopen");return}
-  const cur=S.sheets[S.sheets.length-1],c=cur.type==="person"?pSheet(cur.id):bSheet(cur.id);
+  const cur=S.sheets[S.sheets.length-1],c=cur.type==="person"?pSheet(cur.id):cur.type==="list"?lSheet(cur.id):cur.type==="search"?{title:"Find a person",html:`<input id="gq" type="search" placeholder="Name, phone, ticket or booking ID" value="${esc(S.gq||"")}" style="width:100%" autocomplete="off"><div id="sres" class="srs"></div>`}:bSheet(cur.id);
   if(!m){m=document.createElement("div");m.id="sheetbg";m.className="sheet-bg";document.body.appendChild(m)}
   document.body.classList.add("shopen");
   m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(c.title)}"><div class="sh-h">${S.sheets.length>1?'<button class="ghost sm" data-sback="1">‹ Back</button>':""}<h2>${esc(c.title)}</h2><button class="ghost sm" data-sback="1" aria-label="Close">✕</button></div>${c.html}${c.tab?`<p class="sh-f"><button data-gotab="${c.tab[0]}:${c.tab[2]}:${esc(c.tab[3])}">${c.tab[1]}</button></p>`:""}</div>`;
-  const sh=m.firstChild;sh.scrollTop=0}
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.sheets.length)history.back()});
+  const sh=m.firstChild;sh.scrollTop=0;if(cur.type==="search"){gSearch();const g=document.getElementById("gq");if(g&&!g.value)g.focus()}}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.sheets.length)history.back();if((e.key==="Enter"||e.key===" ")&&e.target.matches&&e.target.matches('[role=button][data-sheet]')){e.preventDefault();const[k,i]=sp(e.target.dataset.sheet,2);openSheet(k,i)}});
 
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{const t=e.target,id=t.id;
@@ -565,8 +601,8 @@ document.addEventListener("click",async e=>{const t=e.target,id=t.id;
   if(id==="logout"){await db.auth.signOut();S.staff=null;S.msg="";return view()}
   if(id==="refresh"){await load();view();return toast("Refreshed")}
   if(t.id==="sheetbg"||t.dataset.sback){history.back();return}
-  if(t.dataset.sheet){const[k,i]=t.dataset.sheet.split(":");return openSheet(k,i)}
-  if(t.dataset.gotab){const[tab,k,i]=t.dataset.gotab.split(":");return gotoTab(tab,k,i)}
+  const shT=t.closest&&t.closest("[data-sheet]");if(shT){const[k,i]=sp(shT.dataset.sheet,2);return openSheet(k,i)}
+  if(t.dataset.gotab){const[tab,k,i]=sp(t.dataset.gotab,3);return gotoTab(tab,k,i)}
   if(t.dataset.tab){if(t.dataset.tab===S.tab&&!S.sheets.length)return view();return nav({tab:t.dataset.tab,sheets:[]})}
     if(t.dataset.undo){
     if(!confirm("Undo this check-in?"))return;
@@ -627,7 +663,7 @@ document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="fmoved"){S.showMoved=t.checked;tPeople()}
   if(t.dataset.tcall){tcall("admin_transfer_confirm_call",{p_transfer:t.dataset.tcall,p_confirmed:t.checked},t.checked?"Call confirmed":"Call tick removed")}
   if(["fpay","ffood","floc","fatt","ftype","fhere","frev"].includes(t.id)){S.f.pay=$("#fpay")?.value??S.f.pay;if($("#ffood")){S.f.food=$("#ffood").value;S.f.loc=$("#floc").value;S.f.att=$("#fatt").value;S.f.type=$("#ftype").value;S.f.here=$("#fhere").value}if($("#frev"))S.f.review=$("#frev").checked;S.tab==="people"?tPeople():tBookings()}});
-document.addEventListener("input",e=>{if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
+document.addEventListener("input",e=>{if(e.target.id==="gq"){S.gq=e.target.value;gSearch();return}if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});
 boot();
 </script></body></html>
