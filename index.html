@@ -107,7 +107,10 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 2
 .invite>*{position:relative;z-index:1}
 .invite .band{height:6px;background:linear-gradient(90deg,var(--pink),var(--violet),var(--teal),var(--blue),var(--orange))}
 .invite .inner{padding:30px 24px 20px;text-align:center}
-.invite .logo{display:block;width:128px;height:auto;margin:0 auto 18px}
+.logo-wrap{text-align:center;margin:0 auto 18px}
+.logo-wrap img,.logo-wrap svg{display:block;width:128px;height:auto;margin:0 auto}
+.logo-wrap svg{overflow:visible}
+.logo-wrap [hidden]{display:none!important}
 .pres{font:800 1.05rem/1.3 var(--sans);color:var(--accent);margin:0;letter-spacing:.01em}
 .invite h1{font-size:clamp(3.2rem,16vw,4.8rem);margin:8px 0 0;line-height:1;color:#fff;letter-spacing:-.03em}
 .orn{display:flex;align-items:center;justify-content:center;gap:12px;margin:18px auto 12px;width:230px}
@@ -161,6 +164,7 @@ button.big{padding:18px 16px}
 <div id="gbar" role="status" aria-live="polite" hidden></div>
 <main id="app"></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="assets/logo-fluid.js?v=1"></script>
 <script>
 /* ===== CONFIG: change these in one place ===== */
 const CONFIG={
@@ -293,6 +297,10 @@ function render(){
   if(S.step==="ticket")drawTickets().catch(()=>{});
   window.scrollTo(0,0);
   reveal();
+    window.scrollTo(0,0);
+  reveal();
+  if(window.LogoFluid){const l=document.getElementById("logo"),f=document.getElementById("logo-fallback");if(l){try{l.removeAttribute("hidden");LogoFluid.mount(l,{jiggle:false,replay:false});if(f)f.hidden=true}catch(_){l.setAttribute("hidden","");if(f)f.hidden=false}}}
+}
 }
 /* scroll reveal: cards below the fold fade and rise in as they are scrolled to (skipped for reduced motion) */
 function reveal(){
@@ -305,7 +313,12 @@ function reveal(){
 }
 function vHome(){
   const n=getMine().length;
-  return `<section class="invite"><div class="band"></div><div class="inner"><img class="logo" src="assets/logo-mark.png" alt="Mallu Articles Bengaluru logo" width="128" height="87">
+  return `<section class="invite"><div class="band"></div><div class="inner"><div class="logo-wrap"><img id="logo-fallback" src="assets/logo-mark.png" alt="Mallu Articles Bengaluru logo" width="128" height="87"><svg class="logo" id="logo" viewBox="0 0 360 244" role="img" aria-label="Mallu Articles Bengaluru logo" hidden><defs><filter id="goo" filterUnits="userSpaceOnUse" x="-200" y="-150" width="760" height="550"><feGaussianBlur id="gooBlur" in="SourceGraphic" stdDeviation="0"/><feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/></filter></defs><g filter="url(#goo)"><path id="hl" fill="
+#FA9E01"/><path id="hr" fill="
+#FCFCFC"/><path id="bl" fill="
+#FCFCFC"/><path id="br" fill="
+#FFA701"/></g><path id="dr" fill="
+#9A9999"/></svg></div>
   <p class="pres">${esc(CONFIG.organiserName)} presents</p>
   <h1>${esc(CONFIG.eventName)}</h1>
   <div class="orn"><i></i><b></b><i></i></div>
