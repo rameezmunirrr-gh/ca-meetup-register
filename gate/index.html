@@ -48,6 +48,11 @@ a.btn{display:inline-block;font-weight:600;border-radius:10px;padding:6px 10px;f
 .ov button.line{background:transparent;color:#fff;border-color:#fff}
 .ov img{max-width:100%;max-height:50vh;border-radius:10px;margin-top:10px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;z-index:30}
+.lk{background:none;border:0;border-bottom:1px dotted var(--brand);border-radius:0;color:var(--ink);padding:3px 0;font:inherit;font-weight:700;text-align:left;cursor:pointer}
+body.shopen{overflow:hidden}.sheet-bg{position:fixed;inset:0;background:rgba(0,8,5,.72);z-index:10;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--card);border:1px solid var(--line);border-top:3px solid var(--brand);border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:88vh;overflow:auto;padding:0 16px calc(16px + env(safe-area-inset-bottom,0px))}
+.sh-h{position:sticky;top:0;background:var(--card);display:flex;align-items:center;gap:8px;padding:12px 0 8px}.sh-h h2{flex:1;margin:0;font-size:1.2rem;min-width:0;word-break:break-word}
+.srs{display:grid;margin:8px 0}.sr{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}.sr>span:last-child{text-align:right;word-break:break-word}.sh3{font-size:1rem;margin:14px 0 2px}.sh-f{margin:14px 0 0}.sh-f button{width:100%}
 </style></head>
 <body><header class="top"><div><img src="../assets/logo-mark.png" alt="" width="41" height="28"><span>Mallu Articles Bengaluru</span><small>Gate</small></div></header><div class="kasavu"></div><main id="app"></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
@@ -57,7 +62,7 @@ const CFG={url:"https://jddrwajazpsdrqpwlncu.supabase.co",key:"sb_publishable_W3
 const db=window.supabase.createClient(CFG.url,CFG.key,{auth:{persistSession:true,autoRefreshToken:true}});
 const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad=n=>String(n).padStart(3,"0"),inr=n=>"₹"+Number(n||0).toLocaleString("en-IN");
-const S={staff:null,msg:"",tickets:[],bookings:[],q:"",ov:null,busy:false,cam:false,camErr:"",stream:null,raf:0,last:0,lock:null};
+const S={staff:null,msg:"",tickets:[],bookings:[],q:"",ov:null,busy:false,cam:false,camErr:"",stream:null,raf:0,last:0,lock:null,sheets:[],camAsk:false};
 function toast(t){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),2400)}
 const bk=id=>S.bookings.find(b=>b.id===id)||{};
 const tlabel=t=>t.kind==="coordinator"?"E26-"+pad(t.coord_no)+"C":(t.ticket_no==null?"—":"E26-"+pad(t.ticket_no));
@@ -85,7 +90,7 @@ function stats(){
   return{conf:P.length,here:here.length,vC:f(P,"Veg"),vH:f(here,"Veg"),nC:f(P,"Non-veg"),nH:f(here,"Non-veg")}
 }
 function counts(){const el=$("#counts");if(!el)return;const s=stats();
-  el.innerHTML=`<div><b>${s.here} / ${s.conf}</b><span>Present</span></div><div><b>${s.vH} / ${s.vC}</b><span><i class="vm v"></i>Veg present</span></div><div><b>${s.nH} / ${s.nC}</b><span><i class="vm n"></i>Non-veg present</span></div>`}
+  el.innerHTML=`<div><b>${s.here} / ${s.conf}</b><span>Present</span></div><div><b>${s.vH} / ${s.vC}</b><span><i class="vm v"></i>Veg present</span></div><div><b>${s.nH} / ${s.nC}</b><span><i class="vm n"></i>Non-veg present</span></div>`;admitted();renderSheet()}
 
 /* ---------- views ---------- */
 function view(){
@@ -95,10 +100,11 @@ function view(){
   a.innerHTML=`<div class="bar"><h1>Gate · ${esc(S.staff.name)}</h1>${S.staff.role==="admin"?`<a class="btn" href="../admin/">Dashboard</a>`:""}<button class="ghost sm" id="logout">Sign out</button></div>
   ${S.msg?`<p class="err" role="alert">${esc(S.msg)}</p>`:""}
   <div class="counts" id="counts" style="margin-top:10px"></div>
-  <div class="card"><div class="cam"><video id="vid" playsinline muted></video><div class="frame"></div><div class="off" id="camoff">${S.cam?"":esc(S.camErr||"Camera is off")}</div></div>
-    <div class="row"><button id="camtoggle">${S.cam?"Stop camera":"Start camera"}</button></div>
+  <div class="card"><div class="cam"><video id="vid" playsinline muted></video><div class="frame"></div><div class="off" id="camoff">${S.cam?"":esc(S.camAsk?"Asking for camera permission… tap Allow.":S.camErr||"Camera is off")}</div></div>
+    <div class="row"><button id="camtoggle" ${S.camAsk?"disabled":""}>${S.cam?"Stop camera":S.camAsk?"Asking…":S.camErr?"Try again":"Start camera"}</button></div>
     <p class="note" style="margin-bottom:0">Point the camera at the QR code on the ticket. If the camera doesn't work, use the search below.</p></div>
-  <div class="card"><h2>Find a person</h2><input id="q" placeholder="Name, phone, ticket number or booking ID" value="${esc(S.q)}" autocomplete="off"><div id="results"></div></div>`;
+  <div class="card"><h2>Find a person</h2><input id="q" placeholder="Name, phone, ticket number or booking ID" value="${esc(S.q)}" autocomplete="off"><div id="results"></div></div>
+  <div class="card"><h2 id="admh">Admitted</h2><div id="admlist"></div></div>`;
   counts();results();
   if(S.cam)attachCam();
 }
@@ -114,6 +120,43 @@ function results(){
     return `<div class="res"><div><b>${esc(tlabel(t))}</b> ${esc(t.name)}<div class="note">${vm(t.food)} · ${esc(t.phone)} · ${esc(b.booking_code||"")}</div></div><div style="text-align:right">${pill}<div><button class="sm" data-pick="${t.id}" style="margin-top:6px">Open</button></div></div></div>`}).join(""):`<p class="note">No one found.</p>`;
 }
 
+/* ---------- admitted list (latest first) ---------- */
+const tm=iso=>iso?new Date(iso).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit",hour12:true}):"";
+function admitted(){
+  const el=$("#admlist");if(!el)return;
+  const L=S.tickets.filter(t=>t.checked_in_at&&!t.transferred_out_at).sort((a,b)=>new Date(b.checked_in_at)-new Date(a.checked_in_at));
+  const h=$("#admh");if(h)h.textContent="Admitted ("+L.length+")";
+  el.innerHTML=L.length?L.map(t=>`<div class="res"><div><button class="lk" data-sheet="person:${esc(t.id)}">${esc(t.name)}</button><div class="note">${esc(tlabel(t))} · ${esc(bk(t.booking_id).booking_code||"")}</div></div><div style="text-align:right"><span class="pill p-here">${esc(tm(t.checked_in_at))}</span></div></div>`).join(""):`<p class="note">No one has been admitted yet.</p>`;
+}
+
+/* ---------- preview sheets (person / booking) with the back gesture ---------- */
+const nav=sheets=>{try{history.pushState({sheets:sheets.slice()},"")}catch(_){}S.sheets=sheets;renderSheet()};
+const openSheet=(type,id)=>nav(S.sheets.concat([{type,id}]));
+window.addEventListener("popstate",e=>{S.sheets=((e.state&&e.state.sheets)||[]).slice();renderSheet()});
+const lk=(type,id,txt)=>`<button class="lk" data-sheet="${type}:${esc(id)}">${esc(txt)}</button>`;
+const srow=(k,v)=>`<div class="sr"><span class="mute">${k}</span><span>${v}</span></div>`;
+function pSheet(id){
+  const p=S.tickets.find(x=>x.id===id);if(!p)return{title:"Person",html:`<p class="err">This person is not in the list.</p>`};
+  const b=bk(p.booking_id),co=p.kind==="coordinator";
+  return{title:p.name,html:`<div class="mute">${esc(tlabel(p))} · ${co?"Coordinator":"Guest"}</div><div class="srs">
+    ${srow("Food",vm(p.food))}${srow("Phone",`<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>`)}
+    ${srow("Payment",`<span class="pill p-${esc(b.status)}">${b.status==="paid"?"Confirmed":esc(b.status||"")}</span>`)}
+    ${srow("At the event",p.transferred_out_at?'<span class="mute">ticket transferred away</span>':p.checked_in_at?`<b style="color:var(--ok)">✔ Present</b> <span class="mute">${esc(tm(p.checked_in_at))}</span>`:'<span class="mute">not yet</span>')}
+    ${srow("Booking",lk("booking",p.booking_id,b.booking_code||"–"))}</div>
+    ${!p.checked_in_at&&!p.transferred_out_at?`<p class="sh-f"><button data-act="admitpick" data-id="${esc(p.id)}">Admit ${esc(p.name)}</button></p>`:""}`}}
+function bSheet(id){
+  const b=S.bookings.find(x=>x.id===id);if(!b)return{title:"Booking",html:`<p class="err">This booking is not in the list.</p>`};
+  const ts=S.tickets.filter(t=>t.booking_id===b.id).sort((x,y)=>(x.reg_seq||0)-(y.reg_seq||0));
+  return{title:b.booking_code,html:`<div class="srs">${srow("Payment",`<span class="pill p-${esc(b.status)}">${b.status==="paid"?"Confirmed":esc(b.status)}</span>`)}</div>
+    <h3 class="sh3">People in this booking (${ts.length})</h3><div class="srs">${ts.map(t=>srow(esc(tlabel(t)),lk("person",t.id,t.name)+(t.transferred_out_at?' <span class="mute">transferred</span>':t.checked_in_at?' <span style="color:var(--ok)">✔ '+esc(tm(t.checked_in_at))+'</span>':""))).join("")||'<span class="mute">Nobody.</span>'}</div>`}}
+function renderSheet(){
+  let m=document.getElementById("sheetbg");
+  if(!S.staff||!S.sheets.length){if(m)m.remove();document.body.classList.remove("shopen");return}
+  const cur=S.sheets[S.sheets.length-1],c=cur.type==="person"?pSheet(cur.id):bSheet(cur.id);
+  if(!m){m=document.createElement("div");m.id="sheetbg";m.className="sheet-bg";document.body.appendChild(m)}
+  document.body.classList.add("shopen");
+  m.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(c.title)}"><div class="sh-h">${S.sheets.length>1?'<button class="ghost sm" data-sback="1">‹ Back</button>':""}<h2>${esc(c.title)}</h2><button class="ghost sm" data-sback="1" aria-label="Close">✕</button></div>${c.html}</div>`}
+
 /* ---------- overlays ---------- */
 function overlay(){
   document.querySelectorAll(".ov").forEach(x=>x.remove());const o=S.ov;if(!o)return;
@@ -125,40 +168,55 @@ function closeOv(){S.ov=null;S.cool=Date.now()+1500;overlay()}   // short pause 
 const person=r=>`<div class="name">${esc(r.name||"")}</div>${r.label?`<div class="lab">${esc(r.label)}</div>`:""}${r.food?`<div class="sub">${vm(r.food)}</div>`:""}${r.booking_code?`<div class="sub">Booking ${esc(r.booking_code)}${r.people_count>1?" · "+r.people_count+" people":""}</div>`:""}`;
 function showResult(r){
   const kind=r.kind==="coordinator"?`<div class="sub">COORDINATOR</div>`:"";
-  if(r.result==="ok")show("g",`<div class="big">ADMITTED ✓</div>${kind}${person(r)}<button data-act="next">Scan next</button>`,{auto:true});
+  if(r.result==="ok")show("g",`<div class="big">ADMITTED ✓</div>${kind}${person(r)}<button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button><button class="line" data-act="undo">Undo</button>`,{res:r});
   else if(r.result==="already_scanned"){const t=r.checked_in_at?new Date(r.checked_in_at).toLocaleTimeString("en-IN",{hour:"numeric",minute:"2-digit"}):"";
-    show("r",`<div class="big">ALREADY SCANNED</div>${kind}${person(r)}<div class="sub">Entered at ${esc(t)}${r.checked_in_by?" · checked by "+esc(r.checked_in_by):""}</div><button data-act="next">OK</button>`)}
+    show("r",`<div class="big">ALREADY SCANNED</div>${kind}${person(r)}<div class="sub">Entered at ${esc(t)}${r.checked_in_by?" · checked by "+esc(r.checked_in_by):""}</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`)}
   else if(r.result==="pending")show("a",`<div class="big">PAYMENT PENDING</div>${kind}${person(r)}<div class="sub">${inr(r.amount_expected)} expected</div>
-    <button data-act="shot">View payment screenshot</button><div id="shotbox"></div><button data-act="approve">Approve and admit</button><button class="line" data-act="next">Don't admit</button>`,{res:r})
-  else if(r.result==="rejected")show("r",`<div class="big">PAYMENT REJECTED</div>${person(r)}<div class="sub">Do not admit. Ask them to contact the organisers.</div><button data-act="next">OK</button>`)
-  else if(r.result==="cancelled")show("r",`<div class="big">TICKET CANCELLED</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.old_label||"This number")} is no longer valid.</div><div class="sub">Ask for their current ticket:</div><div class="lab">${esc(r.label||"")}</div><button data-act="next">OK</button>`)
-  else show("r",`<div class="big">INVALID TICKET</div><div class="sub">This ticket is not valid.</div><button data-act="next">OK</button>`);
-  if(r.result==="ok"){clearTimeout(S.autoT);S.autoT=setTimeout(()=>{if(S.ov&&S.ov.auto)closeOv()},2600)}
+    <button data-act="shot">View payment screenshot</button><div id="shotbox"></div><button data-act="approve">Approve and admit</button><button class="line" data-act="next">Don't admit, next scan</button><button class="line" data-act="home">Home page</button>`,{res:r})
+  else if(r.result==="rejected")show("r",`<div class="big">PAYMENT REJECTED</div>${person(r)}<div class="sub">Do not admit. Ask them to contact the organisers.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`)
+  else if(r.result==="cancelled")show("r",`<div class="big">TICKET CANCELLED</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.old_label||"This number")} is no longer valid.</div><div class="sub">Ask for their current ticket:</div><div class="lab">${esc(r.label||"")}</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`)
+  else show("r",`<div class="big">INVALID TICKET</div><div class="sub">This ticket is not valid.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`);
+}
+
+/* ---------- undo an admission ---------- */
+async function undoAdmit(r){
+  if(S.busy)return;S.busy=true;
+  try{
+    let x=await db.rpc("gate_undo_checkin",{p_id:r.id});
+    if(x.error&&/could not find the function|does not exist|PGRST202/i.test((x.error.code||"")+" "+(x.error.message||"")))x=await db.rpc("undo_checkin",{p_id:r.id});
+    if(x.error)throw x.error;
+    show("n",`<div class="big">ADMISSION UNDONE</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.label||"")} is marked as not present again.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`);
+    await loadData();counts();results();
+  }catch(e){const m=String((e&&e.message)||"");
+    show("r",`<div class="big">COULDN'T UNDO</div><div class="name">${esc(r.name||"")}</div><div class="sub">${/NOT_ALLOWED/.test(m)?"Only an admin can undo this. Ask an admin.":/UNDO_EXPIRED/.test(m)?"It is too late to undo here. Ask an admin.":esc(m.slice(0,120)||"Network problem. Try again.")}</div><button data-act="keep">Back</button><button class="line" data-act="home">Home page</button>`,{res:r})}
+  S.busy=false;
 }
 
 /* ---------- admitting ---------- */
 async function admit(args){
   if(S.busy)return;S.busy=true;
   try{const{data,error}=await db.rpc("admit_ticket",args);if(error)throw error;showResult(data);await loadData();counts();results()}
-  catch(e){show("n",`<div class="big">COULDN'T CHECK</div><div class="sub">${esc(((e&&e.message)||"Network problem").slice(0,120))}</div><div class="sub">Check the internet and scan again. If it then says ALREADY SCANNED, the person was admitted.</div><button data-act="next">OK</button>`)}
+  catch(e){show("n",`<div class="big">COULDN'T CHECK</div><div class="sub">${esc(((e&&e.message)||"Network problem").slice(0,120))}</div><div class="sub">Check the internet and scan again. If it then says ALREADY SCANNED, the person was admitted.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`)}
   S.busy=false;
 }
 const QR_RE=/^E26-(\d{1,6})(C?)\|([0-9a-f]{12})$/i;
 function handlePayload(text){
   const m=QR_RE.exec(String(text||"").trim());
-  if(!m){if(S.busy||S.ov)return;return show("r",`<div class="big">NOT A TICKET</div><div class="sub">This QR code is not an ${esc(CFG.event)} ticket.</div><button data-act="next">OK</button>`)}
+  if(!m){if(S.busy||S.ov)return;return show("r",`<div class="big">NOT A TICKET</div><div class="sub">This QR code is not an ${esc(CFG.event)} ticket.</div><button data-act="next">Next scan</button><button class="line" data-act="home">Home page</button>`)}
   return admit({p_ticket_no:+m[1],p_secret:m[3].toLowerCase(),p_approve:false,p_coord:m[2].toUpperCase()==="C"});
 }
 
 /* ---------- camera ---------- */
 async function startCam(){
-  S.camErr="";
+  S.camErr="";S.camAsk=true;view();
   try{
     S.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280}},audio:false});
     S.cam=true;try{S.lock=await navigator.wakeLock.request("screen")}catch(_){}
-  }catch(e){S.cam=false;S.camErr=/denied|NotAllowed|Permission/i.test(String(e&&(e.name||e.message)))?"Camera permission was denied. Allow the camera for this site in your browser settings, or use the search below.":"Couldn't start the camera. Use the search below."}
-  view();
+  }catch(e){S.cam=false;S.camErr=/denied|NotAllowed|Permission/i.test(String(e&&(e.name||e.message)))?"The camera is blocked for this page. Tap the lock icon next to the web address, open Permissions, set Camera to Allow, then tap Try again. Or use the search below.":"Couldn't start the camera. Tap Try again, or use the search below."}
+  S.camAsk=false;view();
 }
+/* when the person allows the camera later (in the browser's site settings), start it by itself */
+try{navigator.permissions&&navigator.permissions.query({name:"camera"}).then(st=>{st.onchange=()=>{if(st.state==="granted"&&S.staff&&!S.cam&&!S.camAsk)startCam()}}).catch(()=>{})}catch(_){}
 function stopCam(){cancelAnimationFrame(S.raf);if(S.stream)S.stream.getTracks().forEach(t=>t.stop());S.stream=null;S.cam=false;try{S.lock&&S.lock.release()}catch(_){}view()}
 function attachCam(){
   const v=$("#vid");if(!v||!S.stream)return;v.srcObject=S.stream;v.play().catch(()=>{});
@@ -177,26 +235,35 @@ function attachCam(){
 
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
+  if(e.target.id==="sheetbg"){history.back();return}
   const t=e.target.closest("button,a");if(!t)return;const id=t.id,ds=t.dataset;
+  if(ds.sback){history.back();return}
+  if(ds.sheet){const i=ds.sheet.indexOf(":");return openSheet(ds.sheet.slice(0,i),ds.sheet.slice(i+1))}
   if(id==="login"){const{error}=await db.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});S.msg=error?"Wrong email or password.":"";return error?view():boot()}
   if(id==="logout"){stopCam();await db.auth.signOut();S.staff=null;S.msg="";return view()}
   if(id==="camtoggle")return S.cam?stopCam():startCam();
   if(ds.pick){const p=S.tickets.find(x=>x.id===ds.pick);if(!p||p.transferred_out_at)return;const b=bk(p.booking_id);
     return show("n",`<div class="name">${esc(p.name)}</div><div class="lab">${esc(tlabel(p))}</div><div class="sub">${vm(p.food)}</div><div class="sub">Booking ${esc(b.booking_code||"")} · ${esc(b.status||"")}${p.checked_in_at?" · already present":""}</div>
-      <button data-act="admitpick" data-id="${p.id}">Admit ${esc(p.name)}</button><button class="line" data-act="next">Cancel</button>`)}
+      <button data-act="admitpick" data-id="${p.id}">Admit ${esc(p.name)}</button><button class="line" data-act="close">Cancel</button>`)}
   const act=ds.act;if(!act)return;
-  if(act==="next"){clearTimeout(S.autoT);return closeOv()}
-  if(act==="admitpick"){closeOv();return admit({p_id:ds.id,p_approve:false})}
+  if(act==="close"){return closeOv()}
+  if(act==="next"){closeOv();if(!S.cam&&!S.camAsk)startCam();return}
+  if(act==="home"){closeOv();S.sheets=[];renderSheet();return stopCam()}
+  if(act==="keep"){const r=S.ov&&S.ov.res;return r?showResult(r):closeOv()}
+  if(act==="undo"){const r=S.ov&&S.ov.res;if(!r)return;
+    return show("a",`<div class="big">UNDO ADMISSION?</div><div class="name">${esc(r.name||"")}</div><div class="sub">${esc(r.label||"")} will be marked as not present again.</div><button data-act="undo2">Yes, undo</button><button class="line" data-act="keep">No, keep admitted</button>`,{res:r})}
+  if(act==="undo2"){const r=S.ov&&S.ov.res;if(!r)return;return undoAdmit(r)}
+  if(act==="admitpick"){closeOv();S.sheets=[];renderSheet();return admit({p_id:ds.id,p_approve:false})}
   if(act==="shot"){const r=S.ov&&S.ov.res,box=$("#shotbox");if(!r||!box)return;box.textContent="Loading…";
     const{data,error}=await db.storage.from("payment-proofs").createSignedUrl(r.screenshot_path,300);
     box.innerHTML=error?`<div class="sub">Couldn't open the screenshot.</div>`:`<img src="${data.signedUrl}" alt="Payment screenshot">`;return}
   if(act==="approve"){const r=S.ov&&S.ov.res;if(!r)return;
     return show("a",`<div class="big">APPROVE PAYMENT?</div><div class="sub">This marks the <b>whole booking</b> ${esc(r.booking_code)} (${r.people_count} ${r.people_count>1?"people":"person"}, ${inr(r.amount_expected)}) as <b>Paid</b> and admits <b>${esc(r.name)}</b>.</div>
-      <button data-act="approve2">Yes, approve and admit</button><button class="line" data-act="next">No, go back</button>`,{res:r})}
+      <button data-act="approve2">Yes, approve and admit</button><button class="line" data-act="keep">No, go back</button>`,{res:r})}
   if(act==="approve2"){const r=S.ov&&S.ov.res;if(!r)return;closeOv();return admit({p_id:r.id,p_approve:true})}
 });
 document.addEventListener("input",e=>{if(e.target.id==="q"){S.q=e.target.value;results()}});
-document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click();if(e.key==="Escape"&&S.sheets.length&&!S.ov)history.back()});
 document.addEventListener("visibilitychange",async()=>{if(document.visibilityState==="visible"&&S.cam){try{S.lock=await navigator.wakeLock.request("screen")}catch(_){}}});
 boot();
 </script></body></html>
