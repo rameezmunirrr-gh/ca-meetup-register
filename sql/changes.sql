@@ -1908,3 +1908,24 @@ grant execute on function admin_set_event(timestamptz, text) to authenticated;
 --   4. rehearsal with test data, then sql/r2_07_cleanup_test_data.sql (removes all bookings/tickets/transfers, restarts numbering)
 -- Verified afterwards by the Database Snapshot workflow compared with the scratch copy (identical, see HANDOVER_NEXT_SESSION.md).
 -- ============================================================================
+
+
+-- 28 Oct 2026: r2_12 gate undo (run in Supabase by the owner on 28 Oct; full file: sql/r2_12_gate_undo.sql)
+-- Gate staff can undo an admission for 2 minutes; admins any time; after 2 minutes a non-admin gets UNDO_EXPIRED.
+create or replace function public.gate_undo_checkin(p_id uuid) returns void
+language plpgsql security definer set search_path to 'public' as $function$
+declare n int;
+begin
+  if not is_staff() then raise exception 'NOT_ALLOWED'; end if;
+  if is_admin() then
+    update tickets set checked_in_at = null, checked_in_by = null where id = p_id and checked_in_at is not null;
+  else
+    update tickets set checked_in_at = null, checked_in_by = null
+     where id = p_id and checked_in_at is not null and checked_in_at > now() - interval '2 minutes';
+  end if;
+  get diagnostics n = row_count;
+  if n = 0 then raise exception 'UNDO_EXPIRED'; end if;
+end $function$;
+
+revoke execute on function public.gate_undo_checkin(uuid) from public, anon;
+grant execute on function public.gate_undo_checkin(uuid) to authenticated;
