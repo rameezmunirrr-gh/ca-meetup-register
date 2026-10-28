@@ -85,7 +85,7 @@ function stats(){
   return{conf:P.length,here:here.length,vC:f(P,"Veg"),vH:f(here,"Veg"),nC:f(P,"Non-veg"),nH:f(here,"Non-veg")}
 }
 function counts(){const el=$("#counts");if(!el)return;const s=stats();
-  el.innerHTML=`<div><b>${s.here} / ${s.conf}</b><span>Present out of Confirmed guests</span></div><div><b>${s.vH} / ${s.vC}</b><span><i class="vm v"></i>Veg present</span></div><div><b>${s.nH} / ${s.nC}</b><span><i class="vm n"></i>Non-veg present</span></div>`}
+  el.innerHTML=`<div><b>${s.here} / ${s.conf}</b><span>Present</span></div><div><b>${s.vH} / ${s.vC}</b><span><i class="vm v"></i>Veg present</span></div><div><b>${s.nH} / ${s.nC}</b><span><i class="vm n"></i>Non-veg present</span></div>`}
 
 /* ---------- views ---------- */
 function view(){
