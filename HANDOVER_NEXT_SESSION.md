@@ -11,6 +11,23 @@
 
 ---
 
+## CHECKPOINT: end of the 26 to 28 Oct 2026 session (owner closed the session here)
+
+**State:** `main` is clean and equal to the remote; every pull request (#1 to #30) is merged; the three browser suites pass on `main` (public 101, admin 73, gate 35); `r2_12_gate_undo.sql` is live (confirmed in the snapshot of 28 Oct 2026) and recorded in `sql/changes.sql`. The app is still in **testing mode**: registration on for testing, test data only, transfers off, not ready for launch.
+
+**Pending, in the order I would do it (nothing blocks anything else):**
+1. **Real-account tests (the owner):** create a gate login, then on a phone: sign in at `/admin/` (only the Gate tab must show), scan a real ticket, Undo within 2 minutes (works) and after 2 minutes (says ask an admin), deny the camera and press Try again. Also an admin Undo after 2 minutes, and the staff page on real phones. Report what is odd and Claude fixes it.
+2. **A database test suite for `r2_12`** (`test_r2_12.py`: non-staff refused, gate within and after 2 minutes, admin after 2 minutes, a wrong id), with a deliberate-mistake check. Not written yet.
+3. **About page content** from the owner (text, reels as links, photos with permission) and the logo as an SVG.
+4. **Wording pass on the staff page** (its look and phone layout were rebuilt, its text only partly reworded).
+5. **Housekeeping:** a real `README.md`; G15 and G17 (section 12); old merged branches (none are left on GitHub at the checkpoint).
+6. **Left out on purpose, ask before building:** tappable Overview pie slices; tappable "rejected: N" on the Present card; the Settings log linked to bookings.
+7. **Pre-launch checklist** (section 11) when the owner decides, then launch. After the event: section 11, item 10.
+
+**Never verified by anyone:** a complete real payment; a real gate account (the real 2-minute undo, the real camera scan on the merged page); the admin side of the undo rule; the new staff page on a range of real phones; the transfer screens against the real database (transfers are off).
+
+---
+
 ## 0. The 60-second summary
 
 **0.1 What exists and works (all built, tested, applied live)**
@@ -74,7 +91,7 @@ The original questions follow, for reference.
 | `r2_01` to `r2_06` (+ `r2_02b`, `r2_02c`) | Release 2 backend pieces. Applied. Kept because the tests build on them. |
 | `r2_07_cleanup_test_data.sql` | Deletes ALL bookings, tickets, emails, transfers, IP records, scans and sessions, restarts numbering at 1, switches transfers off; keeps staff, settings and the settings log. **Refuses to run while registration is open.** Run once on 25 Oct. Do not run again after real bookings exist. |
 | `r2_08` coordinators can transfer; `r2_09` About switch; `r2_10` Email switch; `r2_11` feedback | Applied. |
-| `r2_12_gate_undo.sql` | `gate_undo_checkin(uuid)`: gate staff undo an admission for 2 minutes, admins any time. **Applied by the owner on 28 Oct 2026.** Recorded in `changes.sql` (28 Oct 2026); not in a snapshot at the time of writing (run Actions, Database Snapshot, Run workflow); there is no `test_r2_12` database suite (it was checked only by reading it against the snapshot's `is_staff`, `is_admin` and `tickets` columns, and through the page tests with a mocked database). |
+| `r2_12_gate_undo.sql` | `gate_undo_checkin(uuid)`: gate staff undo an admission for 2 minutes, admins any time. **Applied by the owner on 28 Oct 2026.** Recorded in `changes.sql` (28 Oct 2026) and **confirmed live in the snapshot of 28 Oct 2026, 09:53 UTC** (body identical to the file; execute rights `authenticated` only); there is no `test_r2_12` database suite (it was checked only by reading it against the snapshot's `is_staff`, `is_admin` and `tickets` columns, and through the page tests with a mocked database). |
 | `archive/r2_04_admin_matched_NOT_USED.sql` (and `scratch-db/archive/`) | Abandoned designs. **Never apply.** |
 
 ---
@@ -333,7 +350,7 @@ One open transfer per seat; a code is unique among active codes; Transfer needs 
 
 ### 8.4 Open after 28 Oct 2026
 - **Real gate account:** none exists yet. Test with a real gate login on a phone: sign in at `/admin/` (it should show only the Gate tab), scan a real ticket, press Undo within 2 minutes (it should work) and after 2 minutes (it should say ask an admin), and try the camera permission flow (deny, then Try again).
-- **`r2_12`:** it is in `sql/changes.sql`; run Actions, Database Snapshot, Run workflow, and check the snapshot contains `gate_undo_checkin`. It has no database test suite yet (a `test_r2_12` with attacks: non-staff, gate after 2 minutes, admin after 2 minutes, a wrong id, would be the right next step).
+- **`r2_12`:** in `sql/changes.sql` and confirmed in the 28 Oct snapshot. Still open: a database test suite for it. It has no database test suite yet (a `test_r2_12` with attacks: non-staff, gate after 2 minutes, admin after 2 minutes, a wrong id, would be the right next step).
 - **Gaps the owner knowingly left:** tappable pie slices; the Settings log is not linked; the Present card's "rejected: N" is not tappable.
 - **Housekeeping still open:** about 24 merged branches on GitHub could be deleted; a real `README.md`; G15 and G17 (notes section 12); the About page content from the owner.
 
