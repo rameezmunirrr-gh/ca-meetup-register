@@ -297,10 +297,7 @@ function render(){
   if(S.step==="ticket")drawTickets().catch(()=>{});
   window.scrollTo(0,0);
   reveal();
-    window.scrollTo(0,0);
-  reveal();
   if(window.LogoFluid){const l=document.getElementById("logo"),f=document.getElementById("logo-fallback");if(l){try{l.removeAttribute("hidden");LogoFluid.mount(l,{jiggle:false,replay:false});if(f)f.hidden=true}catch(_){l.setAttribute("hidden","");if(f)f.hidden=false}}}
-}
 }
 /* scroll reveal: cards below the fold fade and rise in as they are scrolled to (skipped for reduced motion) */
 function reveal(){
