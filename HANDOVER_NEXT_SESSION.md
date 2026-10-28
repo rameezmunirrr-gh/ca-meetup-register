@@ -11,8 +11,6 @@
 
 ---
 
----
-
 ## CHECKPOINT: end of the 26 to 28 Oct 2026 session (owner closed the session here)
 
 **State:** `main` is clean and equal to the remote; every pull request (#1 to #30) is merged; the three browser suites pass on `main` (public 101, admin 73, gate 35); `r2_12_gate_undo.sql` is live (confirmed in the snapshot of 28 Oct 2026) and recorded in `sql/changes.sql`. The app is still in **testing mode**: registration on for testing, test data only, transfers off, not ready for launch.
