@@ -247,7 +247,7 @@ with sync_playwright() as p:
     check('after a failed send, the retry keeps the same submission ID (no duplicate)', len(c3)==2 and c3[0]['args']['p_submission_id']==c3[1]['args']['p_submission_id'], c3); b.close()
     # ===== look and feel (logo, header, share preview, phone width)
     b,pg,errs=page(p,"window.__R.get_site_flags={show_about:true};",w=360); pg.wait_for_timeout(300)
-    check('look: home has the logo in the invitation card and the slim header is hidden there', pg.query_selector('.invite img.logo') is not None and not pg.is_visible('.top'))
+    check('look: home has the logo in the invitation card and the slim header is hidden there', pg.query_selector('.invite .logo-wrap #logo-fallback') is not None and pg.query_selector('.invite .logo-wrap svg#logo') is not None and not pg.is_visible('.top'))
     check('look: home at 360 px wide has no sideways scrolling', pg.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'))
     pg.click('#go-register'); pg.wait_for_selector('#n0'); pg.wait_for_timeout(200)
     check('look: other pages show the slim header with the logo', pg.is_visible('.top') and pg.query_selector('.top img') is not None)
