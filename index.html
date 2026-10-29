@@ -8,7 +8,9 @@
 <title>Ehsaas'26 – Register</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Jost:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<!-- The two libraries load in the background (async) so Home can be drawn without waiting for them; see sbReady and qrReady in the script. -->
+<script async id="qr-lib" src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" onload="window.__qr=1" onerror="window.__qr=2"></script>
+<script async id="sb-lib" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" onload="window.__sb=1" onerror="window.__sb=2"></script>
 <style>
 /* Ehsaas'26 public pages: dark navy + amber theme (palette and motion taken from the Mallu Articles "Join the Event Team" page) */
 :root{--bg:#081020;--card:#101838;--ink:#F2F5FF;--mute:#A3AECB;--brand:#3050F0;--brand-d:#2540D0;--accent:#F0A000;--accent-ink:#FFC857;--line:rgba(255,255,255,.08);--line2:#202848;--line3:rgba(255,255,255,.22);--err:#FF8A80;--ok:#5BE3A0;--warn:#FFC857;--on:#F2F5FF;--dark:#081020;--pink:#D82890;--violet:#7820E0;--teal:#20C8A0;--blue:#3050F0;--orange:#E86818;--sans:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;--serif:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:dark;
@@ -163,7 +165,6 @@ button.big{padding:18px 16px}
 <div class="kasavu"></div>
 <div id="gbar" role="status" aria-live="polite" hidden></div>
 <main id="app"></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <script src="assets/logo-fluid.js?v=2"></script>
 <script>
 /* ===== CONFIG: change these in one place ===== */
@@ -180,7 +181,30 @@ const CONFIG={
   supabaseUrl:"https://jddrwajazpsdrqpwlncu.supabase.co",
   supabaseKey:"sb_publishable_W3tJTLdbCOuwkUwkjLW1Iw_9m1zGHFT"   // publishable key: safe to be public
 };
-let db=null;try{db=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}})}catch(_){}
+/* ===== libraries that load in the background =====
+   libReady resolves (true or false) once the script tag has loaded, failed, or 20 seconds have passed. The tags set window.__sb / __qr to 1 (loaded)
+   or 2 (failed), so it also works when the script finished before this code ran. */
+function libReady(id,flag,up){return new Promise(res=>{
+  if(up()||window[flag]===1)return res(up());
+  if(window[flag]===2)return res(false);
+  const el=document.getElementById(id);if(!el)return res(false);
+  el.addEventListener("load",()=>res(up()));el.addEventListener("error",()=>res(false));
+  setTimeout(()=>res(up()),20000)})}
+const sbReady=libReady("sb-lib","__sb",()=>!!(window.supabase&&window.supabase.createClient));
+const qrReady=libReady("qr-lib","__qr",()=>typeof qrcode==="function");
+const whenQR=f=>typeof qrcode==="function"?f():qrReady.then(()=>{if(typeof qrcode==="function")f()});
+/* `db` is a thin wrapper with only what this page uses (rpc and one storage upload). Every call waits for the Supabase library, so a tap that
+   comes before it has arrived simply waits. If the library never arrives, calls answer with an error, which the page already handles. */
+let sbClient=null;
+async function sbGet(){
+  if(!sbClient){await sbReady;
+    if(window.supabase&&window.supabase.createClient){try{sbClient=window.supabase.createClient(CONFIG.supabaseUrl,CONFIG.supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}})}catch(_){}}}
+  return sbClient}
+const NOCLIENT={data:null,error:{message:"no client"}};
+const db={
+  rpc:async(...a)=>{const c=await sbGet();return c?c.rpc(...a):NOCLIENT},
+  storage:{from:bucket=>({upload:async(...a)=>{const c=await sbGet();return c?c.storage.from(bucket).upload(...a):NOCLIENT}})}
+};
 
 function uuid(){if(crypto.randomUUID)return crypto.randomUUID();
   return"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{const r=crypto.getRandomValues(new Uint8Array(1))[0]&15;return(c==="x"?r:(r&3|8)).toString(16)})}
@@ -203,7 +227,7 @@ function opt(i,k,v,cur){return `<label><input type="radio" name="p${i}_${k}" dat
 /* ===== event date, time and venue: set by admins in Admin > Settings. CONFIG values are the backup if it can't be loaded ===== */
 let evAt=0;
 async function loadEvent(){
-  if(!db||Date.now()-evAt<30000)return;
+  if(Date.now()-evAt<30000||!await sbGet())return;   /* the 2.5 second limit below starts only once the library is here, not while it downloads */
   try{const r=await Promise.race([db.rpc("get_event_info"),new Promise(res=>setTimeout(()=>res(null),2500))]);
     if(r&&r.data&&r.data.event_at&&r.data.venue){S.ev=r.data;evAt=Date.now()}}catch(_){}
 }
@@ -216,7 +240,7 @@ function head(t,s){return `<h1>${t}</h1><p class="sub">${s}</p>`}
 function closeDate(){try{return new Date(S.status.deadline).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kolkata"})}catch(_){return""}}
 /* payment details (UPI ID, payee name) and the organisers' WhatsApp number come from the database (Admin > Settings) */
 function payFrom(d){d=d||{};return{upi:String(d.upi_id||""),payee:String(d.payee_name||""),wa:String(d.whatsapp||"")}}
-async function loadPay(){if(!db)return false;try{const{data,error}=await db.rpc("get_payment_info");if(error)throw error;S.pay=payFrom(data);return true}catch(_){return false}}
+async function loadPay(){try{const{data,error}=await db.rpc("get_payment_info");if(error)throw error;S.pay=payFrom(data);return true}catch(_){return false}}
 function waLink(text){return S.pay&&S.pay.wa?"https://wa.me/"+S.pay.wa+"?text="+encodeURIComponent(text):""}
 function contactBtn(text,label){const l=waLink(text);return l?`<a class="btn ghost" href="${esc(l)}" target="_blank" rel="noopener">${label||"Contact the organisers"}</a>`:""}
 
@@ -224,7 +248,6 @@ async function load(){
   await loadEvent();
   if(!S.pay)await loadPay();
   try{
-    if(!db)throw new Error("no client");
     const{data,error}=await db.rpc("get_public_status",{p_session:S.sid});if(error)throw error;
     applyStatus(data);
     if(!data.accepting&&!data.grace_until)S.step="closed";
@@ -245,7 +268,7 @@ function fmtWhen(iso){try{const d=new Date(iso),day=x=>x.toLocaleDateString("en-
   return fmtT(iso)+(day(d)===day(new Date(Date.now()+skew))?"":" on "+day(d))}catch(_){return""}}
 function graceMs(){return S.status&&S.status.grace_until?new Date(S.status.grace_until).getTime()-(Date.now()+skew):null}
 async function beat(){
-  if(!db||!inFill())return;
+  if(!inFill())return;
   try{
     const{data,error}=await db.rpc("registration_heartbeat",{p_session:S.sid});if(error)throw error;
     applyStatus(data);
@@ -276,7 +299,7 @@ async function goPay(){
   if(S.step==="pay")render();
 }
 async function checkPay(){
-  if(S.step!=="pay"||S.busy||S.payLoading||S.payFail||!db)return;
+  if(S.step!=="pay"||S.busy||S.payLoading||S.payFail)return;
   try{
     const{data,error}=await db.rpc("get_payment_info");if(error)throw error;
     const p=payFrom(data);if(S.step!=="pay"||S.busy)return;
@@ -292,8 +315,8 @@ function foot(){return S.step==="home"?"":`<p class="foot">${esc(CONFIG.organise
 function render(){
   const a=$("#app");document.body.dataset.step=S.step;
   a.innerHTML=stepBar()+({home:vHome,loading:()=>head("Loading…","One moment."),error:vError,closed:vClosed,form:vForm,summary:vSummary,pay:vPay,done:vDone,tickets:vTickets,ticket:vTicket,about:vAbout,xmenu:vXMenu,xsell:vXSell,xcode:vXCode,xbuy:vXBuy,xform:vXForm,xdone:vXDone,tpay:vTPay})[S.step]()+foot();
-  if(S.step==="pay"&&$("#qr"))drawQR($("#qr"),upiLink());
-  if(S.step==="tpay"&&$("#qr"))drawQR($("#qr"),upiLink(S.xp.amount,"Meetup ticket transfer"));
+  if(S.step==="pay"&&$("#qr"))whenQR(()=>{const c=$("#qr");if(c&&S.step==="pay")drawQR(c,upiLink())});
+  if(S.step==="tpay"&&$("#qr"))whenQR(()=>{const c=$("#qr");if(c&&S.step==="tpay")drawQR(c,upiLink(S.xp.amount,"Meetup ticket transfer"))});
   if(S.step==="ticket")drawTickets().catch(()=>{});
   window.scrollTo(0,0);
   reveal();
@@ -331,7 +354,7 @@ function vHome(){
   (n?`<p class="note" style="text-align:center;margin-top:18px">${n===1?"Your booking is":n+" bookings are"} saved on this device. Open Tickets and enter your phone number to view ${n===1?"it":"them"}.</p>`:"");
 }
 function vAbout(){return head("About "+esc(CONFIG.organiserName),"Coming soon")+`<div class="card"><p style="margin:0">We're putting this page together. Please check back soon.</p></div><div class="row"><button class="ghost" id="go-home">Home</button></div>`}
-function loadFlags(){if(!db)return Promise.resolve();return db.rpc("get_site_flags").then(r=>{S.flags=r.error?null:r.data}).catch(()=>{S.flags=null})}
+function loadFlags(){return db.rpc("get_site_flags").then(r=>{S.flags=r.error?null:r.data}).catch(()=>{S.flags=null})}
 function vError(){return head("We couldn't load this page","Please check your internet connection and try again.")+`<div class="row"><button id="retry">Try again</button><button class="ghost" id="go-home">Home</button></div>`}
 function vClosed(){
   const st=S.status||{},r=st.closed_reason,re=st.reopen_at?fmtWhen(st.reopen_at):"";
@@ -453,7 +476,7 @@ const waTxt=t=>contactBtn(t,"Contact the organisers");
 
 /* ---------- Tickets page: Booking ID + phone, every time ---------- */
 const savedIds=()=>{const a=getMine().concat(LS.get("mm_hist",[]));return a.filter((c,i)=>a.indexOf(c)===i).slice(0,12)};
-function loadTI(){if(!db)return Promise.resolve();return db.rpc("get_transfer_info").then(r=>{S.ti=r.error?null:r.data}).catch(()=>{S.ti=null})}
+function loadTI(){return db.rpc("get_transfer_info").then(r=>{S.ti=r.error?null:r.data}).catch(()=>{S.ti=null})}
 const xOpen=()=>!!(S.ti&&S.ti.open&&!S.ti.cutoff_passed);
 const NF=`<div class="card"><b>We couldn't find a booking with these details.</b><p class="note">Please check the Booking ID and enter the phone number used for that person. The letter O and the number 0 are treated the same.</p><div class="row">${"@@HELP@@"}</div></div>`;
 function pill(c,t){return `<span class="pill p-${c}">${t}</span>`}
@@ -706,7 +729,7 @@ function drawTicket(c,t,code){
   x.restore();
 }
 async function drawTickets(){
-  await loadEvent();await loadLogo();
+  await loadEvent();await loadLogo();await qrReady;
   const r=S.cur;S.cv=[];
   try{if(document.fonts&&document.fonts.load)await Promise.all(['700 60px "Fraunces"','600 40px "Fraunces"','italic 500 30px "Fraunces"','400 30px "Jost"','500 30px "Jost"','600 30px "Jost"'].map(f=>document.fonts.load(f)))}catch(_){}
   r.tickets.forEach((t,i)=>{const c=document.getElementById("tc"+i);if(c){drawTicket(c,t,r.booking_code);S.cv[i]=c}});
