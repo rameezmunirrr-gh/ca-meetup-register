@@ -38,12 +38,13 @@ def run(p, html, cases, outdir=None):
         link = pg.evaluate("S.step==='tpay'?upiLink(S.xp.amount,'Meetup ticket transfer'):upiLink()")
         pg.evaluate("window.__text=[]")
         data = pg.evaluate("(async()=>{const b=await blobQR();const u=new Uint8Array(await b.arrayBuffer());let s='';for(const x of u)s+=String.fromCharCode(x);return btoa(s)})()")
+        page = pg.evaluate("(()=>{const v=document.querySelector('.verify'),q=document.getElementById('qr'),u=document.getElementById('uid');return {txt:v?v.textContent:'',n:document.querySelectorAll('.verify').length,between:!!(v&&q&&u&&(q.compareDocumentPosition(v)&4)&&(v.compareDocumentPosition(u)&4))}})()")
         texts = pg.evaluate("window.__text"); shown = pg.evaluate("shownAmt()"); onscreen = pg.evaluate("document.getElementById('qr').width")
         png = base64.b64decode(data)
         if outdir: open(os.path.join(outdir, f'case{i}.png'), 'wb').write(png)
         img = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_COLOR)
         det = cv2.QRCodeDetector(); dec = det.detectAndDecode(img)[0] if img is not None else ''
-        out.append(dict(link=link, decoded=dec, texts=texts, shown=shown, size=(img.shape[1], img.shape[0]) if img is not None else None, qrw=onscreen))
+        out.append(dict(page=page, link=link, decoded=dec, texts=texts, shown=shown, size=(img.shape[1], img.shape[0]) if img is not None else None, qrw=onscreen))
     out.append(dict(errs=errs)); b.close(); return out
 
 CASES = [
@@ -62,6 +63,9 @@ with sync_playwright() as p:
         check(f'[{nm}] the image still SCANS and gives back exactly the payment link', o['decoded'] == o['link'], (o['decoded'], o['link']))
         check(f'[{nm}] the image shows the amount "Pay ₹{amt}"', f'Pay ₹{amt}' in o['texts'], o['texts'])
         check(f'[{nm}] the image shows the full UPI ID', cs['upi'] in o['texts'], o['texts'])
+        joined = ' '.join(o['texts'])
+        check(f'[{nm}] the picture carries the warning (after scanning, check the UPI ID matches the one below)', 'Important:' in joined and 'check that the UPI ID shown in your app matches the UPI ID below.' in joined, o['texts'])
+        check(f'[{nm}] the pay screen shows the warning once, between the QR and the UPI ID', o['page']['n'] == 1 and o['page']['between'] and 'matches the UPI ID below' in o['page']['txt'], o['page'])
         if cs['payee']: check(f'[{nm}] the image shows who is being paid', 'to ' + cs['payee'] in o['texts'], o['texts'])
         else: check(f'[{nm}] with no payee name no "to ..." line is drawn', not any(t.startswith('to ') for t in o['texts']), o['texts'])
     check('the image is wider than the on-screen QR and the QR is not scaled (width at least 560)', r[0]['size'][0] >= 560 and r[0]['size'][1] > r[0]['qrw'], r[0]['size'])
@@ -79,6 +83,14 @@ with sync_playwright() as p:
     NOAMT = mutate('x.fillText("Pay ₹"+amt,W/2,88);', '')
     m3 = run(p, NOAMT, CASES[:1])[0]
     check('control: leaving the amount out of the picture is DETECTED', 'Pay ₹750' not in m3['texts'], m3['texts'])
+
+    NOWARN_IMG = mutate('const WARN="After you scan, check that the UPI ID shown in your app matches the UPI ID below.";', 'const WARN="";')
+    m4 = run(p, NOWARN_IMG, CASES[:1])[0]
+    check('control: dropping the warning from the picture is DETECTED', 'matches the UPI ID below.' not in ' '.join(m4['texts']), m4['texts'])
+    NOWARN_PAGE = HTML.replace('<p class="verify" role="note">', '<p class="verifyX" role="note">')
+    check('control: the page-warning mutant really differs', NOWARN_PAGE != HTML)
+    m5 = run(p, NOWARN_PAGE, CASES[:1])[0]
+    check('control: dropping the warning from the pay screen is DETECTED', m5['page']['n'] != 1, m5['page'])
 
 n = len(res); bad = res.count(False)
 print(f"{n - bad} passed, {bad} failed")

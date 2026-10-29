@@ -84,6 +84,7 @@ th{font-size:.8rem;font-weight:700;color:var(--mute)}tr:last-child td{border-bot
 .wrap{overflow-x:auto}
 .amt{font:800 3.2rem/1 var(--sans);color:var(--accent);letter-spacing:-.02em}
 .qr{display:block;margin:18px auto;width:min(260px,100%);height:auto;border-radius:14px;border:8px solid #fff;background:#fff;box-shadow:0 0 0 1px var(--line3),0 18px 34px -16px rgba(0,0,0,.7)}
+.verify{margin:14px auto 12px;max-width:34em;padding:10px 14px;border:1px solid rgba(240,160,0,.55);background:rgba(240,160,0,.1);border-radius:12px;color:#FFD98A;font-size:.92rem;line-height:1.45;text-align:left}
 .upi{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap}
 .upi code{padding:9px 12px;border:1px dashed var(--line3);border-radius:10px;background:rgba(255,255,255,.05);color:var(--ink)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#1B2656;border:1px solid var(--line3);color:var(--on);padding:11px 18px;border-radius:999px;z-index:9;box-shadow:0 10px 24px -10px rgba(0,0,0,.6)}
@@ -418,6 +419,7 @@ function vPay(){
   (S.payErr?`<div class="card errbox" role="alert">${esc(S.payErr)}</div>`:"")+
   `<div class="card" style="text-align:center"><div class="amt">₹${total()}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}${qrc}
   <p class="note" style="margin:0 0 6px">Scan this QR with any UPI app to pay.<br>Paying from this phone? Take a screenshot of the QR and upload it in your UPI app, or pay to the UPI ID below.</p>
+  <p class="verify" role="note"><b>Important:</b> After you scan, check that the UPI ID shown in your app matches the UPI ID below.</p>
   <div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div>
   <p class="note">Tap Share QR and choose your UPI app (such as Google Pay or PhonePe) to pay ₹${total()}.</p></div>
@@ -603,7 +605,7 @@ function vTPay(){
   if(!S.pay||!S.pay.upi)return head("Payment isn't ready yet","The organisers are still setting up payments. Please try again shortly.")+`<div class="row"><button class="ghost" id="tp-back">Back</button>${contactBtn("Hi, I couldn't pay for my ticket transfer because the payment details are missing.","Contact the organisers")}</div>`;
   return head("Pay ₹"+p.amount,"Ticket transfer payment")+(p.err?`<div class="card errbox" role="alert">${esc(p.err)}</div>`:"")+
   `<div class="card" style="text-align:center"><div class="amt">₹${p.amount}</div>${S.pay.payee?`<div class="note">Pay to <b>${esc(S.pay.payee)}</b></div>`:""}<canvas id="qr" class="qr" aria-label="UPI payment QR for ₹${p.amount}"></canvas>
-  <p class="note" style="margin:0 0 6px">Scan this QR with any UPI app, or pay to the UPI ID below.</p><div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
+  <p class="note" style="margin:0 0 6px">Scan this QR with any UPI app, or pay to the UPI ID below.</p><p class="verify" role="note"><b>Important:</b> After you scan, check that the UPI ID shown in your app matches the UPI ID below.</p><div class="upi"><code id="uid">${esc(S.pay.upi)}</code><button class="ghost" id="copy">Copy UPI ID</button></div>
   <div class="row"><button id="share">Share QR</button><button class="ghost" id="dl">Download QR</button></div></div>
   <div class="card"><label for="tshot">Upload your payment screenshot</label><input type="file" id="tshot" accept="image/*" ${p.file?'style="display:none"':""}>
   ${p.file&&p.fileUrl?`<div class="note" style="font-size:.95rem">✓ <b>File uploaded</b> · <a href="${esc(p.fileUrl)}" target="_blank" rel="noopener">Tap to view</a> · <label for="tshot" style="display:inline;font-weight:400;text-decoration:underline;cursor:pointer">Change</label></div>`:`<div class="note">Required. Please upload an image of your payment confirmation.</div>`}</div>
@@ -795,13 +797,19 @@ async function blobQR(){
   const W=Math.max(q.width,560),side=40,FS='"Manrope",system-ui,-apple-system,"Segoe UI",Arial,sans-serif';
   const c=document.createElement("canvas"),x=c.getContext("2d");
   function fit(t,w,size,wt){x.font=wt+" "+size+"px "+FS;while(size>14&&x.measureText(t).width>w){size-=2;x.font=wt+" "+size+"px "+FS}return size}
-  const top=payee?170:120,bottom=150;
+  const WARN="After you scan, check that the UPI ID shown in your app matches the UPI ID below.";
+  x.font="600 24px "+FS;const words=WARN.split(" "),lines=[];let cur="Important:";   /* wrap the warning to the picture width */
+  words.forEach(w=>{const t=cur+" "+w;if(x.measureText(t).width>W-side*2-48&&cur){lines.push(cur);cur=w}else cur=t});lines.push(cur);
+  const wh=lines.length*32+36,top=payee?170:120,bottom=wh+36+150;
   c.width=W;c.height=top+q.height+bottom;
   x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.textAlign="center";x.textBaseline="alphabetic";
   x.fillStyle="#0A2147";let s=fit("Pay ₹"+amt,W-side*2,76,"800");x.fillText("Pay ₹"+amt,W/2,88);
   if(payee){x.fillStyle="#444";s=fit("to "+payee,W-side*2,30,"600");x.fillText("to "+payee,W/2,138)}
   x.drawImage(q,Math.round((W-q.width)/2),top);   /* 1:1, no scaling */
-  const y=top+q.height;
+  let y=top+q.height+16;
+  x.fillStyle="#FFF4D6";x.strokeStyle="#E0A100";x.lineWidth=3;x.beginPath();x.roundRect?x.roundRect(side,y,W-side*2,wh,14):x.rect(side,y,W-side*2,wh);x.fill();x.stroke();
+  x.fillStyle="#5A3B00";x.font="700 24px "+FS;x.textAlign="center";lines.forEach((l,i)=>x.fillText(l,W/2,y+36+i*32));
+  y+=wh+20;
   x.fillStyle="#666";x.font="600 24px "+FS;x.fillText("UPI ID",W/2,y+38);
   x.fillStyle="#0A2147";s=fit(upi,W-side*2,40,"800");x.fillText(upi,W/2,y+90);
   x.fillStyle="#666";x.font="600 22px "+FS;x.fillText("Scan with any UPI app",W/2,y+130);
