@@ -34,6 +34,7 @@ def new_page(p, html=None, fx=None, kind='phone', reduced=False):
         elif 'qrcode' in u and u.split('?')[0].endswith('.js'): r.fulfill(body='window.qrcode=function(){}', content_type='text/javascript')
         elif 'logo-fluid.js' in u: r.fulfill(body=LOGO, content_type='text/javascript')
         elif 'home-fx.js' in u: r.fulfill(body=F, content_type='text/javascript')
+        elif 'page-fx.js' in u: r.fulfill(path=ROOT + 'assets/page-fx.js', content_type='text/javascript')   # owns the button ripple now
         elif '/assets/' in u and u.split('?')[0].endswith('.png'): r.fulfill(path=ROOT + 'assets/' + u.split('/assets/')[1].split('?')[0])
         else: r.fulfill(status=204, body='')
     pg.route('**/*', h); pg.add_init_script(SAMPLER)

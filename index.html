@@ -123,8 +123,10 @@ canvas.tk{display:block;width:100%;height:auto;border-radius:22px;box-shadow:0 2
 @keyframes fxFlow{to{background-position:100% 0}}
 .orn b{animation:fxDia 3.8s ease-in-out infinite}
 @keyframes fxDia{0%,100%{transform:rotate(45deg) scale(1);box-shadow:0 0 0 rgba(240,160,0,0)}50%{transform:rotate(45deg) scale(1.35);box-shadow:0 0 12px rgba(240,160,0,.65)}}
-button.big{position:relative;overflow:hidden;transition:background .2s,border-color .2s,transform .15s,box-shadow .2s,scale .15s}
-button.big:active{scale:.97}
+button,a.btn{position:relative;overflow:hidden;transition:background .2s,border-color .2s,transform .15s,box-shadow .2s,scale .15s}
+button:active,a.btn:active{scale:.97}
+button:disabled:active{scale:1}
+.kasavu{background:linear-gradient(90deg,var(--pink),var(--violet),var(--teal),var(--blue),var(--orange),var(--pink),var(--violet),var(--teal),var(--blue),var(--orange),var(--pink));background-size:200% 100%;animation:fxFlow 16s linear infinite}
 button.big:after{content:"";position:absolute;top:0;bottom:0;left:0;width:38%;pointer-events:none;background:linear-gradient(100deg,transparent,rgba(255,255,255,.38),transparent);transform:translateX(-130%) skewX(-18deg);animation:fxSh 8s ease-in-out infinite 3s}
 button.big.ghost:after{background:linear-gradient(100deg,transparent,rgba(255,255,255,.14),transparent)}
 #go-tickets:after{animation-delay:5s}#go-about:after{animation-delay:7s}   /* one after the other down the buttons, never two at once */
@@ -190,7 +192,8 @@ button.big{padding:18px 16px}
 <div id="gbar" role="status" aria-live="polite" hidden></div>
 <main id="app"></main>
 <script src="assets/logo-fluid.js?v=2"></script>
-<script src="assets/home-fx.js?v=1"></script>
+<script src="assets/home-fx.js?v=2"></script>
+<script src="assets/page-fx.js?v=1"></script>
 <script>
 /* ===== CONFIG: change these in one place ===== */
 const CONFIG={
@@ -347,9 +350,11 @@ function render(){
   reveal();
   if(window.LogoFluid){const l=document.getElementById("logo"),f=document.getElementById("logo-fallback");if(l){try{l.removeAttribute("hidden");LogoFluid.mount(l,{jiggle:false,replay:false});if(f)f.hidden=true}catch(_){l.setAttribute("hidden","");if(f)f.hidden=false}}}
   if(window.HomeFX){try{if(S.step==="home")HomeFX.mount();else HomeFX.unmount()}catch(_){}}   /* home-page motion only */
+  if(window.PageFX){try{PageFX.enter(S.step)}catch(_){}}   /* short entrance when a screen changes (not on a redraw of the same screen) */
 }
 /* scroll reveal: cards below the fold fade and rise in as they are scrolled to (skipped for reduced motion) */
 function reveal(){
+  if(S.step==="pay"||S.step==="tpay")return;   /* the payment screens show every card at once, so the "Upload your payment screenshot" card is never hidden below the QR */
   try{
     if(!("IntersectionObserver" in window)||matchMedia("(prefers-reduced-motion:reduce)").matches)return;
     const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target)}}),{threshold:.08,rootMargin:"0px 0px -6% 0px"});

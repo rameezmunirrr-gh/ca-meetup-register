@@ -2,7 +2,7 @@
    index.html calls HomeFX.mount() after it draws Home and HomeFX.unmount() on every other screen.
    What lives here (everything else, the drifting discs, the colour flow, the diamond pulse and the button sweep, is CSS in index.html):
      - a short entrance (about 1.2 s) the FIRST time Home is shown in a visit
-     - a soft ripple when a big button is pressed, and a flash on a date / time / venue row that is tapped
+     - a flash on a date / time / venue row that is tapped (the press ripple on every button is in page-fx.js)
      - a few dim glowing particles in the BACKGROUND (a canvas behind the page content, so they never appear on the cards)
      - DESKTOP ONLY (a real mouse): the card tilts toward the pointer with a light glare, and the logo's two heads look at the pointer
    Nothing here runs for visitors who ask for reduced motion. */
@@ -40,14 +40,9 @@ function mount(){
     const note=document.querySelector("#app .note");if(note)A(note,[{opacity:0},{opacity:1}],800,{duration:400,easing:"ease"});
   }
 
-  /* ---- 2. press ripple on the big buttons (also on a button that shows up later, e.g. About) and a flash on a tapped row ---- */
+  /* ---- 2. a flash on a tapped date / time / venue row (the button ripple for ALL buttons lives in page-fx.js) ---- */
   on(document.getElementById("app"),"pointerdown",e=>{
     const t=e.target;if(!t||!t.closest)return;
-    const b=t.closest("button.big");
-    if(b){const r=b.getBoundingClientRect(),d=Math.max(r.width,r.height)*2.2,s=document.createElement("span");
-      s.className="fxr";s.style.cssText=`width:${d}px;height:${d}px;left:${e.clientX-r.left-d/2}px;top:${e.clientY-r.top-d/2}px`;b.appendChild(s);
-      try{s.animate([{transform:"scale(0)",opacity:.5},{transform:"scale(1)",opacity:0}],{duration:600,easing:"ease-out"}).onfinish=()=>s.remove()}catch(_){s.remove()}
-      timers.push(setTimeout(()=>s.remove(),900))}
     const row=t.closest(".when>div");
     if(row){row.classList.add("fxh");timers.push(setTimeout(()=>row.classList.remove("fxh"),600))}
   });
@@ -84,7 +79,7 @@ function mount(){
     }};
   raf=requestAnimationFrame(tick);
   live={n:N,stop(){cancelAnimationFrame(raf);ac.abort();timers.forEach(clearTimeout);cv.remove();if(gl)gl.remove();
-    if(inner)inner.style.transform="";inv.style.removeProperty("--go");inv.querySelectorAll(".fxr").forEach(x=>x.remove());
+    if(inner)inner.style.transform="";inv.style.removeProperty("--go");
     try{if(window.LogoFluid&&LogoFluid.look)LogoFluid.look(0,0)}catch(_){}}};
 }
 window.HomeFX={mount,unmount,info:()=>({mounted:!!live,particles:live?live.n:0,canvases:document.querySelectorAll("#fxc").length})};
