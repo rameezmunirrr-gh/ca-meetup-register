@@ -61,7 +61,7 @@ def make(p, html=None, preloaded=True, cfg=None, sb='ok', qr='ok', w=420, h=900)
         for k, r in list(held):
             if k == kind:
                 r.fulfill(body=CLIENT_JS if k == 'sb' else QR_JS, content_type='text/javascript'); held.remove((k, r))
-    pg.goto('https://example.test/test.html')
+    pg.goto('https://example.test/test.html', wait_until='commit')   # not 'load': a held background script delays that event on purpose
     return b, pg, errs, release
 
 LIVE = 'Test Hall, Indiranagar'
@@ -101,6 +101,91 @@ with sync_playwright() as p:
     check('control: the broken copy really differs (two places changed)', BAD != HTML and HTML.count('if(S.step==="home")refreshHome()') == 2)
     ab = scenario_a(html=BAD)
     check('control: redrawing the card is DETECTED (card replaced, extra fade-ins, page jumps)', (not ab['same']) and ab['fades'] > 1 and ab['y'] != ab['s0'], (ab['same'], ab['fades'], ab['y'], ab['s0']))
+
+    # ===== B. Home is drawn without waiting for the Supabase and QR libraries
+    MARK = "document.querySelector('.invite').__m=1"
+    FIRST_H1 = "document.querySelector('#app h1')&&document.querySelector('#app h1').textContent"
+    def early_tap(html=None):
+        """Library held back: Home must already be there; then tap Register early; then deliver the library."""
+        b, pg, errs, rel = make(p, html=html, preloaded=False, sb='hold', cfg={'about': True})
+        pg.wait_for_selector('#app .invite')
+        o = dict(lib=pg.evaluate("typeof window.supabase"), dd=dd(pg), cta=pg.evaluate("!!document.getElementById('go-register')"))
+        pg.click('#go-register')
+        try: pg.wait_for_function(FIRST_H1 + ".includes('Loading')", timeout=3000); o['loading'] = True
+        except Exception: o['loading'] = False
+        rel('sb')
+        try: pg.wait_for_selector('#n0', timeout=6000); o['form'] = True
+        except Exception: o['form'] = False; o['h1'] = pg.evaluate(FIRST_H1)
+        o['errs'] = errs; b.close(); return o
+    e = early_tap()
+    check('B1 Home is on screen while the Supabase library has NOT arrived (library absent, built-in text, Register button ready)', e['lib'] == 'undefined' and e['cta'] and e['dd'] and LIVE not in e['dd'][2], e)
+    check('B2 tapping Register before the library arrives shows Loading, then the form once it arrives', e['loading'] and e['form'], e)
+    check('B3 no script errors on that path', not e['errs'], e['errs'])
+    BAD_NOWAIT = HTML.replace('if(!sbClient){await sbReady;', 'if(!sbClient){')
+    check('control: the copy that does not wait for the library really differs', BAD_NOWAIT != HTML)
+    e2 = early_tap(BAD_NOWAIT)
+    check('control: not waiting for the library is DETECTED (the early tap fails)', not (e2['loading'] and e2['form']), e2)
+
+    def after_release(wait_ms, html=None, about=True):
+        b, pg, errs, rel = make(p, html=html, preloaded=False, sb='hold', cfg={'about': about})
+        pg.wait_for_selector('#app .invite'); pg.evaluate(MARK)
+        pg.wait_for_timeout(wait_ms); rel('sb')
+        try: pg.wait_for_function("document.querySelectorAll('.when dd')[2].textContent.includes('Test Hall')", timeout=6000); live = True
+        except Exception: live = False
+        pg.wait_for_timeout(500)
+        o = pg.evaluate("({same:!!(document.querySelector('.invite')||{}).__m,fades:window.__invite||0,about:document.querySelectorAll('#go-about').length})")
+        o.update(live=live, errs=errs); b.close(); return o
+    f = after_release(300)
+    check('B4 when the library arrives, the live date/venue appear and the About button shows (same card, one fade-in)', f['live'] and f['same'] and f['fades'] == 1 and f['about'] == 1, f)
+    s = after_release(3500)
+    check('B5 a SLOW library (3.5 s, longer than the 2.5 s event limit) still gets the live date/venue onto Home', s['live'] and s['same'] and s['fades'] == 1, s)
+    BAD_LIMIT = HTML.replace('if(Date.now()-evAt<30000||!await sbGet())return;', 'if(Date.now()-evAt<30000)return;')
+    check('control: the copy with the old time limit really differs', BAD_LIMIT != HTML)
+    s2 = after_release(3500, html=BAD_LIMIT)
+    check('control: counting the library download inside the 2.5 s limit is DETECTED (live date lost)', not s2['live'], s2)
+
+    # library that fails to load: the same error screen as before, no crash
+    b, pg, errs, rel = make(p, preloaded=False, sb='fail')
+    pg.wait_for_selector('#app .invite'); pg.click('#go-register')
+    try: pg.wait_for_function(FIRST_H1 + ".includes(\"couldn't load\")", timeout=6000); shown = True
+    except Exception: shown = False
+    check('B6 if the Supabase library fails to load, Home still draws and Register leads to the "couldn\'t load" screen', shown, pg.evaluate(FIRST_H1))
+    check('B7 ... without script errors', not errs, errs); b.close()
+
+    # QR library held back: the pay screen and the tickets wait for it, then draw
+    PAYSTATE = ("S.status={price_per_head:250,max_group:5,accepting:true,deadline:'2026-10-31T18:29:59Z'};S.n=1;S.pay={upi:'org@upi',payee:'Org',wa:'919999999999'};"
+                "S.payLoading=false;S.payFail=false;S.step='pay';render();")
+    def qr_case(html=None):
+        b, pg, errs, rel = make(p, html=html, preloaded=True, qr='hold')
+        pg.wait_for_selector('#app .invite')
+        try: pg.evaluate(PAYSTATE)
+        except Exception as ex: errs.append('ReferenceError' if 'qrcode is not defined' in str(ex) else str(ex)[:150])   # the broken copy throws right here
+        pg.wait_for_timeout(300)
+        before = pg.evaluate("({lib:typeof qrcode,w:(document.getElementById('qr')||{}).width})")
+        rel('qr'); pg.wait_for_timeout(500)
+        after = pg.evaluate("({lib:typeof qrcode,w:(document.getElementById('qr')||{}).width})")
+        o = dict(before=before, after=after, errs=list(errs)); b.close(); return o
+    q = qr_case()
+    check('B8 pay screen before the QR library arrives: nothing drawn and no error; after it arrives the QR is drawn', q['before']['lib'] == 'undefined' and q['before']['w'] != 232 and q['after']['w'] == 232 and not q['errs'], q)
+    BAD_QR = HTML.replace('const whenQR=f=>typeof qrcode==="function"?f():qrReady.then(()=>{if(typeof qrcode==="function")f()});', 'const whenQR=f=>f();')
+    check('control: the copy that draws the QR without waiting really differs', BAD_QR != HTML)
+    q2 = qr_case(BAD_QR)
+    check('control: drawing the QR before its library exists is DETECTED (script error, nothing drawn)', q2['errs'] or q2['after']['w'] != 232, q2)
+
+    def tickets_case(html=None):
+        b, pg, errs, rel = make(p, html=html, preloaded=True, qr='hold')
+        pg.wait_for_selector('#app .invite')
+        pg.evaluate("S.cur={booking_code:'AB12CD34',status:'paid',kind:'registration',tickets:[{name:'Asha',food:'Veg',label:'E26-001',secret:'a'.repeat(12),transferred:false,kind:'guest',ticket_no:1,coord_no:null,location:'x',attendance:'y'}]};S.step='ticket';render();")
+        pg.wait_for_timeout(600)
+        before = pg.evaluate("(S.cv||[]).length")
+        rel('qr'); pg.wait_for_timeout(1200)
+        o = dict(before=before, after=pg.evaluate("(S.cv||[]).length"), errs=list(errs)); b.close(); return o
+    t1 = tickets_case()
+    check('B9 tickets wait for the QR library, then are drawn', t1['before'] == 0 and t1['after'] == 1 and not t1['errs'], t1)
+    BAD_TK = HTML.replace('await loadLogo();await qrReady;', 'await loadLogo();')
+    check('control: the copy whose tickets do not wait for the QR library really differs', BAD_TK != HTML)
+    t2 = tickets_case(BAD_TK)
+    check('control: tickets drawn before the QR library exists are DETECTED (never drawn)', t2['after'] != 1, t2)
 
 n = len(res); bad = res.count(False)
 print(f"{n - bad} passed, {bad} failed")
