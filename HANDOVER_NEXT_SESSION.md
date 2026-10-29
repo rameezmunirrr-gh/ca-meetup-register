@@ -6,6 +6,7 @@
 **Updated later on 26 Oct 2026 (same day):** the owner's answers to the section-1 questions are recorded in section 1 and 0.1; `PROJECT_NOTES.md` was brought up to date (commit `b53fee7`, verified); the task list in section 11 is updated.
 **Updated again on 27 Oct 2026:** Claude now has **push access** to the repo (section 10): it works on a branch and the owner merges the pull request. **All three browser suites were re-run and pass (public 101, admin 47, gate 9).** The public pages were restyled a second time, the whole public text was reworded, the phone layout was fixed, and the payment QR now carries the logo (the owner scanned it in several UPI apps: works). Sections 0.1 to 0.4, 2, 4.1, 6, 8, 9, 10 and 11 reflect this.
 **Updated again on 28 Oct 2026:** the **staff side was rebuilt** (PRs #19 to #28): a green theme matching the public pages, cards and previews instead of wide tables, linked data with a back gesture, a new gate flow (results stay on screen; Next scan / Home page / Undo; an Admitted list; camera retry), and the **gate scanner merged into the admin page** (`gate/index.html` now only forwards). One new SQL file, `sql/r2_12_gate_undo.sql` (gate staff can undo for 2 minutes, admins any time), applied by the owner. Browser suites: **public 101, admin 73, gate 35**. Sections 0.1 to 0.4, 2, 4.2, 4.3, 6, 8.4, 9 and 11 are updated.
+**Updated again on 29 Oct 2026 (later):** two test files were added and nothing else changed (no page, no SQL, no database change): `scratch-db/test_r2_12.py` (56 checks, a database suite for `gate_undo_checkin`) and `scratch-db/mutate_r2_12.py` (breaks `r2_12` in 16 ways; all 16 are caught). The database total is now **11 suites, 731 checks**. The CHECKPOINT, sections 2, 8.4, 9 and 11 are updated.
 **Read order:** (1) this file, (2) `PROJECT_NOTES.md` (decision log, database design and changelog; brought up to date on 26, 27 and 28 Oct 2026), (3) the SQL in `sql/` and the tests in `scratch-db/` only when you work on them.
 **Where the two documents disagree:** trust the live snapshot and the SQL files + tests first, then this file, then the notes, and tell the owner.
 
@@ -27,14 +28,14 @@
 
 **Pending, in the order I would do it (nothing blocks anything else):**
 1. **Real-account tests (the owner):** create a gate login, then on a phone: sign in at `/admin/` (only the Gate tab must show), scan a real ticket, Undo within 2 minutes (works) and after 2 minutes (says ask an admin), deny the camera and press Try again. Also an admin Undo after 2 minutes, and the staff page on real phones. Report what is odd and Claude fixes it.
-2. **A database test suite for `r2_12`** (`test_r2_12.py`: non-staff refused, gate within and after 2 minutes, admin after 2 minutes, a wrong id), with a deliberate-mistake check. Not written yet.
+2. ~~A database test suite for `r2_12`.~~ **Done 29 Oct 2026:** `scratch-db/test_r2_12.py` (56 checks: visitors and non-staff refused; gate staff inside and after the 2 minutes, including 119 and 121 seconds; admins any time; wrong, empty and never-admitted ids; only the one ticket and only the two check-in columns change; the old `undo_checkin` is still admin-only; two undos at the same instant) and `scratch-db/mutate_r2_12.py` (16 deliberate mistakes, all caught). It tests the SQL file; the live function in the 28 Oct snapshot was compared with that file and is identical. Not covered: a real account on a real phone (item 1).
 3. **About page content** from the owner (text, reels as links, photos with permission) and the logo as an SVG.
 4. **Wording pass on the staff page** (its look and phone layout were rebuilt, its text only partly reworded).
 5. **Housekeeping:** a real `README.md`; G15 and G17 (section 12); old merged branches (none are left on GitHub at the checkpoint).
 6. **Left out on purpose, ask before building:** tappable Overview pie slices; tappable "rejected: N" on the Present card; the Settings log linked to bookings.
 7. **Pre-launch checklist** (section 11) when the owner decides, then launch. After the event: section 11, item 10.
 
-**Never verified by anyone:** a complete real payment; a real gate account (the real 2-minute undo, the real camera scan on the merged page); the admin side of the undo rule; the new staff page on a range of real phones; the transfer screens against the real database (transfers are off).
+**Never verified by anyone:** a complete real payment; a real gate account (the real 2-minute undo, the real camera scan on the merged page); the admin side of the undo rule on a real account (the database rule itself, for gate and admin accounts, is tested on a scratch copy since 29 Oct 2026); the new staff page on a range of real phones; the transfer screens against the real database (transfers are off).
 
 ---
 
@@ -101,7 +102,7 @@ The original questions follow, for reference.
 | `r2_01` to `r2_06` (+ `r2_02b`, `r2_02c`) | Release 2 backend pieces. Applied. Kept because the tests build on them. |
 | `r2_07_cleanup_test_data.sql` | Deletes ALL bookings, tickets, emails, transfers, IP records, scans and sessions, restarts numbering at 1, switches transfers off; keeps staff, settings and the settings log. **Refuses to run while registration is open.** Run once on 25 Oct. Do not run again after real bookings exist. |
 | `r2_08` coordinators can transfer; `r2_09` About switch; `r2_10` Email switch; `r2_11` feedback | Applied. |
-| `r2_12_gate_undo.sql` | `gate_undo_checkin(uuid)`: gate staff undo an admission for 2 minutes, admins any time. **Applied by the owner on 28 Oct 2026.** Recorded in `changes.sql` (28 Oct 2026) and **confirmed live in the snapshot of 28 Oct 2026, 09:53 UTC** (body identical to the file; execute rights `authenticated` only); there is no `test_r2_12` database suite (it was checked only by reading it against the snapshot's `is_staff`, `is_admin` and `tickets` columns, and through the page tests with a mocked database). |
+| `r2_12_gate_undo.sql` | `gate_undo_checkin(uuid)`: gate staff undo an admission for 2 minutes, admins any time. **Applied by the owner on 28 Oct 2026.** Recorded in `changes.sql` (28 Oct 2026) and **confirmed live in the snapshot of 28 Oct 2026, 09:53 UTC** (body identical to the file; execute rights `authenticated` only); the database suite is `scratch-db/test_r2_12.py` (56 checks, added 29 Oct 2026, with `mutate_r2_12.py`, which breaks the SQL 16 ways and confirms the suite notices each one). |
 | `archive/r2_04_admin_matched_NOT_USED.sql` (and `scratch-db/archive/`) | Abandoned designs. **Never apply.** |
 
 ---
@@ -360,7 +361,7 @@ One open transfer per seat; a code is unique among active codes; Transfer needs 
 
 ### 8.4 Open after 28 Oct 2026
 - **Real gate account:** none exists yet. Test with a real gate login on a phone: sign in at `/admin/` (it should show only the Gate tab), scan a real ticket, press Undo within 2 minutes (it should work) and after 2 minutes (it should say ask an admin), and try the camera permission flow (deny, then Try again).
-- **`r2_12`:** in `sql/changes.sql` and confirmed in the 28 Oct snapshot. Still open: a database test suite for it. It has no database test suite yet (a `test_r2_12` with attacks: non-staff, gate after 2 minutes, admin after 2 minutes, a wrong id, would be the right next step).
+- **`r2_12`:** in `sql/changes.sql` and confirmed in the 28 Oct snapshot. Its database suite now exists (`scratch-db/test_r2_12.py`, 56 checks, 29 Oct 2026). One behaviour worth knowing, found while writing it and not changed: a wrong id, an empty id and a ticket that was never admitted all raise the same `UNDO_EXPIRED`, so the Gate page's "ask an admin" wording also appears in those cases. The function also leaves no record of who undid what.
 - **Gaps the owner knowingly left:** tappable pie slices; the Settings log is not linked; the Present card's "rejected: N" is not tappable.
 - **Housekeeping still open:** about 24 merged branches on GitHub could be deleted; a real `README.md`; G15 and G17 (notes section 12); the About page content from the owner.
 
@@ -380,8 +381,9 @@ rm -rf /tmp/pgdata && mkdir /tmp/pgdata && chown postgres /tmp/pgdata
 su postgres -c "/usr/lib/postgresql/16/bin/initdb -D /tmp/pgdata -A trust >/dev/null"
 su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /tmp/pgdata -o '-p 5544 -k /tmp' -l /tmp/pg.log start"
 cd /home/claude/scratch && python3 build.py
-for n in 01 02 03 04 05 06 08 09 10 11; do python3 test_r2_$n.py | tail -1; done
-# expected: 62, 54, 153, 157, 77, 68, 36, 14, 26, 28 passed (675), 0 failed
+for n in 01 02 03 04 05 06 08 09 10 11 12; do python3 test_r2_$n.py | tail -1; done
+# expected: 62, 54, 153, 157, 77, 68, 36, 14, 26, 28, 56 passed (731), 0 failed
+# (test_r2_12.py reads the SQL straight from the repo's sql/ folder; mutate_r2_12.py is the deliberate-mistake check for it)
 ```
 
 **How the harness works** (`lib.py`): `fresh([sql files])` rebuilds the database from `build.sql` and applies the files; `seed()` makes an open event, one admin, booking A (Asha 9000000001, Ben 9000000002) and booking B (Carl 9000000003), all paid; `call(role, sql, params, uid, headers)` runs one statement as `anon`, `authenticated` (with `uid` as the logged-in user) or `postgres`; `call_new` + `par` run statements at the same instant on separate connections (race tests); `sql()` runs as superuser; `T` collects PASS/FAIL and **a script that crashes halfway counts as a failure**. `ensure_server()` restarts Postgres if it stopped. Test scripts hardcode `/home/claude/scratch` and `/home/claude/sql`.
@@ -398,7 +400,7 @@ for n in 01 02 03 04 05 06 08 09 10 11; do python3 test_r2_$n.py | tail -1; done
 
 **QR check (do this again if the QR drawing ever changes):** in a blank Playwright page load the real `qrcode-generator` (npm), run the page's own `drawQR` (the text between `const QRLOGO` and `function toast(` in `index.html`), export the canvas as PNG and decode it with OpenCV (`cv2.QRCodeDetector`), ZXing (`@zxing/library` in node) and jsQR (`jsqr` in node), at full size, 300 px, 200 px, blurred and JPEG q35, on several realistic UPI links (long payee name, long UPI ID, an amount like 12345). Include one deliberately oversized logo, which must fail, to prove the test can fail. The scripts lived in the chat's scratch folder and are not in the repo; rewrite them from this description.
 
-**The pattern for new SQL:** generate it from the real function text in the snapshot (`gen_r2_0X.py` extract it and patch only the needed lines, asserting each patch applies exactly once) so nothing else drifts; write the tests first as attacks; then do a **deliberate-mistake check** (copy the SQL, break one rule, confirm the suite fails; a green run alone proves little). After the owner runs it: paste it into `sql/changes.sql`, run the snapshot workflow, compare.
+**The pattern for new SQL:** generate it from the real function text in the snapshot (`gen_r2_0X.py` extract it and patch only the needed lines, asserting each patch applies exactly once) so nothing else drifts; write the tests first as attacks; then do a **deliberate-mistake check** (copy the SQL, break one rule, confirm the suite fails; a green run alone proves little). After the owner runs it: paste it into `sql/changes.sql`, run the snapshot workflow, compare. A ready example of the mistake check: `scratch-db/mutate_r2_12.py` breaks `r2_12` in 16 ways, runs `test_r2_12.py` against each (that suite reads the SQL file named in the environment variable `R12`) and prints CAUGHT, SURVIVED or BROKEN for each.
 
 ---
 
@@ -419,7 +421,7 @@ for n in 01 02 03 04 05 06 08 09 10 11; do python3 test_r2_$n.py | tail -1; done
 3. **Further modification** of the app as the owner asks (this is the current stage; the owner says the app is not ready for launch). For each change: read the current files, work on a branch, run all three browser suites, say what was not verified, update the notes and this file. **Done on the public page by 27 Oct 2026:** second restyle, reworded text (including transfers and About), phone layout, payment QR logo. **Not looked at yet:** the wording and phone layout of Admin and Gate (the owner said "public page only, as of now"); the About page content (waiting for the owner).
 4. ~~Restore browser testing.~~ **Done 27 Oct 2026** (101 / 47 / 9 pass then, 101 / 73 / 35 now; method in section 9).
 5. Small housekeeping when convenient: fix G17, optionally G15, delete merged branches, write a real `README.md`.
-5b. **First real-account tests of the staff page (new, 28 Oct 2026):** a real gate login and the real camera on a phone, the 2-minute undo with a gate account, and an admin undo after 2 minutes; then take a new snapshot (section 8.4; `r2_12` is already in `sql/changes.sql`). Optionally write `test_r2_12` first.
+5b. **First real-account tests of the staff page (new, 28 Oct 2026):** a real gate login and the real camera on a phone, the 2-minute undo with a gate account, and an admin undo after 2 minutes; then take a new snapshot (section 8.4; `r2_12` is already in `sql/changes.sql`). (`test_r2_12` was written on 29 Oct 2026.)
 6. **Pre-launch checks with the owner** (section 1, question 3; `PROJECT_NOTES.md` section 11), then opening registration when the owner decides. Done when each item is confirmed in Admin → Settings and the Actions tab shows green ticks.
 7. **After the event:** section 8.1 item 5.
 
