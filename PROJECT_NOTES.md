@@ -108,7 +108,7 @@ The database only accepts the role values **`admin`** and **`gate`**. **Always w
 | `index.html` | Public page (about 80 KB). A `CONFIG` block at the top holds event text, ticket text and the Supabase URL and key. The UPI ID, payee name and WhatsApp number are **not** in the code: they come from the database (`get_payment_info`). See section 6. |
 | `admin/index.html` | The **staff page** (about 112 KB): login for everyone, the admin dashboard (admins) AND the gate scanner (a **Gate** tab; gate staff see only that tab). See section 6. |
 | `gate/index.html` | Only a **forwarder** (about 0.6 KB) to `../admin/#gate`, so old bookmarks keep working. The scanner itself lives in `admin/index.html` since 28 Oct 2026. |
-| `assets/` | Logo files: `logo-mark.png` (transparent), `icon-192.png`, `apple-touch-icon.png`, `og-image.jpg` (the WhatsApp link preview). No SVG exists yet. |
+| `assets/` | Logo files: `logo-fluid.js` (animated logo, home page only; load it with `?v=N` and bump N on change), `logo-mark.png` (transparent), `icon-192.png`, `apple-touch-icon.png`, `og-image.jpg` (the WhatsApp link preview). No SVG exists yet. |
 | `.github/workflows/supabase-keepalive.yml` | Keep-alive ping. |
 | `.github/workflows/schema-snapshot.yml` | Nightly database structure snapshot. |
 | `HANDOVER_NEXT_SESSION.md` | Handover for the next Claude session (state, transfers in detail, API, error codes, test environment, task list). |
@@ -373,6 +373,8 @@ The owner will say when. When all work is done the owner fixes all settings. In 
 ---
 
 ## CHECKPOINT: end of the 26 to 28 Oct 2026 session (owner closed the session here)
+
+**Added after the checkpoint, 29 Oct 2026: animated logo on the public home page** (written by the owner, reviewed by Claude). `assets/logo-fluid.js` draws the logo as inline SVG: two bodies merge through a "goo" blur, the heads bud out, and the grey centre is the overlap of the two bodies. It runs for about 3.4 s, then shows the crisp logo. It is used on the **home page only**, with scroll-squish and tap-to-replay turned off. The old PNG is the fallback (script error) and reduced-motion users see the finished logo with no motion. The script is loaded as `assets/logo-fluid.js?v=2`: **bump the number whenever the file changes**. `vHome()` holds `#logo-fallback` (PNG) and `#logo` (SVG); `render()` mounts it. The tuning numbers are in `TUNE` at the top of the script. Suites still pass (public 101, admin 73, gate 35). Not checked: real phones (older Android, iPhone Safari).
 
 **State:** `main` is clean and equal to the remote; every pull request (#1 to #30) is merged; the three browser suites pass on `main` (public 101, admin 73, gate 35); `r2_12_gate_undo.sql` is live (confirmed in the snapshot of 28 Oct 2026) and recorded in `sql/changes.sql`. The app is still in **testing mode**: registration on for testing, test data only, transfers off, not ready for launch.
 
