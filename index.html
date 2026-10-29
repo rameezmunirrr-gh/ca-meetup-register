@@ -787,7 +787,26 @@ function drawQR(c,text){
 }
 function toast(t,ms){const d=document.createElement("div");d.className="toast";d.textContent=t;document.body.appendChild(d);setTimeout(()=>d.remove(),ms||2200)}
 const shownAmt=()=>S.step==="tpay"?S.xp.amount:total();
-const blobQR=()=>new Promise(r=>$("#qr").toBlob(r,"image/png"));
+/* The picture people Share or Download: the payment QR drawn at its EXACT size (never scaled, so it scans as well as the one on screen),
+   with the amount and payee above it and the UPI ID below it. Only this picture changes; the QR on the page does not. */
+async function blobQR(){
+  const q=$("#qr"),amt=shownAmt(),upi=(S.pay&&S.pay.upi)||"",payee=(S.pay&&S.pay.payee)||"";
+  try{if(document.fonts&&document.fonts.load)await Promise.all(['800 40px "Manrope"','600 24px "Manrope"'].map(f=>document.fonts.load(f)))}catch(_){}
+  const W=Math.max(q.width,560),side=40,FS='"Manrope",system-ui,-apple-system,"Segoe UI",Arial,sans-serif';
+  const c=document.createElement("canvas"),x=c.getContext("2d");
+  function fit(t,w,size,wt){x.font=wt+" "+size+"px "+FS;while(size>14&&x.measureText(t).width>w){size-=2;x.font=wt+" "+size+"px "+FS}return size}
+  const top=payee?170:120,bottom=150;
+  c.width=W;c.height=top+q.height+bottom;
+  x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.textAlign="center";x.textBaseline="alphabetic";
+  x.fillStyle="#0A2147";let s=fit("Pay ₹"+amt,W-side*2,76,"800");x.fillText("Pay ₹"+amt,W/2,88);
+  if(payee){x.fillStyle="#444";s=fit("to "+payee,W-side*2,30,"600");x.fillText("to "+payee,W/2,138)}
+  x.drawImage(q,Math.round((W-q.width)/2),top);   /* 1:1, no scaling */
+  const y=top+q.height;
+  x.fillStyle="#666";x.font="600 24px "+FS;x.fillText("UPI ID",W/2,y+38);
+  x.fillStyle="#0A2147";s=fit(upi,W-side*2,40,"800");x.fillText(upi,W/2,y+90);
+  x.fillStyle="#666";x.font="600 22px "+FS;x.fillText("Scan with any UPI app",W/2,y+130);
+  return new Promise(r=>c.toBlob(r,"image/png"));
+}
 async function download(){const b=await blobQR(),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="meetup-upi-"+shownAmt()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 function compress(file){return new Promise(res=>{
