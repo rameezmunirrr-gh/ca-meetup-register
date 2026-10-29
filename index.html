@@ -308,6 +308,16 @@ function reveal(){
     document.querySelectorAll("#app .card").forEach(el=>{if(el.getBoundingClientRect().top>vh*.92){el.classList.add("rv");io.observe(el)}});
   }catch(_){}
 }
+const aboutBtn=()=>`<button class="big ghost" id="go-about">About ${esc(CONFIG.organiserName)}</button>`;
+/* Live values (event date, time and venue; the About button) are patched into the Home card IN PLACE. Rebuilding the whole card
+   each time an answer arrives restarted its fade-in and the logo animation and jumped the page back to the top. */
+function refreshHome(){
+  const dd=document.querySelectorAll("#app .when dd");
+  if(dd.length===3){const v=[evDate(),evTime(),evVenue()];dd.forEach((el,i)=>{if(el.textContent!==v[i])el.textContent=v[i]})}
+  const tk=document.getElementById("go-tickets"),ab=document.getElementById("go-about"),want=!!(S.flags&&S.flags.show_about);
+  if(want&&!ab&&tk)tk.insertAdjacentHTML("afterend",aboutBtn());
+  else if(!want&&ab)ab.remove();
+}
 function vHome(){
   const n=getMine().length;
   return `<section class="invite"><div class="band"></div><div class="inner"><div class="logo-wrap"><img id="logo-fallback" src="assets/logo-mark.png" alt="Mallu Articles Bengaluru logo" width="128" height="87"><svg class="logo" id="logo" viewBox="0 0 360 244" role="img" aria-label="Mallu Articles Bengaluru logo" hidden><defs><filter id="goo" filterUnits="userSpaceOnUse" x="-200" y="-150" width="760" height="550"><feGaussianBlur id="gooBlur" in="SourceGraphic" stdDeviation="0"/><feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/></filter></defs><g filter="url(#goo)"><path id="hl" fill="#FA9E01"/><path id="hr" fill="#FCFCFC"/><path id="bl" fill="#FCFCFC"/><path id="br" fill="#FFA701"/></g><path id="dr" fill="#9A9999"/></svg></div>
@@ -317,7 +327,7 @@ function vHome(){
   <dl class="when"><div><dt>Date</dt><dd>${esc(evDate())}</dd></div><div><dt>Time</dt><dd>${esc(evTime())}</dd></div><div><dt>Venue</dt><dd>${esc(evVenue())}</dd></div></dl>
   </div><div class="band"></div></section>
   <div class="row col" style="gap:12px"><button class="big" id="go-register">Register now</button>
-  <button class="big ghost" id="go-tickets">Tickets</button>${S.flags&&S.flags.show_about?`<button class="big ghost" id="go-about">About ${esc(CONFIG.organiserName)}</button>`:""}</div>`+
+  <button class="big ghost" id="go-tickets">Tickets</button>${S.flags&&S.flags.show_about?aboutBtn():""}</div>`+
   (n?`<p class="note" style="text-align:center;margin-top:18px">${n===1?"Your booking is":n+" bookings are"} saved on this device. Open Tickets and enter your phone number to view ${n===1?"it":"them"}.</p>`:"");
 }
 function vAbout(){return head("About "+esc(CONFIG.organiserName),"Coming soon")+`<div class="card"><p style="margin:0">We're putting this page together. Please check back soon.</p></div><div class="row"><button class="ghost" id="go-home">Home</button></div>`}
@@ -868,7 +878,7 @@ document.addEventListener("click",async e=>{const el=e.target.closest("button,a"
   if(id==="submit")submit();
   if(id==="again"){resetBookingForm();S.result=null;S.step="loading";render();load()}
 });
-render();loadEvent().then(()=>{if(S.step==="home")render()});
-loadPay().then(()=>{if(["home","closed","done"].includes(S.step))render()});
-loadFlags().then(()=>{if(S.step==="home")render()});
+render();loadEvent().then(()=>{if(S.step==="home")refreshHome()});
+loadPay().then(()=>{if(["closed","done"].includes(S.step))render()});   /* Home shows nothing from the payment details, so it is not redrawn for them */
+loadFlags().then(()=>{if(S.step==="home")refreshHome()});
 </script></body></html>
