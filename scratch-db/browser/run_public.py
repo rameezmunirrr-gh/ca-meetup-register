@@ -28,9 +28,14 @@ MOCK = r'''
 def page(p, rpc_js='', w=420):
     b=p.chromium.launch(); pg=b.new_page(viewport={'width':w,'height':900}); errs=[]
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.route('**/*', lambda r: (r.fulfill(body=HTML, content_type='text/html') if r.request.url.endswith('/test.html')
-      else r.fulfill(body='window.qrcode=function(){return {addData(){},make(){},getModuleCount(){return 21},isDark(){return false}}};', content_type='text/javascript') if r.request.url.endswith('.js') or '/npm/' in r.request.url
-      else r.fulfill(status=204, body='')))
+    def handler(r):
+        u = r.request.url
+        if u.endswith('/test.html'): r.fulfill(body=HTML, content_type='text/html')
+        elif 'home-fx.js' in u or 'page-fx.js' in u:   # the REAL motion scripts run in these tests too (entrance, ripple), as on the live page
+            r.fulfill(path='/home/claude/ca-meetup-register/assets/' + u.split('/assets/')[1].split('?')[0], content_type='text/javascript')
+        elif u.endswith('.js') or '/npm/' in u: r.fulfill(body='window.qrcode=function(){return {addData(){},make(){},getModuleCount(){return 21},isDark(){return false}}};', content_type='text/javascript')
+        else: r.fulfill(status=204, body='')
+    pg.route('**/*', handler)
     pg.add_init_script(MOCK)
     if rpc_js: pg.add_init_script("document.addEventListener('DOMContentLoaded',()=>{});"+rpc_js)
     pg.goto('https://example.test/test.html'); pg.wait_for_selector('#app h1'); return b,pg,errs
