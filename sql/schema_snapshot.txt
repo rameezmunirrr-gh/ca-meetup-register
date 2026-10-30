@@ -20,6 +20,11 @@ bookings|9|reviewed_at|timestamp with time zone|f|
 bookings|10|reviewed_via|text|f|
 bookings|11|created_at|timestamp with time zone|t|now()
 bookings|12|kind|text|t|'registration'::text
+game_messages|1|id|uuid|t|gen_random_uuid()
+game_messages|2|name|text|t|
+game_messages|3|body|text|t|
+game_messages|4|created_at|timestamp with time zone|t|now()
+game_messages|5|updated_at|timestamp with time zone|t|now()
 keepalive|1|id|integer|t|
 keepalive|2|note|text|f|
 reg_sessions|1|id|uuid|t|
@@ -79,6 +84,7 @@ settings|24|ip_flag_threshold|integer|t|5
 settings|25|show_about|boolean|t|true
 settings|26|ask_email|boolean|t|true
 settings|27|ask_feedback|boolean|t|true
+settings|28|show_messages|boolean|t|false
 settings_log|1|id|bigint|t|
 settings_log|2|at|timestamp with time zone|t|now()
 settings_log|3|changed_by|uuid|f|
@@ -92,6 +98,9 @@ staff|2|name|text|t|
 staff|3|role|text|t|
 ticket_emails|1|ticket_id|uuid|t|
 ticket_emails|2|email|text|t|
+ticket_messages|1|ticket_id|uuid|t|
+ticket_messages|2|message_id|uuid|t|
+ticket_messages|3|assigned_at|timestamp with time zone|t|now()
 tickets|1|id|uuid|t|gen_random_uuid()
 tickets|2|ticket_no|integer|f|
 tickets|3|secret|text|t|
@@ -179,6 +188,9 @@ bookings | bookings_reviewed_via_check | CHECK ((reviewed_via = ANY (ARRAY['admi
 bookings | bookings_screenshot_check | CHECK (((kind = 'transfer'::text) OR (screenshot_path IS NOT NULL)))
 bookings | bookings_status_check | CHECK ((status = ANY (ARRAY['pending'::text, 'paid'::text, 'rejected'::text])))
 bookings | bookings_submission_id_key | UNIQUE (submission_id)
+game_messages | game_messages_body_check | CHECK (((char_length(body) >= 1) AND (char_length(body) <= 200)))
+game_messages | game_messages_name_check | CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60)))
+game_messages | game_messages_pkey | PRIMARY KEY (id)
 keepalive | keepalive_pkey | PRIMARY KEY (id)
 reg_sessions | reg_sessions_pkey | PRIMARY KEY (id)
 screenshot_scans | screenshot_scans_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
@@ -198,7 +210,7 @@ settings | settings_price_per_head_check | CHECK ((price_per_head > 0))
 settings | settings_upi_id_check | CHECK (((upi_id IS NULL) OR (upi_id ~ '^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9]{1,31}$'::text)))
 settings | settings_venue_len | CHECK (((char_length(btrim(venue)) >= 1) AND (char_length(btrim(venue)) <= 120)))
 settings | settings_whatsapp_check | CHECK (((whatsapp_number IS NULL) OR (whatsapp_number ~ '^[0-9]{11,15}$'::text)))
-settings_log | settings_log_area_check | CHECK ((area = ANY (ARRAY['settings'::text, 'staff'::text, 'transfer'::text])))
+settings_log | settings_log_area_check | CHECK ((area = ANY (ARRAY['settings'::text, 'staff'::text, 'transfer'::text, 'messages'::text])))
 settings_log | settings_log_pkey | PRIMARY KEY (id)
 staff | staff_pkey | PRIMARY KEY (user_id)
 staff | staff_role_check | CHECK ((role = ANY (ARRAY['admin'::text, 'gate'::text])))
@@ -206,6 +218,9 @@ staff | staff_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON 
 ticket_emails | ticket_emails_email_check | CHECK ((((char_length(email) >= 5) AND (char_length(email) <= 120)) AND (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text)))
 ticket_emails | ticket_emails_pkey | PRIMARY KEY (ticket_id)
 ticket_emails | ticket_emails_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+ticket_messages | ticket_messages_message_id_fkey | FOREIGN KEY (message_id) REFERENCES game_messages(id) ON DELETE CASCADE
+ticket_messages | ticket_messages_pkey | PRIMARY KEY (ticket_id)
+ticket_messages | ticket_messages_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 tickets | tickets_attendance_check | CHECK ((attendance = ANY (ARRAY['Surely'::text, 'Most probably'::text])))
 tickets | tickets_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id)
 tickets | tickets_checked_in_by_fkey | FOREIGN KEY (checked_in_by) REFERENCES auth.users(id)
@@ -257,6 +272,8 @@ booking_ips | CREATE UNIQUE INDEX booking_ips_pkey ON public.booking_ips USING b
 bookings | CREATE UNIQUE INDEX bookings_booking_code_key ON public.bookings USING btree (booking_code)
 bookings | CREATE UNIQUE INDEX bookings_pkey ON public.bookings USING btree (id)
 bookings | CREATE UNIQUE INDEX bookings_submission_id_key ON public.bookings USING btree (submission_id)
+game_messages | CREATE UNIQUE INDEX game_messages_name_uq ON public.game_messages USING btree (lower(name))
+game_messages | CREATE UNIQUE INDEX game_messages_pkey ON public.game_messages USING btree (id)
 keepalive | CREATE UNIQUE INDEX keepalive_pkey ON public.keepalive USING btree (id)
 reg_sessions | CREATE UNIQUE INDEX reg_sessions_pkey ON public.reg_sessions USING btree (id)
 screenshot_scans | CREATE UNIQUE INDEX screenshot_scans_pkey ON public.screenshot_scans USING btree (booking_id)
@@ -265,6 +282,8 @@ settings_log | CREATE INDEX settings_log_at_idx ON public.settings_log USING btr
 settings_log | CREATE UNIQUE INDEX settings_log_pkey ON public.settings_log USING btree (id)
 staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
 ticket_emails | CREATE UNIQUE INDEX ticket_emails_pkey ON public.ticket_emails USING btree (ticket_id)
+ticket_messages | CREATE INDEX ticket_messages_message_idx ON public.ticket_messages USING btree (message_id)
+ticket_messages | CREATE UNIQUE INDEX ticket_messages_pkey ON public.ticket_messages USING btree (ticket_id)
 tickets | CREATE INDEX tickets_booking_idx ON public.tickets USING btree (booking_id)
 tickets | CREATE UNIQUE INDEX tickets_coord_no_uq ON public.tickets USING btree (coord_no) WHERE (coord_no IS NOT NULL)
 tickets | CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)
@@ -312,6 +331,7 @@ report : {security_invoker=true}
 booking_feedback : rls=true
 booking_ips : rls=true
 bookings : rls=true
+game_messages : rls=true
 keepalive : rls=true
 reg_sessions : rls=true
 screenshot_scans : rls=true
@@ -319,6 +339,7 @@ settings : rls=true
 settings_log : rls=true
 staff : rls=true
 ticket_emails : rls=true
+ticket_messages : rls=true
 tickets : rls=true
 transfer_buyers : rls=true
 transfers : rls=true
@@ -326,12 +347,14 @@ transfers : rls=true
 public.booking_feedback | admin_read_booking_feedback | SELECT | {authenticated} | using: is_admin() | check: -
 public.booking_ips | admin_read_booking_ips | SELECT | {authenticated} | using: is_admin() | check: -
 public.bookings | staff_read_bookings | SELECT | {authenticated} | using: is_staff() | check: -
+public.game_messages | admin_read_game_messages | SELECT | {authenticated} | using: is_admin() | check: -
 public.keepalive | anon can read keepalive | SELECT | {anon} | using: true | check: -
 public.screenshot_scans | staff_read_scans | SELECT | {authenticated} | using: is_staff() | check: -
 public.settings | staff_read_settings | SELECT | {authenticated} | using: is_staff() | check: -
 public.settings_log | admin_read_log | SELECT | {authenticated} | using: is_admin() | check: -
 public.staff | staff_read_staff | SELECT | {authenticated} | using: ((user_id = auth.uid()) OR is_admin()) | check: -
 public.ticket_emails | admin_read_ticket_emails | SELECT | {authenticated} | using: is_admin() | check: -
+public.ticket_messages | admin_read_ticket_messages | SELECT | {authenticated} | using: is_admin() | check: -
 public.tickets | staff_read_tickets | SELECT | {authenticated} | using: is_staff() | check: -
 public.transfer_buyers | admin_read_transfer_buyers | SELECT | {authenticated} | using: is_admin() | check: -
 public.transfers | admin_read_transfers | SELECT | {authenticated} | using: is_admin() | check: -
@@ -499,6 +522,22 @@ CREATE OR REPLACE FUNCTION public._header(p_name text)
 AS $function$
   select value from jsonb_each_text(_request_headers()) where lower(key) = lower(p_name) limit 1 $function$
 
+--- _inherit_ticket_message() | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._inherit_ticket_message()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.transferred_from is not null then
+    insert into ticket_messages (ticket_id, message_id)
+      select new.id, message_id from ticket_messages where ticket_id = new.transferred_from
+      on conflict (ticket_id) do nothing;
+  end if;
+  return null;
+end $function$
+
 --- _log_settings_change() | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public._log_settings_change()
  RETURNS trigger
@@ -549,6 +588,16 @@ begin
   end if;
   return null;
 end $function$
+
+--- _mlog(p_field text, p_old text, p_new text) | execute rights: {postgres=X/postgres}
+CREATE OR REPLACE FUNCTION public._mlog(p_field text, p_old text, p_new text)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into settings_log (changed_by, who, area, field, old_value, new_value)
+  values (auth.uid(), _actor(), 'messages', p_field, left(p_old, 300), left(p_new, 300)) $function$
 
 --- _new_transfer_code() | execute rights: {postgres=X/postgres}
 CREATE OR REPLACE FUNCTION public._new_transfer_code()
@@ -670,6 +719,38 @@ AS $function$
   insert into settings_log (changed_by, who, area, field, old_value, new_value)
   values (auth.uid(), _actor(), 'transfer', p_field, p_old, p_new) $function$
 
+--- admin_assign_messages(p_pairs jsonb) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_assign_messages(p_pairs jsonb)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int; cnt int; summ text; ids_t uuid[]; ids_m uuid[];
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_pairs is null or jsonb_typeof(p_pairs) <> 'array' then raise exception 'INVALID_PAIRS'; end if;
+  cnt := jsonb_array_length(p_pairs);
+  if cnt = 0 then return 0; end if;
+  if cnt > 1000 then raise exception 'TOO_MANY'; end if;
+  begin
+    select array_agg((e->>'t')::uuid), array_agg((e->>'m')::uuid) into ids_t, ids_m from jsonb_array_elements(p_pairs) e;
+  exception when others then raise exception 'INVALID_PAIRS';
+  end;
+  if array_position(ids_t, null) is not null or array_position(ids_m, null) is not null then raise exception 'INVALID_PAIRS'; end if;
+  if (select count(distinct x) from unnest(ids_t) x) <> cnt then raise exception 'DUPLICATE_TICKET'; end if;
+  if (select count(*) from tickets where id = any (ids_t) and transferred_out_at is null) <> cnt then raise exception 'TICKET_NOT_FOUND'; end if;
+  if (select count(*) from game_messages where id = any (ids_m)) <> (select count(distinct x) from unnest(ids_m) x) then raise exception 'MESSAGE_NOT_FOUND'; end if;
+  insert into ticket_messages (ticket_id, message_id)
+    select t, m from unnest(ids_t, ids_m) as u(t, m)
+    on conflict (ticket_id) do update set message_id = excluded.message_id, assigned_at = now();
+  get diagnostics n = row_count;
+  select string_agg(g.name || ' x' || c.k, ', ' order by g.name) into summ
+    from (select m, count(*) k from unnest(ids_m) m group by m) c join game_messages g on g.id = c.m;
+  perform _mlog('messages given', null, n || ' ticket(s): ' || summ);
+  return n;
+end $function$
+
 --- admin_clear_client_ips() | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_clear_client_ips()
  RETURNS integer
@@ -683,6 +764,47 @@ begin
   delete from booking_ips; get diagnostics n = row_count;
   insert into settings_log (changed_by, who, area, field, old_value, new_value)
   values (auth.uid(), _actor(), 'settings', 'stored visitor IPs deleted', n::text || ' rows', null);
+  return n;
+end $function$
+
+--- admin_clear_messages(p_message uuid, p_tickets uuid[]) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_clear_messages(p_message uuid DEFAULT NULL::uuid, p_tickets uuid[] DEFAULT NULL::uuid[])
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int; nm text;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_message is not null then
+    select name into nm from game_messages where id = p_message;
+    if not found then raise exception 'NOT_FOUND'; end if;
+  end if;
+  delete from ticket_messages
+   where (p_message is null or message_id = p_message)
+     and (p_tickets is null or ticket_id = any (p_tickets));
+  get diagnostics n = row_count;
+  perform _mlog('messages cleared', null, n || ' ticket(s)' || case when nm is not null then ' of ' || nm else '' end
+                || case when p_tickets is not null then ' (chosen tickets)' else '' end);
+  return n;
+end $function$
+
+--- admin_delete_message(p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_delete_message(p_id uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare o game_messages; n int;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  select * into o from game_messages where id = p_id for update;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  select count(*) into n from ticket_messages where message_id = p_id;
+  delete from game_messages where id = p_id;
+  perform _mlog('message deleted', o.name || ': ' || o.body, n || ' ticket(s) lost it');
   return n;
 end $function$
 
@@ -756,6 +878,34 @@ begin
     'grace_count', gc, 'grace_until', case when gc > 0 then gu else null end, 'server_now', now());
 end $function$
 
+--- admin_save_message(p_id uuid, p_name text, p_body text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_save_message(p_id uuid, p_name text, p_body text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n text := trim(coalesce(p_name, '')); b text := trim(coalesce(p_body, '')); o game_messages; nid uuid;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if char_length(n) not between 1 and 60 or n ~ '[[:cntrl:]]' then raise exception 'INVALID_NAME'; end if;
+  if char_length(b) not between 1 and 200 or b ~ '[[:cntrl:]]' then raise exception 'INVALID_MESSAGE'; end if;
+  if p_id is null then
+    if exists (select 1 from game_messages where lower(name) = lower(n)) then raise exception 'NAME_TAKEN'; end if;
+    insert into game_messages (name, body) values (n, b) returning id into nid;
+    perform _mlog('message added', null, n || ': ' || b);
+    return nid;
+  end if;
+  select * into o from game_messages where id = p_id for update;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  if exists (select 1 from game_messages where lower(name) = lower(n) and id <> p_id) then raise exception 'NAME_TAKEN'; end if;
+  update game_messages set name = n, body = b, updated_at = now() where id = p_id;
+  if o.name is distinct from n or o.body is distinct from b then
+    perform _mlog('message edited', o.name || ': ' || o.body, n || ': ' || b);
+  end if;
+  return p_id;
+end $function$
+
 --- admin_set_ask_email(p_ask boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_set_ask_email(p_ask boolean)
  RETURNS void
@@ -825,6 +975,19 @@ begin
   if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
   if p_show is null then raise exception 'INVALID_VALUE'; end if;
   update settings set show_about = p_show where id = 1;
+end $function$
+
+--- admin_set_show_messages(p_show boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_show_messages(p_show boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if p_show is null then raise exception 'INVALID_VALUE'; end if;
+  update settings set show_messages = p_show where id = 1;
 end $function$
 
 --- admin_set_transfer_settings(p_open boolean, p_cutoff timestamp with time zone, p_clear_cutoff boolean, p_food_locked boolean, p_code_hours integer, p_ip_threshold integer) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
@@ -1277,11 +1440,12 @@ CREATE OR REPLACE FUNCTION public.lookup_tickets(p_code text, p_phone text)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare b bookings%rowtype; c text; ph text; tk jsonb; bu transfer_buyers%rowtype; x transfers%rowtype; st text;
+declare b bookings%rowtype; c text; ph text; tk jsonb; bu transfer_buyers%rowtype; x transfers%rowtype; st text; gm_on boolean;
 begin
   c  := replace(replace(replace(upper(coalesce(p_code, '')), 'O', '0'), ' ', ''), '-', '');
   ph := replace(replace(coalesce(p_phone, ''), ' ', ''), '-', '');
   if length(c) <> 8 or ph !~ '^[0-9]{10}$' then return jsonb_build_object('found', false); end if;
+  select show_messages into gm_on from settings where id = 1;
   select * into b from bookings where booking_code = c;
   if not found then return jsonb_build_object('found', false); end if;
   if b.kind = 'transfer' then
@@ -1293,6 +1457,8 @@ begin
            'ticket_no', t.ticket_no, 'kind', t.kind, 'coord_no', t.coord_no,
            'label', _ticket_label(t.kind, t.ticket_no, t.coord_no),
            'secret', case when b.status = 'paid' and t.transferred_out_at is null then t.secret else null end,
+           'game_message', case when gm_on and b.status = 'paid' and t.transferred_out_at is null
+                                then (select m.body from ticket_messages tm join game_messages m on m.id = tm.message_id where tm.ticket_id = t.id) else null end,
            'transferred', (t.transferred_out_at is not null),
            'name', t.name, 'location', t.location, 'attendance', t.attendance, 'food', t.food)
          order by t.reg_seq)
@@ -1826,6 +1992,7 @@ end $function$
 === TRIGGERS ===
 settings | CREATE TRIGGER settings_log_trg AFTER UPDATE ON public.settings FOR EACH ROW EXECUTE FUNCTION _log_settings_change()
 staff | CREATE TRIGGER staff_log_trg AFTER INSERT OR DELETE OR UPDATE ON public.staff FOR EACH ROW EXECUTE FUNCTION _log_staff_change()
+tickets | CREATE TRIGGER tickets_inherit_message_trg AFTER INSERT ON public.tickets FOR EACH ROW EXECUTE FUNCTION _inherit_ticket_message()
 === EVENT TRIGGERS ===
 ensure_rls | ddl_command_end | rls_auto_enable | enabled=O
 issue_graphql_placeholder | sql_drop | extensions.set_graphql_placeholder | enabled=O
@@ -1838,6 +2005,7 @@ pgrst_drop_watch | sql_drop | extensions.pgrst_drop_watch | enabled=O
 booking_feedback : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 booking_ips : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
 bookings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+game_messages : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 keepalive : {postgres=arwdDxtm/postgres,anon=rDxtm/postgres,authenticated=Dxtm/postgres,service_role=Dxtm/postgres}
 reg_sessions : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres}
 report : {postgres=arwdDxtm/postgres,anon=Dxtm/postgres,authenticated=rDxtm/postgres,service_role=Dxtm/postgres}
@@ -1846,6 +2014,7 @@ settings : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=
 settings_log : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 staff : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 ticket_emails : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
+ticket_messages : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 tickets : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 transfer_buyers : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
 transfers : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
