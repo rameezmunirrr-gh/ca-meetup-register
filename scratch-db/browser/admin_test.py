@@ -1,6 +1,7 @@
 import json, sys
 from playwright.sync_api import sync_playwright
-HTML = open('/home/claude/ca-meetup-register/admin/index.html', encoding='utf-8').read()
+import os
+HTML = open(os.environ.get('ADMIN_HTML', '/home/claude/ca-meetup-register/admin/index.html'), encoding='utf-8').read()
 MOCK = open('mock_supabase.js').read(); CH = open('chart_stub.js').read()
 results = []
 def check(name, cond, detail=''):
