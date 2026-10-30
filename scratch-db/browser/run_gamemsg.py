@@ -21,9 +21,10 @@ FAKE = r"""(function(){const calls=window.__CALLS=[];window.__R={};
     if(typeof h==='function'){try{return await h(a)}catch(e){return {data:null,error:{message:String(e)}}}}return ok(h)},
   storage:{from:()=>({upload:async()=>({data:{},error:null})})}})};})();"""
 SPY = "window.__text=[];const _ft=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(t){window.__text.push(String(t));return _ft.apply(this,arguments)};"
-def booking(msgs):
+def booking(msgs, prizes=None):
+    prizes = prizes or {}
     return {'found':True,'kind':'registration','booking_code':'AB12CD34','status':'paid','people_count':len(msgs),'amount_expected':250*len(msgs),
-            'tickets':[{'name':n,'food':'Veg' if i % 2 == 0 else 'Non-veg','label':f'E26-00{i+1}','secret':'abcdef'*2,'transferred':False,'kind':'guest','ticket_no':i+1,'coord_no':None,'location':'x','attendance':'y','game_message':m}
+            'tickets':[{'name':n,'food':'Veg' if i % 2 == 0 else 'Non-veg','label':f'E26-00{i+1}','secret':'abcdef'*2,'transferred':False,'kind':'guest','ticket_no':i+1,'coord_no':None,'location':'x','attendance':'y','game_message':m,'game_prize':prizes.get(n)}
                        for i, (n, m) in enumerate(msgs)]}
 def open_view(p, rpc_js, html=None, w=420):
     b = p.chromium.launch(); pg = b.new_page(viewport={'width': w, 'height': 900}); errs = []
@@ -103,6 +104,28 @@ with sync_playwright() as p:
     b, pg, errs = open_view(p, "window.__R.lookup_tickets=()=>({data:JSON.parse(" + json.dumps(mk(None)) + "),error:null})")
     pg.evaluate("window.__REJ='lookup_tickets'"); view(pg)
     check('5.5 if the fresh lookup fails with a network error (it throws), the ticket still opens', dims(pg) == [[900, 1480]] and not errs, (dims(pg), errs)); b.close()
+    b, pg, errs = open_view(p, js(booking([('Asha', None)], prizes={'Asha': '<b>"win"</b> & more'}))); view(pg)
+    check('4.3 the prize line is also kept as plain text in the label (quotes, & and tags do not break it)', 'Prize: <b>"win"</b> & more' in pg.get_attribute('#tc0', 'aria-label') and pg.query_selector('#app b') is None, pg.get_attribute('#tc0', 'aria-label')); b.close()
+    # 5b. the prize line: separate panel, only when it exists
+    names = ['Neither', 'TeamOnly', 'PrizeOnly', 'Both']
+    bk = booking([('Neither', None), ('TeamOnly', 'You are in team LION 🦁'), ('PrizeOnly', None), ('Both', 'You are in team TIGER 🐯')], prizes={'PrizeOnly': 'You won extra food! 🍛', 'Both': 'Free dessert for you'})
+    b, pg, errs = open_view(p, js(bk)); pg.click('[data-view]'); pg.wait_for_selector('canvas.tk', state='attached'); pg.wait_for_function('S.cv&&S.cv[3]', timeout=15000); pg.wait_for_timeout(300)
+    d = dims(pg); lh = lambda txt: pg.evaluate("(s)=>{const L=msgLines(s);return L.lines.length*L.lh}", txt)
+    one = lambda txt: 1476 + 138 + lh(txt) + 34
+    exp = [1480, one('You are in team LION 🦁'), one('You won extra food! 🍛'), 1476 + 138 + lh('You are in team TIGER 🐯') + 18 + 138 + lh('Free dessert for you') + 34]
+    check('5b.1 no blank space: a ticket with neither is the old size, one panel is as tall as its text needs, two panels stack with a small gap', [x[1] for x in d] == exp, (d, exp))
+    tx = pg.evaluate('window.__text')
+    check('5b.2 labels: "Your secret message" is drawn twice (two tickets), "You are a winner!" twice (two tickets)', tx.count('Your secret message') == 2 and tx.count('You are a winner!') == 2, [x for x in tx if 'ecret' in x or 'winner' in x])
+    check('5b.3 the prize text is drawn exactly as written', 'You won extra food! 🍛' in tx and 'Free dessert for you' in tx)
+    check('5b.4 screen-reader labels: prize named, nothing about a prize for tickets without one', 'Prize: You won extra food' in pg.get_attribute('#tc2', 'aria-label') and 'Prize' not in pg.get_attribute('#tc1', 'aria-label') and 'Secret message' in pg.get_attribute('#tc3', 'aria-label') and 'Prize: Free dessert' in pg.get_attribute('#tc3', 'aria-label'))
+    for i, n in enumerate(names): shot(pg, 'p_' + n, i)
+    check('5b.5 no page errors', not errs, errs); b.close()
+    # a long prize line and a long team message together
+    b, pg, errs = open_view(p, js(booking([('Both', long200)], prizes={'Both': 'W' * 150}))); view(pg)
+    d = dims(pg); check('5b.6 two long panels together still produce a sane ticket (under 3200 px tall)', 1480 < d[0][1] < 3200 and not errs, (d, errs)); shot(pg, 'p_long_both'); b.close()
+    # the switch OFF: the database sends nulls, the ticket is exactly the old one
+    b, pg, errs = open_view(p, js(booking([('Asha', None)], prizes={}))); view(pg)
+    check('5b.7 switch OFF (nulls): the ticket is exactly the old 900 x 1480', dims(pg) == [[900, 1480]], dims(pg)); b.close()
     # 6. a phone-width look at it
     b, pg, errs = open_view(p, js(booking([('Asha', 'You are in team TIGER 🐯')])), w=360); view(pg)
     check('6.1 no sideways scroll on a 360 px phone with the taller ticket', pg.evaluate('document.documentElement.scrollWidth') <= 360, pg.evaluate('document.documentElement.scrollWidth'))

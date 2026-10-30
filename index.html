@@ -705,7 +705,7 @@ function vTicket(){
   const r=S.cur,n=r.tickets.length;
   let h=head("Your ticket"+(n>1?"s":""),"Show this QR code at the entry.");
   r.tickets.forEach((t,i)=>{
-    h+=`<div class="card"><canvas id="tc${i}" class="tk" width="900" height="1480" role="img" aria-label="Ticket ${esc(t.label||"")} for ${esc(t.name)}${t.game_message?". Secret message: "+esc(t.game_message):""}"></canvas>
+    h+=`<div class="card"><canvas id="tc${i}" class="tk" width="900" height="1480" role="img" aria-label="Ticket ${esc(t.label||"")} for ${esc(t.name)}${t.game_message?". Secret message: "+esc(t.game_message):""}${t.game_prize?". Prize: "+esc(t.game_prize):""}"></canvas>
     <div class="row"><button data-dl="jpg" data-i="${i}">Download JPG</button><button class="ghost" data-dl="pdf" data-i="${i}">Download PDF</button></div></div>`;
   });
   if(n>1)h+=`<div class="card"><b>Everyone in this booking</b><div class="row"><button id="dl-all-pdf">All tickets as one PDF</button><button class="ghost" id="dl-all-jpg">All tickets as JPG</button></div><p class="note">The JPG option downloads one image per person. Your browser may ask permission to download several files.</p></div>`;
@@ -725,7 +725,11 @@ function drawTicket(c,t,code){
   const coord=t.kind==="coordinator",W=TW,NAVY="#0A2147",AMB="#FFA400",AI="#8A5200",IVO="#FBF7EC";
   const P=coord?{acc:"#7d1c32",top:"#fff9f4",bot:"#f6e9e0",ink:"#2a1218",mute:"#7a5a5f"}:{acc:NAVY,top:"#fffdf7",bot:"#f6efdc",ink:"#13203B",mute:"#576179"};
   /* a game message (only present while the organisers have switched messages on) adds a panel under the stub; with no message the ticket is exactly as before */
-  const GM=String(t.game_message||"").trim(),ML=GM?msgLines(GM):null,PY=TH-4,PH=ML?138+ML.lines.length*ML.lh:0,H=ML?PY+PH+34:TH;
+  /* two optional panels under the stub, each present only when that ticket has it: the team message and the prize line (the prize is drawn by the organisers).
+     With neither, the ticket is exactly as before. */
+  const PANELS=[["Your secret message",t.game_message],["You are a winner!",t.game_prize]].map(a=>[a[0],String(a[1]||"").trim()]).filter(a=>a[1]).map(a=>{const m=msgLines(a[1]);return {label:a[0],ML:m,PH:138+m.lines.length*m.lh}});
+  let PY=TH-4;PANELS.forEach((pn,i)=>{pn.y=PY;PY+=pn.PH+(i<PANELS.length-1?18:0)});
+  const H=PANELS.length?PY+34:TH;
   c.width=W;c.height=H;const x=c.getContext("2d");x.clearRect(0,0,W,H);
   x.save();rr(x,0,0,W,H,52);x.clip();
   const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,P.top);g.addColorStop(1,P.bot);x.fillStyle=g;x.fillRect(0,0,W,H);
@@ -764,11 +768,11 @@ function drawTicket(c,t,code){
     const q=qrcode(0,"M");q.addData(t.label+"|"+t.secret);q.make();const m=q.getModuleCount(),k=Math.floor(240/m),o=556+(280-m*k)/2,p=1148+(280-m*k)/2;
     x.fillStyle="#000";for(let r=0;r<m;r++)for(let cc=0;cc<m;cc++)if(q.isDark(r,cc))x.fillRect(o+cc*k,p+r*k,k,k);
   }else txt(x,"Not ready",696,1296,30,"600","#444","center",0);
-  if(ML){
-    x.fillStyle="rgba(255,164,0,.13)";rr(x,44,PY,W-88,PH,30);x.fill();x.lineWidth=2;x.strokeStyle=AMB;x.globalAlpha=.8;rr(x,44,PY,W-88,PH,30);x.stroke();x.globalAlpha=1;
-    txt(x,"Your secret message",W/2,PY+62,30,"italic 500",AI,"center",0,FD);
-    ML.lines.forEach((l,i)=>txt(x,l,W/2,PY+116+ML.size+i*ML.lh-ML.size*.2,ML.size,"700",P.acc,"center",0,FD));
-  }
+  PANELS.forEach(pn=>{const y0=pn.y,ML=pn.ML;
+    x.fillStyle="rgba(255,164,0,.13)";rr(x,44,y0,W-88,pn.PH,30);x.fill();x.lineWidth=2;x.strokeStyle=AMB;x.globalAlpha=.8;rr(x,44,y0,W-88,pn.PH,30);x.stroke();x.globalAlpha=1;
+    txt(x,pn.label,W/2,y0+62,30,"italic 500",AI,"center",0,FD);
+    ML.lines.forEach((l,i)=>txt(x,l,W/2,y0+116+ML.size+i*ML.lh-ML.size*.2,ML.size,"700",P.acc,"center",0,FD));
+  });
   x.restore();
 }
 /* wrap the message to the panel width: 44 px text, smaller if it is long (200 characters at most). Splits on spaces, and inside a word only if one word alone is too wide. Never splits an emoji. */

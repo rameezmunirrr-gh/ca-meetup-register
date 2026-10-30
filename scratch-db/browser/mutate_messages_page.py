@@ -30,6 +30,21 @@ M = [
  ("Settings card not shown", P("${S.msgOk?msgCard(s):\"\"}", "")),
  ("Settings switch saves the opposite", P('{p_show:$("#msgshow").checked}', '{p_show:!$("#msgshow").checked}')),
  ("mobile: grid can grow wider than the screen (the first bug I hit)", lambda t: P("{.msgrid{grid-template-columns:minmax(0,1fr)}", "{.msgrid{grid-template-columns:1fr}")(P(".msgrid>.card{margin:0;min-width:0}", ".msgrid>.card{margin:0}")(t))),
+ ("lottery pool includes pending people", P('(l.scope==="present"?!!p.checked_in_at:p.b.status==="paid")&&(!l.ex', '(l.scope==="present"?!!p.checked_in_at:true)&&(!l.ex')),
+ ("lottery pool includes rejected people", P('live().filter(p=>p.b.status!=="rejected"&&(l.scope', 'live().filter(p=>(l.scope')),
+ ("lottery 'present' ignores who is present", P('(l.scope==="present"?!!p.checked_in_at:p.b.status==="paid")', '(l.scope==="present"?true:p.b.status==="paid")')),
+ ("lottery does not leave out earlier winners", P('&&(!l.ex||!S.pz[p.id]))}', ')}')),
+ ("the draw is not random (always the first people)", P("return shuf(pool).slice(0,Math.max(0,Math.min(n,pool.length)))", "return pool.slice(0,Math.max(0,Math.min(n,pool.length)))")),
+ ("the draw returns one winner too many", P("Math.max(0,Math.min(n,pool.length))", "Math.max(0,Math.min(n+1,pool.length))")),
+ ("more winners than eligible people is allowed", P('if(n>pool.length)return toast("Only "', 'if(false)return toast("Only "')),
+ ("an empty prize line is allowed", P('if(!l.body.trim())return toast("Type the prize line first"),true;', '')),
+ ("Save does not ask before replacing prizes", P('if(!confirm(`Give "${l.body.trim()}" to', 'if(false&&!confirm(`Give "${l.body.trim()}" to')),
+ ("Save draws again instead of saving the previewed winners", P('{p_tickets:l.plan,p_body:l.body}', '{p_tickets:drawWinners(lotPool(),l.plan.length).map(p=>p.id),p_body:l.body}')),
+ ("Take away on one winner clears every prize", P('{p_tickets:[d.pzdel]}', '{p_tickets:null}')),
+ ("the number box redraws the card and swallows the tap on Draw (the first bug I hit)", P('if(t.id==="ln"){l.n=t.value;if(!l.plan)return true}', 'if(t.id==="ln"){l.n=t.value}')),
+ ("the lottery card is shown even before r2_14 is run", P("S.pzOk=!r.error;", "S.pzOk=true;")),
+ ("no prize tag on People cards", P('${S.pzOk&&S.pz[p.id]?tag("🏆 prize"):""}', '')),
+ ("the prize preview does not warn about replaced prizes", P('${S.pz[id]?" · already has a prize, which will be replaced":""}', '')),
 ]
 tmp = tempfile.mkdtemp(prefix='mut_msg_'); bad = 0
 for i, (name, fn) in enumerate(M, 1):
