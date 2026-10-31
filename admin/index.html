@@ -129,6 +129,8 @@ async function load(){
   /* messages exist only after sql/r2_13 has been run; before that the Messages tab and card stay hidden */
   try{const[x,y]=await Promise.all([db.from("game_messages").select("*").order("created_at"),db.from("ticket_messages").select("ticket_id,message_id")]);
     S.msgOk=!x.error&&!y.error;S.msgs=x.error?[]:x.data;S.tm=y.error?{}:Object.fromEntries(y.data.map(r=>[r.ticket_id,r.message_id]))}catch(_){S.msgOk=false;S.msgs=[];S.tm={}}
+  /* "pick random people" (r2_14) exists only after sql/r2_14 has been run; before that its card stays hidden */
+  try{const r=await db.from("ticket_prizes").select("ticket_id,body,heading");S.pzOk=!r.error;S.pz=r.error?{}:Object.fromEntries(r.data.map(x=>[x.ticket_id,x.body]));S.pzh=r.error?{}:Object.fromEntries(r.data.map(x=>[x.ticket_id,x.heading]))}catch(_){S.pzOk=false;S.pz={};S.pzh={}}
 }
 /* ===== live registration status banner (daily pause + 10-minute grace) ===== */
 function fmtIST(iso){try{const d=new Date(iso),day=x=>x.toLocaleDateString("en-IN",{day:"numeric",month:"short",timeZone:"Asia/Kolkata"});
@@ -286,7 +288,7 @@ function tPeople(){const r=filteredPeople(),here=r.filter(p=>p.checked_in_at).le
     const co=p.kind==="coordinator",old=co?(p.ticket_no!=null?`guest ${"E26-"+pad(p.ticket_no)} cancelled`:""):(p.prev_coord_no!=null?`coordinator ${"E26-"+pad(p.prev_coord_no)+"C"} cancelled`:"");
     return `<div class="card pc ${co?"co":""}" data-pid="${p.id}"><div class="pc-h"><div><b>${esc(p.name)}</b><div class="mute">${esc(tlabel(p))} · ${co?"Coordinator":"Guest"}${old?` · ${esc(old)}`:""}</div></div><span class="pill p-${p.b.status}">${p.b.status}</span></div>
     <div class="pc-c"><a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>${em}</div>
-    <div class="pc-t">${tag(p.location)}${tag(p.attendance)}${tag(p.food)}${S.msgOk&&S.tm[p.id]?tag("✉ "+msgName(S.tm[p.id])):""}<button class="tg lk2" data-sheet="booking:${p.booking_id}">${esc(p.b.booking_code)} ›</button></div>
+    <div class="pc-t">${tag(p.location)}${tag(p.attendance)}${tag(p.food)}${S.msgOk&&S.tm[p.id]?tag("✉ "+msgName(S.tm[p.id])):""}${S.pzOk&&S.pz[p.id]?tag("🎲 picked"):""}<button class="tg lk2" data-sheet="booking:${p.booking_id}">${esc(p.b.booking_code)} ›</button></div>
     <div class="pc-a">${p.checked_in_at?`<span class="here">✔ Present</span><button class="sm ghost" data-undo="${p.id}">Undo</button>`:""}${p.b.status==="rejected"?"":co?`<button class="sm ghost" data-co="remove" data-t="${p.id}">Remove coordinator</button>`:`<button class="sm ghost" data-co="make" data-t="${p.id}">Make coordinator</button>`}</div></div>`}).join("")+`</div>${r.length?"":'<p class="mute">Nobody matches.</p>'}`}
 function csv(){const r=filteredPeople(),h=["Ticket No.","Type","Name","Phone",...(S.emailsOk?["Email"]:[]),"Location","Attendance","Food","Booking ID","Payment","Expected amount","Present","Checked in at",...(S.showMoved?["Transferred to another person"]:[])];
   const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
@@ -419,7 +421,7 @@ function vSettings(){const s=S.settings;
 Object.assign(TERR,{NAME_TAKEN:"There is already a message with that name.",INVALID_NAME:"Type a name for the message (up to 60 characters, one line).",INVALID_MESSAGE:"Type the message people will see (up to 200 characters, one line).",
   TICKET_NOT_FOUND:"One of those tickets no longer exists or was transferred away. The page was refreshed; try again.",MESSAGE_NOT_FOUND:"That message no longer exists. The page was refreshed.",NOT_FOUND:"That message no longer exists. The page was refreshed.",
   TOO_MANY:"Too many people at once (the limit is 1000).",DUPLICATE_TICKET:"A person appeared twice in the list.",INVALID_PAIRS:"Something went wrong with the list. Refresh and try again."});
-S.msgOk=false;S.msgs=[];S.tm={};S.mf={scope:"paid",nomsg:false,together:false,use:null,give:"",name:"",body:"",edit:null,plan:null};
+S.msgOk=false;S.msgs=[];S.tm={};S.pzOk=false;S.pz={};S.pzh={};S.mf={scope:"paid",nomsg:false,together:false,use:null,give:"",name:"",body:"",edit:null,plan:null,lot:{scope:"paid",ex:true,n:1,body:"",head:"",plan:null}};
 const msgName=id=>(S.msgs.find(m=>m.id===id)||{}).name||"";
 const msgCount=id=>live().filter(p=>S.tm[p.id]===id).length;
 function msgScope(){const m=S.mf;
@@ -441,6 +443,26 @@ function msgCard(s){
   <p class="mute" style="margin-top:0">When on, every ticket holder who has a message sees it on their ticket (after entering their Booking ID and phone). When off, no message is shown to anyone and none leaves the database. You write and give the messages in the Messages tab.</p>
   <label><input type="checkbox" id="msgshow" ${s.show_messages?"checked":""}> Show each person's message on their ticket</label>
   <p><button id="msgshowsave">Save</button></p></div>`}
+/* ---- pick random people: choose N people at random (browser secure random, every eligible person has exactly the same chance), shown as a preview first ---- */
+function lotPool(){const l=S.mf.lot;return live().filter(p=>p.b.status!=="rejected"&&(l.scope==="present"?!!p.checked_in_at:p.b.status==="paid")&&(!l.ex||!S.pz[p.id]))}
+function drawWinners(pool,n){return shuf(pool).slice(0,Math.max(0,Math.min(n,pool.length)))}
+function lotCard(){
+  const l=S.mf.lot,pool=lotPool(),won=live().filter(p=>S.pz[p.id]),opt=(v,t)=>`<option value="${v}" ${l.scope===v?"selected":""}>${t}</option>`;
+  const pl=l.plan?`<div class="plan"><h3>Preview: nothing is saved yet</h3><p class="mute" style="margin-top:0">${l.plan.length===1?"The person picked is":"The people picked are"}:</p>
+    ${l.plan.map(id=>{const p=people().find(x=>x.id===id);return `<div class="rlist"><div><b>${esc(p?p.name:"?")}</b> <span class="mute">${p?esc(tlabel(p)):""}${p&&p.checked_in_at?" · present":""}${S.pz[id]?" · already has a message line, which will be replaced":""}</span></div></div>`}).join("")}
+    <p class="bar"><button id="lsave">Save ${l.plan.length===1?"this person":"these people"}</button><button class="ghost" id="ldrawagain">Draw again</button><button class="ghost" id="lcancel">Cancel</button></p></div>`:"";
+  return `<div class="card" style="margin-top:12px"><h2>3. Pick random people</h2>
+    <p class="mute" style="margin-top:0">Picks people at random, each eligible person with exactly the same chance, and gives them a message line on their ticket (a prize, a task, a clue, anything). It is separate from the team message: a ticket can have a team message, a message line, both or neither, and only what exists is shown.</p>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"><div><label for="lscope">Draw from</label><select id="lscope">${opt("paid","Everyone with a paid ticket")}${opt("present","Only people present at the event")}</select></div>
+    <div><label for="ln">How many people</label><input id="ln" type="number" min="1" max="1000" value="${l.n}" inputmode="numeric"></div></div>
+    <label style="font-weight:400"><input type="checkbox" id="lex" ${l.ex?"checked":""}> Leave out people who already have a message line</label>
+    <label for="lhead">Heading above the line on the ticket (optional)</label><input id="lhead" maxlength="60" placeholder="You are a winner!" value="${esc(l.head)}" style="width:100%" autocomplete="off">
+    <p class="mute" style="margin:2px 0 8px">Left empty, the ticket says "You are a winner!".</p>
+    <label for="lbody">Message line shown on the ticket</label><input id="lbody" maxlength="200" placeholder="You won extra food! Show this to a volunteer 🍛" value="${esc(l.body)}" style="width:100%" autocomplete="off">
+    <p class="mute"><b>${pool.length}</b> ${pool.length===1?"person is":"people are"} eligible.</p>
+    <p class="bar"><button id="ldraw" ${pool.length?"":"disabled"}>Draw</button></p>${pl}
+    <h3>Picked so far (${won.length})</h3>
+    ${won.length?won.map(p=>`<div class="mrow"><div><b>${lk("person",p.id,p.name)}</b> <span class="mute">${esc(tlabel(p))}</span><div class="mute" style="font-size:12px">${esc(S.pzh[p.id]||"You are a winner!")}</div><div class="mtext">${esc(S.pz[p.id])}</div></div><div class="mright"><button class="sm ghost" data-pzdel="${p.id}">Take away</button></div></div>`).join("")+`<p class="bar"><button class="bad" id="pzclr">Take every message line away</button></p>`:'<p class="mute">Nobody yet.</p>'}</div>`}
 function vMessages(){
   const s=S.settings,on=!!s.show_messages,m=S.mf,sc=msgScope(),all=live().filter(p=>p.b.status!=="rejected"),none=all.filter(p=>!S.tm[p.id]).length;
   const opt=(v,l)=>`<option value="${v}" ${m.scope===v?"selected":""}>${l}</option>`,use=m.use||S.msgs.map(x=>x.id);
@@ -476,8 +498,8 @@ function vMessages(){
     <div class="bar"><select id="mgive" aria-label="Message to give"><option value="">Choose a message</option>${S.msgs.map(x=>`<option value="${x.id}" ${m.give===x.id?"selected":""}>${esc(x.name)}</option>`).join("")}</select><button id="mgivego" ${sc.length?"":"disabled"}>Give to ${sc.length}</button></div>
     <h3>Take messages away</h3>
     <div class="bar"><button class="ghost" id="mclrgrp" ${sc.some(p=>S.tm[p.id])?"":"disabled"}>From the people in this group</button><button class="bad" id="mclrall" ${Object.keys(S.tm).length?"":"disabled"}>From everyone</button></div></div>
-  </div>${prev}
-  <div class="card"><h2>3. Who has what</h2><p class="mute" style="margin-top:0">${all.length-none} of ${all.length} people have a message.</p>${ros||'<p class="mute">Nothing yet.</p>'}
+  </div>${prev}${S.pzOk?lotCard():""}
+  <div class="card"><h2>${S.pzOk?"4":"3"}. Who has what</h2><p class="mute" style="margin-top:0">${all.length-none} of ${all.length} people have a message.</p>${ros||'<p class="mute">Nothing yet.</p>'}
     ${noneL.length?`<details class="ros"><summary><b>No message</b> <span class="mute">${noneL.length}</span></summary><div class="rlist">${noneL.map(p=>`<div>${lk("person",p.id,p.name)} <span class="mute">${esc(tlabel(p))}${p.b.status!=="paid"?" · "+esc(p.b.status):""}</span></div>`).join("")}</div></details>`:""}</div>`}
 async function msgClick(t,id){
   const b=t.closest&&t.closest("button");const d=b?b.dataset:{};
@@ -501,6 +523,16 @@ async function msgClick(t,id){
     const base={};if(m.nomsg)live().forEach(p=>{const k=S.tm[p.id];if(k)base[k]=(base[k]||0)+1});
     m.plan={pairs:planShuffle(sc,ids,base,m.together)};vMessages();const pv=document.querySelector(".plan");if(pv)pv.scrollIntoView({block:"nearest"});return true}
   if(id==="mplancancel"){S.mf.plan=null;vMessages();return true}
+  if(id==="ldraw"||id==="ldrawagain"){const l=S.mf.lot;l.body=$("#lbody")?$("#lbody").value:l.body;l.head=$("#lhead")?$("#lhead").value:l.head;const n=Math.floor(+l.n),pool=lotPool();
+    if(!l.body.trim())return toast("Type the message line first"),true;if(!(n>=1))return toast("Type how many people (1 or more)"),true;if(!pool.length)return toast("Nobody is eligible"),true;
+    if(n>pool.length)return toast("Only "+pool.length+" "+(pool.length===1?"person is":"people are")+" eligible"),true;
+    l.plan=drawWinners(pool,n).map(p=>p.id);vMessages();const pv=document.querySelector(".plan");if(pv)pv.scrollIntoView({block:"nearest"});return true}
+  if(id==="lcancel"){S.mf.lot.plan=null;vMessages();return true}
+  if(id==="lsave"){const l=S.mf.lot;if(!l.plan||!l.plan.length)return true;const rep=l.plan.filter(i=>S.pz[i]).length;
+    if(!confirm(`Give "${l.body.trim()}" (heading: "${l.head.trim()||"You are a winner!"}") to ${l.plan.length} ${l.plan.length===1?"person":"people"}?${rep?`\n\n${rep} of them already ${rep===1?"has":"have"} a message line; it will be replaced.`:""}`))return true;
+    const r=await msgCall("admin_set_prizes",{p_tickets:l.plan,p_body:l.body,p_heading:l.head.trim()||null},l.plan.length+(l.plan.length===1?" person saved":" people saved"));if(r){S.mf.lot.plan=null;view()}return true}
+  if(d.pzdel){if(!confirm("Take this message line away?"))return true;await msgCall("admin_clear_prizes",{p_tickets:[d.pzdel]},"Message line taken away");return true}
+  if(id==="pzclr"){if(!confirm("Take every message line away from everyone?\n\nThe team messages are not affected."))return true;await msgCall("admin_clear_prizes",{p_tickets:null},"All message lines taken away");return true}
   if(id==="mplansave"){const pl=S.mf.plan;if(!pl)return true;const rep=pl.pairs.filter(([tk,mi])=>S.tm[tk]&&S.tm[tk]!==mi).length;
     if(!confirm(`Save these ${pl.pairs.length} messages?${rep?`\n\n${rep} ${rep===1?"person already has":"people already have"} a different message; it will be replaced.`:""}`))return true;
     const r=await msgPairs(pl.pairs,pl.pairs.length+" messages saved");if(r){S.mf.plan=null;view()}return true}
@@ -520,6 +552,8 @@ function msgChange(t){
     if(t.id==="mscope")m.scope=t.value;if(t.id==="mnomsg")m.nomsg=t.checked;if(t.id==="mtog")m.together=t.checked;if(t.id==="mgive")m.give=t.value;
     if(t.dataset.muse){const cur=new Set(m.use||S.msgs.map(x=>x.id));t.checked?cur.add(t.dataset.muse):cur.delete(t.dataset.muse);m.use=[...cur]}
     m.plan=null;vMessages();return true}
+  if(t.id==="lscope"||t.id==="lex"||t.id==="ln"){const l=S.mf.lot;if(t.id==="lscope")l.scope=t.value;if(t.id==="lex")l.ex=t.checked;if(t.id==="ln"){l.n=t.value;if(!l.plan)return true}   /* no redraw when there is no preview: a redraw while the finger is on the Draw button would swallow the tap */
+    l.plan=null;vMessages();return true}
   if(t.dataset.pmsg!==undefined&&t.dataset.pid){const v=t.value;
     if(v)msgPairs([[t.dataset.pid,v]],"Message saved");else msgCall("admin_clear_messages",{p_message:null,p_tickets:[t.dataset.pid]},"Message removed");return true}
   return false}
@@ -825,6 +859,7 @@ function pSheet(id){
   ${row("At the event",p.transferred_out_at?'<span class="mute">ticket transferred away</span>':p.checked_in_at?`<b style="color:var(--ok)">✔ Present</b> <span class="mute">${esc(fdt(p.checked_in_at))}</span>`:'<span class="mute">not yet</span>')}
   ${row("Booking",lk("booking",p.booking_id,p.b.booking_code||"–"))}
   ${adm&&S.msgOk&&!p.transferred_out_at?row("Message",`<select data-pmsg="1" data-pid="${esc(p.id)}" aria-label="Message for ${esc(p.name)}"><option value="">None</option>${S.msgs.map(x=>`<option value="${x.id}" ${S.tm[p.id]===x.id?"selected":""}>${esc(x.name)}</option>`).join("")}</select>`):""}
+  ${S.pzOk&&S.pz[p.id]&&!p.transferred_out_at?row("Message line",esc((S.pzh[p.id]||"You are a winner!")+": "+S.pz[p.id])):""}
   ${p.b.kind==="transfer"?row("Ticket origin",'<span class="mute">came through a ticket transfer</span>'):""}
   ${tr.map(x=>{const b=buyerOf(x);return row("Transfer",`${MODE(x.kind)} · ${esc(x.status.replace(/_/g," "))}${b?" → "+buyerLk(x):""}`)}).join("")}</div>
   ${!p.checked_in_at&&!p.transferred_out_at&&p.b.status!=="rejected"?`<p class="sh-f"><button data-act="admitpick" data-id="${esc(p.id)}">Admit ${esc(p.name)}</button></p>`:""}`,
@@ -955,7 +990,7 @@ document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="fmoved"){S.showMoved=t.checked;tPeople()}
   if(t.dataset.tcall){tcall("admin_transfer_confirm_call",{p_transfer:t.dataset.tcall,p_confirmed:t.checked},t.checked?"Call confirmed":"Call tick removed")}
   if(["fpay","ffood","floc","fatt","ftype","fhere","frev"].includes(t.id)){S.f.pay=$("#fpay")?.value??S.f.pay;if($("#ffood")){S.f.food=$("#ffood").value;S.f.loc=$("#floc").value;S.f.att=$("#fatt").value;S.f.type=$("#ftype").value;S.f.here=$("#fhere").value}if($("#frev"))S.f.review=$("#frev").checked;S.tab==="people"?tPeople():tBookings()}});
-document.addEventListener("input",e=>{if(e.target.id==="mname"){S.mf.name=e.target.value;return}if(e.target.id==="mbody"){S.mf.body=e.target.value;return}if(e.target.id==="gfq"){S.gfind=e.target.value;gResults();return}if(e.target.id==="gq"){S.gq=e.target.value;gSearch();return}if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
+document.addEventListener("input",e=>{if(e.target.id==="lbody"){S.mf.lot.body=e.target.value;return}if(e.target.id==="lhead"){S.mf.lot.head=e.target.value;return}if(e.target.id==="ln"){S.mf.lot.n=e.target.value;return}if(e.target.id==="mname"){S.mf.name=e.target.value;return}if(e.target.id==="mbody"){S.mf.body=e.target.value;return}if(e.target.id==="gfq"){S.gfind=e.target.value;gResults();return}if(e.target.id==="gq"){S.gq=e.target.value;gSearch();return}if(e.target.id==="q"){S.f.q=e.target.value;S.tab==="people"?tPeople():tBookings()}});
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.target.id==="pw"||e.target.id==="em"))$("#login").click()});
 boot();
 </script></body></html>

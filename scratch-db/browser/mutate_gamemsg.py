@@ -5,17 +5,30 @@ def P(old, new):
     def f(s): assert s.count(old) == 1, (old[:60], s.count(old)); return s.replace(old, new)
     return f
 M = [
- ("a panel is drawn even when there is no message", P('ML=GM?msgLines(GM):null', 'ML=msgLines(GM||" ")')),
- ("the panel ignores the message and always says Tiger", P('const GM=String(t.game_message||"").trim()', 'const GM=t.game_message?"Tiger":""')),
- ("the page reads the wrong field name", P('const GM=String(t.game_message||"")', 'const GM=String(t.message||"")')),
+ ("the panel ignores the prize and always says Tiger", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '["You are a winner!","Tiger"]')),
+ ("the panel ignores the message and always says Tiger", P('["Your secret message",t.game_message]', '["Your secret message","Tiger"]')),
+ ("the page reads the wrong field name", P('["Your secret message",t.game_message]', '["Your secret message",t.message]')),
  ("text is allowed to run past the panel edge", P("const W_MSG=740;", "const W_MSG=1100;")),
  ("long messages never shrink", P("while(L.length>4&&size>30){size-=4;L=wrap(size)}", "")),
  ("View Ticket no longer asks the database again", P("if(T.code&&T.ph){try{const r=await Promise.race", "if(false&&T.code&&T.ph){try{const r=await Promise.race")),
  ("a 'not found' answer replaces the booking on screen", P("r.data&&r.data.found&&r.data.kind===d.kind", "r.data")),
  ("a failed fresh lookup blocks the ticket", P("T.res=r.data;d=r.data}}catch(_){}}", "T.res=r.data;d=r.data}}catch(_){return}}")),
  ("label for screen readers is not escaped", P('${t.game_message?". Secret message: "+esc(t.game_message):""}', '${t.game_message?". Secret message: "+t.game_message:""}')),
- ("panel is too short for its text (text spills out)", P("PH=ML?138+ML.lines.length*ML.lh:0", "PH=ML?138:0")),
- ("the ticket is not made taller (message drawn off the picture)", P("H=ML?PY+PH+34:TH;", "H=TH;")),
+ ("panel is too short for its text (text spills out)", P("PH:138+m.lines.length*m.lh", "PH:138")),
+ ("the ticket is not made taller (messages drawn off the picture)", P("const H=PANELS.length?PY+34:TH;", "const H=TH;")),
+ ("the prize panel is never drawn", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '["You are a winner!",""]')),
+ ("the prize panel shows the team message text", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '["You are a winner!",t.game_message]')),
+ ("no gap between two panels (height does not match the layout)", P("PY+=pn.PH+(i<PANELS.length-1?18:0)", "PY+=pn.PH")),
+ ("a blank panel is drawn for a missing prize", P(".map(a=>[a[0],String(a[1]||\"\").trim()]).filter(a=>a[1])", ".map(a=>[a[0],String(a[1]||\"\").trim()||\" \"])")),
+ ("the prize is left out of the screen-reader label", P('${t.game_prize?". "+esc(String(t.game_prize_heading||"").trim()||"You are a winner!")+": "+esc(t.game_prize):""}', '')),
+ ("prize text is not escaped in the screen-reader label", P('+": "+esc(t.game_prize)', '+": "+t.game_prize')),
+ ("heading ignored: always 'You are a winner!'", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '["You are a winner!",t.game_prize]')),
+ ("heading not trimmed", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '[String(t.game_prize_heading||"")||"You are a winner!",t.game_prize]')),
+ ("blank heading drawn blank (no fallback)", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '[String(t.game_prize_heading||"You are a winner!").trim(),t.game_prize]')),
+ ("heading read from the wrong field", P('[String(t.game_prize_heading||"").trim()||"You are a winner!",t.game_prize]', '[String(t.game_prize||"").trim()||"You are a winner!",t.game_prize]')),
+ ("long heading is not shrunk (spills out of the panel)", P('fit(x,pn.label,740,30,12,"italic 500",FD)', '30')),
+ ("heading missing from the screen-reader label", P('+esc(String(t.game_prize_heading||"").trim()||"You are a winner!")+": "+esc(t.game_prize)', '+": "+esc(t.game_prize)')),
+ ("heading not escaped in the screen-reader label", P('". "+esc(String(t.game_prize_heading||"").trim()||"You are a winner!")', '". "+(String(t.game_prize_heading||"").trim()||"You are a winner!")')),
 ]
 tmp = tempfile.mkdtemp(prefix='mut_gm_'); bad = 0
 for i, (name, fn) in enumerate(M, 1):

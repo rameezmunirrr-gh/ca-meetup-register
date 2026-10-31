@@ -10,6 +10,7 @@ STATEFUL = r"""
     const real = T.game_messages !== undefined && T.game_messages !== null;
     const M = window.__M = {n: 100};
     if (real) { M.msgs = T.game_messages; M.tm = {}; (T.ticket_messages||[]).forEach(r => M.tm[r.ticket_id] = r.message_id); }
+    const realP = T.ticket_prizes !== undefined && T.ticket_prizes !== null; M.pz = {}; M.pzh = {}; if (realP) (T.ticket_prizes||[]).forEach(r => { M.pz[r.ticket_id] = r.body; M.pzh[r.ticket_id] = r.heading; });
     const ofrom = c.from.bind(c), orpc = c.rpc.bind(c);
     c.from = function(t){
       if (real && (t === 'game_messages' || t === 'ticket_messages')) {
@@ -17,9 +18,16 @@ STATEFUL = r"""
         const b = {select(){return b}, order(){return b}, limit(){return b}, then(res,rej){return Promise.resolve({data:rows,error:null}).then(res,rej)}};
         return b;
       }
+      if (realP && t === 'ticket_prizes') { const rows = Object.keys(M.pz).map(k => ({ticket_id:k, body:M.pz[k], heading:M.pzh[k]})); const b = {select(c){b.cols = String(c||'').split(',').map(x=>x.trim()); return b}, then(res,rej){const cs = b.cols || []; return Promise.resolve({data:rows.map(r=>Object.fromEntries(Object.entries(r).filter(([k])=>cs.includes(k)))),error:null}).then(res,rej)}}; return b; }
       return ofrom(t);
     };
     c.rpc = async function(name, a){
+      if (realP && name === 'admin_set_prizes') { (window.__CALLS = window.__CALLS || []).push({name, args:a}); if (window.__FAIL && window.__FAIL[name]) return {data:null,error:{message:window.__FAIL[name]}};
+        const b = (a.p_body||'').trim(); if (!b) return {data:null,error:{message:'INVALID_MESSAGE'}}; const h = ((a.p_heading||'').trim()) || 'You are a winner!'; if (h.length > 60) return {data:null,error:{message:'INVALID_NAME'}}; const ts = a.p_tickets || [];
+        if (new Set(ts).size !== ts.length) return {data:null,error:{message:'DUPLICATE_TICKET'}};
+        for (const id of ts) { const tk = T.tickets.find(x => x.id === id); if (!tk || tk.transferred_out_at) return {data:null,error:{message:'TICKET_NOT_FOUND'}}; }
+        ts.forEach(id => { M.pz[id] = b; M.pzh[id] = h; }); return {data:ts.length,error:null}; }
+      if (realP && name === 'admin_clear_prizes') { (window.__CALLS = window.__CALLS || []).push({name, args:a}); let n = 0; Object.keys(M.pz).forEach(k => { if (!a.p_tickets || a.p_tickets.includes(k)) { delete M.pz[k]; delete M.pzh[k]; n++; } }); return {data:n,error:null}; }
       if (!real || !/^admin_(set_show_messages|save_message|delete_message|assign_messages|clear_messages)$/.test(name)) return orpc(name, a);
       (window.__CALLS = window.__CALLS || []).push({name, args:a});
       const err = m => ({data:null, error:{message:m}});
@@ -55,11 +63,12 @@ def people_set(n_books=10, per=3, present=(), extra=None):
             n = i*per + j + 1
             T.append(mk(n, ticket_no=n, name=f'Person{n:02d}', booking_id=f'b{i+1}', checked_in_at=('2026-11-22T09:00:00Z' if n in present else None)))
     return T, B
-def mdb(T, B, msgs=('Tiger','Elephant','Lion'), assigned=None, show=False):
+def mdb(T, B, msgs=('Tiger','Elephant','Lion'), assigned=None, show=False, prizes=None, heads=None):
     ms = [dict(id=f'm{i+1}', name=n, body=f'Team {n.upper()}', created_at=f'2026-10-30T10:0{i}:00Z') for i, n in enumerate(msgs)]
     d = db(tables=dict(tickets=T, bookings=B, transfers=None, transfer_buyers=None, ticket_emails=None, game_messages=ms,
                        ticket_messages=[dict(ticket_id=t, message_id=m) for t, m in (assigned or {}).items()],
                        settings=dict(SETTINGS, show_messages=show)))
+    if prizes is not None: d['tables']['ticket_prizes'] = [dict(ticket_id=k, body=v, heading=(heads or {}).get(k, 'You are a winner!')) for k, v in prizes.items()]
     return d
 def opn(p, d, tab=None, w=1300, h=900):
     b = p.chromium.launch(); pg = b.new_page(viewport={'width':w,'height':h}); errs = []
@@ -72,6 +81,7 @@ def opn(p, d, tab=None, w=1300, h=900):
     return b, pg, errs
 def calls(pg, name=None): return [x for x in pg.evaluate('window.__CALLS||[]') if name is None or x['name'] == name]
 def tm(pg): return pg.evaluate('window.__M.tm')
+def pz(pg): return pg.evaluate('window.__M.pz')
 def lt(pg): return pg.evaluate("(()=>{const t=document.querySelectorAll('.toast');return t.length?t[t.length-1].textContent:''})()")
 def accept(pg): pg.once('dialog', lambda dlg: dlg.accept())
 def counts(pm): 
@@ -221,4 +231,91 @@ with sync_playwright() as p:
     check('12.4 31 people / 3 messages: the message that gets the extra person is chosen at random (all three get it sometimes)', len(r2) == 3 and min(r2.values()) > 30, r2)
     check('12.3 148 people / 15 messages: thirteen of 10 and two of 9... sizes differ by at most 1', sorted(map(int, r['n148'].split(','))) == [9, 9] + [10] * 13, r['n148'])
     b.close()
+
+    # ---- 13. the lottery (needs r2_14; hidden before)
+    b, pg, errs = opn(p, mdb(T, B), 'messages')
+    check('13.1 before r2_14 is run: no lottery card, no crash, the rest still works', pg.query_selector('#ldraw') is None and 'Pick random people' not in pg.inner_text('#v') and '3. Who has what' in pg.inner_text('#v') and not errs, errs); b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages')
+    check('13.2 with r2_14: the card is there, numbered 3, and "Who has what" becomes 4', '3. Pick random people' in pg.inner_text('#v') and '4. Who has what' in pg.inner_text('#v'))
+    check('13.3 it says 30 eligible by default', '30 people are eligible' in pg.inner_text('#v'))
+    pg.click('#ldraw'); pg.wait_for_timeout(100); check('13.4 Draw without a prize line asks for it and draws nothing', 'message line' in lt(pg) and pg.query_selector('.plan') is None)
+    pg.fill('#lbody', 'You won extra food! 🍛'); pg.fill('#ln', '0'); pg.click('#ldraw'); pg.wait_for_timeout(100); check('13.5 0 winners is refused', 'how many' in lt(pg) and pg.query_selector('.plan') is None)
+    pg.fill('#ln', '31'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100); pg.click('#ldraw'); pg.wait_for_timeout(100); check('13.6 more winners than eligible people is refused with the number', 'Only 30' in lt(pg))
+    pg.fill('#ln', '1'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100)
+    check('13.7 typed prize line survives re-drawing the card', pg.input_value('#lbody') == 'You won extra food! 🍛')
+    pg.click('#ldraw'); pg.wait_for_timeout(100); pv = pg.inner_text('.plan')
+    check('13.8 Draw shows ONE winner and says nothing is saved', 'nothing is saved' in pv and 'The person picked is' in pv and not calls(pg, 'admin_set_prizes'), pv[:200])
+    w1 = pg.evaluate('S.mf.lot.plan'); pg.click('#ldrawagain'); pg.wait_for_timeout(50)
+    accept(pg); pg.click('#lsave'); pg.wait_for_timeout(350); c = calls(pg, 'admin_set_prizes')[-1]['args']
+    check('13.9 Save sends exactly the previewed winner with the prize text', c['p_body'] == 'You won extra food! 🍛' and len(c['p_tickets']) == 1 and c['p_tickets'][0] in {t['id'] for t in T}, c)
+    check('13.10 the winner now appears under "Winners so far (1)" with the text, and the preview is gone', 'Picked so far (1)' in pg.inner_text('#v') and 'extra food' in pg.inner_text('#v') and pg.query_selector('.plan') is None)
+    check('13.11 the draw excludes people who already won (default): the only winner is not eligible any more', '29 people are eligible' in pg.inner_text('#v'))
+    pg.uncheck('#lex'); pg.wait_for_timeout(100); check('13.12 unticking "leave out people who already have a prize" makes everyone eligible again', '30 people are eligible' in pg.inner_text('#v')); pg.check('#lex'); pg.wait_for_timeout(100)
+    pg.fill('#ln', '5'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100); pg.click('#ldraw'); pg.wait_for_timeout(100); pl = pg.evaluate('S.mf.lot.plan')
+    check('13.13 five winners: five different people, none of them the earlier winner', len(pl) == 5 and len(set(pl)) == 5 and not (set(pl) & set(pz(pg))), pl)
+    check('13.14 the preview says "The people picked are"', 'The people picked are' in pg.inner_text('.plan'))
+    pg.click('#lcancel'); check('13.15 Cancel closes the preview and saves nothing new', pg.query_selector('.plan') is None and len(pz(pg)) == 1)
+    check('13.16 People tab shows a prize tag on exactly one person', (pg.click('button[data-tab="people"]'), pg.inner_text('#tbl').count('🎲 picked'))[1] == 1)
+    wid = list(pz(pg))[0]; pg.evaluate(f"openSheet('person','{wid}')"); pg.wait_for_timeout(100)
+    check('13.17 the winner\'s sheet shows the prize line', 'Message line' in pg.inner_text('#sheetbg') and 'extra food' in pg.inner_text('#sheetbg'))
+    pg.keyboard.press('Escape'); pg.click('button[data-tab="messages"]'); accept(pg); pg.click('[data-pzdel]'); pg.wait_for_timeout(350)
+    check('13.18 "Take away" removes just that prize', pz(pg) == {} and calls(pg, 'admin_clear_prizes')[-1]['args'] == {'p_tickets': [wid]})
+    check('13.19 no page errors in the lottery', not errs, errs); b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages'); pg.fill('#lbody', 'Five winners'); pg.fill('#ln', '5'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100)
+    pg.click('#ldraw'); pg.click('#ldrawagain'); pg.wait_for_timeout(100); plan5 = pg.evaluate('S.mf.lot.plan'); accept(pg); pg.click('#lsave'); pg.wait_for_timeout(350); c5 = calls(pg, 'admin_set_prizes')[-1]['args']
+    check('13.19b Save sends exactly the five previewed winners, in the previewed order (not a fresh draw)', c5['p_tickets'] == plan5 and len(plan5) == 5 and sorted(pz(pg)) == sorted(plan5), (c5['p_tickets'], plan5)); b.close()
+    # present scope, rejected, transferred away, pending are never eligible
+    Tz, Bz = people_set(n_books=4, per=3, present={2, 4, 5, 6, 8, 9, 10, 11, 12})
+    Bz[1]['status'] = 'pending'; Bz[2]['status'] = 'rejected'; Tz[0]['transferred_out_at'] = '2026-10-22T10:00:00Z'
+    b, pg, errs = opn(p, mdb(Tz, Bz, prizes={}), 'messages')
+    check('13.20 "Draw from everyone with a paid ticket": only paid, not-transferred people count (b1 minus the transferred one, plus b4 = 5)', '5 people are eligible' in pg.inner_text('#v'), pg.inner_text('#v')[:600])
+    pg.select_option('#lscope', 'present'); pg.wait_for_timeout(100)
+    check('13.21 "Only people present": only those checked in; pending people who are present count, rejected and transferred never (b1:1 + b2:3 + b4:3 = 7)', '7 people are eligible' in pg.inner_text('#v'), pg.inner_text('#v')[:600])
+    pg.fill('#lbody', 'P'); pg.fill('#ln', '7'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100); pg.click('#ldraw'); pg.wait_for_timeout(100); pl = pg.evaluate('S.mf.lot.plan')
+    ok_ids = {t['id'] for t in Tz if not t['transferred_out_at'] and t['booking_id'] in ('b1', 'b2', 'b4') and t['checked_in_at']}
+    check('13.22 drawing all 7 eligible people returns exactly them, no one else', set(pl) == ok_ids and len(pl) == 7, (sorted(pl), sorted(ok_ids))); b.close()
+    # the draw itself: uniform, no repeats
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages')
+    r = pg.evaluate("""()=>{const pool=Array.from({length:10},(_,i)=>({id:'p'+i})),c={};let dupe=false,wrong=false;
+      for(let k=0;k<6000;k++){const w=drawWinners(pool,1);if(w.length!==1)wrong=true;c[w[0].id]=(c[w[0].id]||0)+1}
+      for(let k=0;k<2000;k++){const w=drawWinners(pool,3);if(new Set(w.map(x=>x.id)).size!==3||w.length!==3)dupe=true}
+      const all=drawWinners(pool,50);const small=drawWinners([],3);
+      return {c,dupe,wrong,all:all.length,small:small.length}}""")
+    cnt = list(r['c'].values())
+    check('13.23 6000 single draws among 10 people: all 10 win, each about 600 (500 to 700), none favoured', len(cnt) == 10 and min(cnt) > 500 and max(cnt) < 700 and not r['wrong'], r['c'])
+    check('13.24 draws of 3: always 3 different people', not r['dupe'])
+    check('13.25 asking for more than the pool gives the whole pool; an empty pool gives nobody', r['all'] == 10 and r['small'] == 0, r)
+    # errors: database refuses
+    b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages'); pg.evaluate("window.__FAIL={admin_set_prizes:'TICKET_NOT_FOUND'}"); pg.fill('#lbody', 'x'); pg.click('#ldraw'); accept(pg); pg.click('#lsave'); pg.wait_for_timeout(350)
+    check('13.26 a refused save explains itself in words and keeps nothing', 'no longer exists' in lt(pg) and pz(pg) == {}, lt(pg)); b.close()
+    # winner replaced warning; "take every prize away"
+    b, pg, errs = opn(p, mdb(T, B, prizes={'t1': 'old prize', 't2': 'old prize'}), 'messages'); pg.uncheck('#lex'); pg.fill('#lbody', 'new'); pg.fill('#ln', '30'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100); pg.click('#ldraw'); pg.wait_for_timeout(100)
+    check('13.27 the preview warns when some winners already have a prize', 'already has a message line' in pg.inner_text('.plan'))
+    msg = []; pg.once('dialog', lambda dlg: (msg.append(dlg.message), dlg.dismiss())); pg.click('#lsave'); pg.wait_for_timeout(150)
+    check('13.28 the Save question says the old prize will be replaced, and Cancel saves nothing', msg and 'replaced' in msg[0] and not calls(pg, 'admin_set_prizes'), msg)
+    pg.click('#lcancel'); accept(pg); pg.click('#pzclr'); pg.wait_for_timeout(350)
+    check('13.29 "Take every prize away" clears all and does not touch team messages', pz(pg) == {} and calls(pg, 'admin_clear_prizes')[-1]['args'] == {'p_tickets': None}); b.close()
+    b, pg, errs = opn(p, mdb(T, B, assigned={'t1': 'm1'}, prizes={'t1': 'Free dessert'}), 'messages', w=360, h=740); pg.fill('#lbody', 'x'); pg.click('#ldraw'); pg.wait_for_timeout(100)
+    check('13.30 no sideways scroll at 360 px with the lottery open', pg.evaluate('document.documentElement.scrollWidth') <= 360, pg.evaluate('document.documentElement.scrollWidth'))
+    check('13.31 a team message and a prize on the same person are both kept', tm(pg) == {'t1': 'm1'} and pz(pg) == {'t1': 'Free dessert'}); b.close()
+    # 13h. the editable heading
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages')
+    check('13.40 the heading box exists, is empty, allows 60 characters, and says what happens when left empty', pg.input_value('#lhead') == '' and pg.get_attribute('#lhead', 'maxlength') == '60' and 'You are a winner!' in pg.inner_text('#v'))
+    pg.fill('#lbody', 'Find the organiser'); pg.fill('#lhead', '  Secret mission  '); pg.click('#ldraw'); pg.wait_for_timeout(100); pg.click('#ldrawagain'); pg.wait_for_timeout(100)
+    check('13.41 a typed heading survives re-drawing the card', pg.input_value('#lhead') == '  Secret mission  ')
+    msg = []; pg.once('dialog', lambda dlg: (msg.append(dlg.message), dlg.accept())); pg.click('#lsave'); pg.wait_for_timeout(350); c = calls(pg, 'admin_set_prizes')[-1]['args']
+    check('13.42 Save sends the trimmed heading as p_heading, and the Save question names the heading', c['p_heading'] == 'Secret mission' and c['p_body'] == 'Find the organiser' and msg and 'Secret mission' in msg[0], (c, msg))
+    check('13.43 the "Picked so far" list shows the heading above the line', 'Secret mission' in pg.inner_text('#v') and 'Find the organiser' in pg.inner_text('#v'))
+    wid = list(pz(pg))[0]; pg.evaluate(f"openSheet('person','{wid}')"); pg.wait_for_timeout(100)
+    check('13.44 the person sheet shows heading and line', 'Secret mission: Find the organiser' in pg.inner_text('#sheetbg'), pg.inner_text('#sheetbg')[-200:]); pg.keyboard.press('Escape')
+    check('13.45 no page errors', not errs, errs); b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages'); pg.fill('#lbody', 'Plain'); pg.click('#ldraw'); pg.wait_for_timeout(100); accept(pg); pg.click('#lsave'); pg.wait_for_timeout(350); c = calls(pg, 'admin_set_prizes')[-1]['args']
+    check('13.46 an empty heading is sent as null (the database then uses the default), and the list shows the default', c['p_heading'] is None and 'You are a winner!' in pg.inner_text('#v').split('Picked so far')[1], c); b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={}), 'messages'); pg.fill('#lbody', 'Line'); pg.click('#ldraw'); pg.wait_for_timeout(100); pg.fill('#lhead', 'Typed after the draw'); pg.fill('#ln', '2'); pg.dispatch_event('#ln', 'change'); pg.wait_for_timeout(100)
+    check('13.48 a heading typed while a preview is open survives the card being redrawn (number of people changed)', pg.input_value('#lhead') == 'Typed after the draw', pg.input_value('#lhead')); b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={'t1': 'old'}, heads={'t1': None}), 'messages')
+    check('13.49 an old row without a heading is listed with the default heading (and nothing crashes)', 'You are a winner!' in pg.inner_text('#v').split('Picked so far')[1] and not errs, errs); b.close()
+    b, pg, errs = opn(p, mdb(T, B, prizes={'t1': 'old'}, heads={'t1': 'Old heading'}), 'messages')
+    check('13.47 a heading already in the database is listed for its person', 'Old heading' in pg.inner_text('#v')); b.close()
 print(f'{sum(results)} passed, {len(results)-sum(results)} failed')
