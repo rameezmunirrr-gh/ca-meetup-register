@@ -101,6 +101,10 @@ ticket_emails|2|email|text|t|
 ticket_messages|1|ticket_id|uuid|t|
 ticket_messages|2|message_id|uuid|t|
 ticket_messages|3|assigned_at|timestamp with time zone|t|now()
+ticket_prizes|1|ticket_id|uuid|t|
+ticket_prizes|2|body|text|t|
+ticket_prizes|3|heading|text|t|'You are a winner!'::text
+ticket_prizes|4|created_at|timestamp with time zone|t|now()
 tickets|1|id|uuid|t|gen_random_uuid()
 tickets|2|ticket_no|integer|f|
 tickets|3|secret|text|t|
@@ -221,6 +225,10 @@ ticket_emails | ticket_emails_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCE
 ticket_messages | ticket_messages_message_id_fkey | FOREIGN KEY (message_id) REFERENCES game_messages(id) ON DELETE CASCADE
 ticket_messages | ticket_messages_pkey | PRIMARY KEY (ticket_id)
 ticket_messages | ticket_messages_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+ticket_prizes | ticket_prizes_body_check | CHECK (((char_length(body) >= 1) AND (char_length(body) <= 200)))
+ticket_prizes | ticket_prizes_heading_check | CHECK (((char_length(heading) >= 1) AND (char_length(heading) <= 60)))
+ticket_prizes | ticket_prizes_pkey | PRIMARY KEY (ticket_id)
+ticket_prizes | ticket_prizes_ticket_id_fkey | FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 tickets | tickets_attendance_check | CHECK ((attendance = ANY (ARRAY['Surely'::text, 'Most probably'::text])))
 tickets | tickets_booking_id_fkey | FOREIGN KEY (booking_id) REFERENCES bookings(id)
 tickets | tickets_checked_in_by_fkey | FOREIGN KEY (checked_in_by) REFERENCES auth.users(id)
@@ -284,6 +292,7 @@ staff | CREATE UNIQUE INDEX staff_pkey ON public.staff USING btree (user_id)
 ticket_emails | CREATE UNIQUE INDEX ticket_emails_pkey ON public.ticket_emails USING btree (ticket_id)
 ticket_messages | CREATE INDEX ticket_messages_message_idx ON public.ticket_messages USING btree (message_id)
 ticket_messages | CREATE UNIQUE INDEX ticket_messages_pkey ON public.ticket_messages USING btree (ticket_id)
+ticket_prizes | CREATE UNIQUE INDEX ticket_prizes_pkey ON public.ticket_prizes USING btree (ticket_id)
 tickets | CREATE INDEX tickets_booking_idx ON public.tickets USING btree (booking_id)
 tickets | CREATE UNIQUE INDEX tickets_coord_no_uq ON public.tickets USING btree (coord_no) WHERE (coord_no IS NOT NULL)
 tickets | CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)
@@ -340,6 +349,7 @@ settings_log : rls=true
 staff : rls=true
 ticket_emails : rls=true
 ticket_messages : rls=true
+ticket_prizes : rls=true
 tickets : rls=true
 transfer_buyers : rls=true
 transfers : rls=true
@@ -355,6 +365,7 @@ public.settings_log | admin_read_log | SELECT | {authenticated} | using: is_admi
 public.staff | staff_read_staff | SELECT | {authenticated} | using: ((user_id = auth.uid()) OR is_admin()) | check: -
 public.ticket_emails | admin_read_ticket_emails | SELECT | {authenticated} | using: is_admin() | check: -
 public.ticket_messages | admin_read_ticket_messages | SELECT | {authenticated} | using: is_admin() | check: -
+public.ticket_prizes | admin_read_ticket_prizes | SELECT | {authenticated} | using: is_admin() | check: -
 public.tickets | staff_read_tickets | SELECT | {authenticated} | using: is_staff() | check: -
 public.transfer_buyers | admin_read_transfer_buyers | SELECT | {authenticated} | using: is_admin() | check: -
 public.transfers | admin_read_transfers | SELECT | {authenticated} | using: is_admin() | check: -
@@ -533,6 +544,9 @@ begin
   if new.transferred_from is not null then
     insert into ticket_messages (ticket_id, message_id)
       select new.id, message_id from ticket_messages where ticket_id = new.transferred_from
+      on conflict (ticket_id) do nothing;
+    insert into ticket_prizes (ticket_id, body, heading)
+      select new.id, body, heading from ticket_prizes where ticket_id = new.transferred_from
       on conflict (ticket_id) do nothing;
   end if;
   return null;
@@ -790,6 +804,22 @@ begin
   return n;
 end $function$
 
+--- admin_clear_prizes(p_tickets uuid[]) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_clear_prizes(p_tickets uuid[] DEFAULT NULL::uuid[])
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare n int;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  delete from ticket_prizes where p_tickets is null or ticket_id = any (p_tickets);
+  get diagnostics n = row_count;
+  perform _mlog('prizes cleared', null, n || ' ticket(s)' || case when p_tickets is not null then ' (chosen tickets)' else '' end);
+  return n;
+end $function$
+
 --- admin_delete_message(p_id uuid) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
 CREATE OR REPLACE FUNCTION public.admin_delete_message(p_id uuid)
  RETURNS integer
@@ -962,6 +992,32 @@ begin
   if char_length(n) not between 1 and 60 then raise exception 'INVALID_PAYEE'; end if;
   if w !~ '^[0-9]{11,15}$' then raise exception 'INVALID_WHATSAPP'; end if;
   update settings set upi_id = u, payee_name = n, whatsapp_number = w where id = 1;
+end $function$
+
+--- admin_set_prizes(p_tickets uuid[], p_body text, p_heading text) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
+CREATE OR REPLACE FUNCTION public.admin_set_prizes(p_tickets uuid[], p_body text, p_heading text DEFAULT NULL::text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare b text := trim(coalesce(p_body, '')); h text := coalesce(nullif(trim(coalesce(p_heading, '')), ''), 'You are a winner!'); cnt int; n int;
+begin
+  if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
+  if char_length(b) not between 1 and 200 or b ~ '[[:cntrl:]]' then raise exception 'INVALID_MESSAGE'; end if;
+  if char_length(h) > 60 or h ~ '[[:cntrl:]]' then raise exception 'INVALID_NAME'; end if;
+  if p_tickets is null then raise exception 'INVALID_PAIRS'; end if;
+  cnt := coalesce(cardinality(p_tickets), 0);
+  if cnt = 0 then return 0; end if;
+  if cnt > 1000 then raise exception 'TOO_MANY'; end if;
+  if array_position(p_tickets, null) is not null then raise exception 'INVALID_PAIRS'; end if;
+  if (select count(distinct x) from unnest(p_tickets) x) <> cnt then raise exception 'DUPLICATE_TICKET'; end if;
+  if (select count(*) from tickets where id = any (p_tickets) and transferred_out_at is null) <> cnt then raise exception 'TICKET_NOT_FOUND'; end if;
+  insert into ticket_prizes (ticket_id, body, heading) select x, b, h from unnest(p_tickets) x
+    on conflict (ticket_id) do update set body = excluded.body, heading = excluded.heading, created_at = now();
+  get diagnostics n = row_count;
+  perform _mlog('prizes given', null, n || ' ticket(s): ' || h || ' / ' || b);
+  return n;
 end $function$
 
 --- admin_set_show_about(p_show boolean) | execute rights: {postgres=X/postgres,authenticated=X/postgres}
@@ -1459,6 +1515,10 @@ begin
            'secret', case when b.status = 'paid' and t.transferred_out_at is null then t.secret else null end,
            'game_message', case when gm_on and b.status = 'paid' and t.transferred_out_at is null
                                 then (select m.body from ticket_messages tm join game_messages m on m.id = tm.message_id where tm.ticket_id = t.id) else null end,
+           'game_prize', case when gm_on and b.status = 'paid' and t.transferred_out_at is null
+                              then (select z.body from ticket_prizes z where z.ticket_id = t.id) else null end,
+           'game_prize_heading', case when gm_on and b.status = 'paid' and t.transferred_out_at is null
+                              then (select z.heading from ticket_prizes z where z.ticket_id = t.id) else null end,
            'transferred', (t.transferred_out_at is not null),
            'name', t.name, 'location', t.location, 'attendance', t.attendance, 'food', t.food)
          order by t.reg_seq)
@@ -2015,6 +2075,7 @@ settings_log : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authentica
 staff : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 ticket_emails : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
 ticket_messages : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
+ticket_prizes : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 tickets : {postgres=arwdDxtm/postgres,service_role=Dxtm/postgres,authenticated=r/postgres}
 transfer_buyers : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
 transfers : {postgres=arwdDxtm/postgres,authenticated=r/postgres}
