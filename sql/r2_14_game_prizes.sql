@@ -1,17 +1,19 @@
 -- ============================================================================
--- Release 2, piece 14: "Prizes" (a lottery line on a ticket, separate from the team message), shown under the same admin switch
+-- Release 2, piece 14: "Random picks" (a line on a ticket given to randomly picked people, separate from the team message), shown under the same admin switch
 -- Written 30 Oct 2026. Run AFTER r2_13. Tested on the scratch database before use. Safe to run twice. Changes no existing data.
 --
---   ticket_prizes: at most one prize line per ticket (up to 200 characters). Readable and changeable by ADMINS ONLY.
+--   ticket_prizes: at most one such line per ticket (up to 200 characters) with its own heading (up to 60 characters, default "You are a winner!"),
+--   so it can be a prize, a clue, a task or anything else. Readable and changeable by ADMINS ONLY. (The table keeps its first name "ticket_prizes".)
 --   It is separate from ticket_messages (the team message): a ticket can have a team message, a prize, both, or neither.
 --   The same switch settings.show_messages decides whether anyone sees them: OFF = the database sends neither; ON = a ticket holder
---   who enters the right Booking ID + phone gets "game_message" and "game_prize" (paid booking, ticket not transferred away).
+--   who enters the right Booking ID + phone gets "game_message", and "game_prize" with "game_prize_heading" (paid booking, ticket not transferred away).
 --   Who wins is drawn in the admin page with the browser's secure random generator (shown as a preview first); the database only stores the result.
 --   A ticket made by a transfer inherits the prize as well as the team message. Changes are written to the Settings log (area "messages").
 -- ============================================================================
 create table if not exists public.ticket_prizes (
   ticket_id  uuid primary key references public.tickets(id) on delete cascade,
   body       text not null check (char_length(body) between 1 and 200),
+  heading    text not null default 'You are a winner!' check (char_length(heading) between 1 and 60),
   created_at timestamptz not null default now()
 );
 alter table public.ticket_prizes enable row level security;
@@ -20,13 +22,15 @@ create policy admin_read_ticket_prizes on public.ticket_prizes for select to aut
 revoke all on public.ticket_prizes from public, anon, authenticated;
 grant select on public.ticket_prizes to authenticated;
 
--- give one prize text to a list of tickets (the winners). All or nothing. Replaces an earlier prize on those tickets. Returns how many.
-create or replace function public.admin_set_prizes(p_tickets uuid[], p_body text) returns integer
+-- give one line (with a heading) to a list of tickets (the picked people). All or nothing. Replaces an earlier line on those tickets. Returns how many.
+-- A blank or missing heading means the default "You are a winner!".
+create or replace function public.admin_set_prizes(p_tickets uuid[], p_body text, p_heading text default null) returns integer
  language plpgsql security definer set search_path to 'public' as $function$
-declare b text := trim(coalesce(p_body, '')); cnt int; n int;
+declare b text := trim(coalesce(p_body, '')); h text := coalesce(nullif(trim(coalesce(p_heading, '')), ''), 'You are a winner!'); cnt int; n int;
 begin
   if not is_admin() then raise exception 'NOT_ALLOWED'; end if;
   if char_length(b) not between 1 and 200 or b ~ '[[:cntrl:]]' then raise exception 'INVALID_MESSAGE'; end if;
+  if char_length(h) > 60 or h ~ '[[:cntrl:]]' then raise exception 'INVALID_NAME'; end if;
   if p_tickets is null then raise exception 'INVALID_PAIRS'; end if;
   cnt := coalesce(cardinality(p_tickets), 0);
   if cnt = 0 then return 0; end if;
@@ -34,14 +38,14 @@ begin
   if array_position(p_tickets, null) is not null then raise exception 'INVALID_PAIRS'; end if;
   if (select count(distinct x) from unnest(p_tickets) x) <> cnt then raise exception 'DUPLICATE_TICKET'; end if;
   if (select count(*) from tickets where id = any (p_tickets) and transferred_out_at is null) <> cnt then raise exception 'TICKET_NOT_FOUND'; end if;
-  insert into ticket_prizes (ticket_id, body) select x, b from unnest(p_tickets) x
-    on conflict (ticket_id) do update set body = excluded.body, created_at = now();
+  insert into ticket_prizes (ticket_id, body, heading) select x, b, h from unnest(p_tickets) x
+    on conflict (ticket_id) do update set body = excluded.body, heading = excluded.heading, created_at = now();
   get diagnostics n = row_count;
-  perform _mlog('prizes given', null, n || ' ticket(s): ' || b);
+  perform _mlog('prizes given', null, n || ' ticket(s): ' || h || ' / ' || b);
   return n;
 end $function$;
-revoke all on function public.admin_set_prizes(uuid[], text) from public, anon, authenticated, service_role;
-grant execute on function public.admin_set_prizes(uuid[], text) to authenticated;
+revoke all on function public.admin_set_prizes(uuid[], text, text) from public, anon, authenticated, service_role;
+grant execute on function public.admin_set_prizes(uuid[], text, text) to authenticated;
 
 -- take prizes away. No argument = from everyone; a list = only those tickets. Returns how many.
 create or replace function public.admin_clear_prizes(p_tickets uuid[] default null) returns integer
@@ -57,7 +61,7 @@ end $function$;
 revoke all on function public.admin_clear_prizes(uuid[]) from public, anon, authenticated, service_role;
 grant execute on function public.admin_clear_prizes(uuid[]) to authenticated;
 
--- a ticket made by a transfer keeps the team message AND the prize of the ticket it came from
+-- a ticket made by a transfer keeps the team message AND the picked-people line (with its heading) of the ticket it came from
 create or replace function public._inherit_ticket_message() returns trigger
  language plpgsql security definer set search_path to 'public' as $function$
 begin
@@ -65,15 +69,15 @@ begin
     insert into ticket_messages (ticket_id, message_id)
       select new.id, message_id from ticket_messages where ticket_id = new.transferred_from
       on conflict (ticket_id) do nothing;
-    insert into ticket_prizes (ticket_id, body)
-      select new.id, body from ticket_prizes where ticket_id = new.transferred_from
+    insert into ticket_prizes (ticket_id, body, heading)
+      select new.id, body, heading from ticket_prizes where ticket_id = new.transferred_from
       on conflict (ticket_id) do nothing;
   end if;
   return null;
 end $function$;
 revoke all on function public._inherit_ticket_message() from public, anon, authenticated, service_role;
 
--- the ticket lookup: as in r2_13, plus "game_prize" (same rules as "game_message": switch ON, paid booking, ticket not transferred away; otherwise null)
+-- the ticket lookup: as in r2_13, plus "game_prize" and "game_prize_heading" (same rules as "game_message": switch ON, paid booking, ticket not transferred away; otherwise null)
 create or replace FUNCTION public.lookup_tickets(p_code text, p_phone text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -101,6 +105,8 @@ begin
                                 then (select m.body from ticket_messages tm join game_messages m on m.id = tm.message_id where tm.ticket_id = t.id) else null end,
            'game_prize', case when gm_on and b.status = 'paid' and t.transferred_out_at is null
                               then (select z.body from ticket_prizes z where z.ticket_id = t.id) else null end,
+           'game_prize_heading', case when gm_on and b.status = 'paid' and t.transferred_out_at is null
+                              then (select z.heading from ticket_prizes z where z.ticket_id = t.id) else null end,
            'transferred', (t.transferred_out_at is not null),
            'name', t.name, 'location', t.location, 'attendance', t.attendance, 'food', t.food)
          order by t.reg_seq)

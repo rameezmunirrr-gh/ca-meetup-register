@@ -20,11 +20,11 @@ FAKE = r"""(function(){const calls=window.__CALLS=[];window.__R={};
     if(!h)return {data:null,error:{message:'function '+n+' does not exist'}};
     if(typeof h==='function'){try{return await h(a)}catch(e){return {data:null,error:{message:String(e)}}}}return ok(h)},
   storage:{from:()=>({upload:async()=>({data:{},error:null})})}})};})();"""
-SPY = "window.__text=[];const _ft=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(t){window.__text.push(String(t));return _ft.apply(this,arguments)};"
-def booking(msgs, prizes=None):
-    prizes = prizes or {}
+SPY = "window.__text=[];const _ft=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(t){window.__text.push(String(t));(window.__w=window.__w||{})[String(t)]=[this.font,this.measureText(String(t)).width];return _ft.apply(this,arguments)};"
+def booking(msgs, prizes=None, heads=None):
+    prizes = prizes or {}; heads = heads or {}
     return {'found':True,'kind':'registration','booking_code':'AB12CD34','status':'paid','people_count':len(msgs),'amount_expected':250*len(msgs),
-            'tickets':[{'name':n,'food':'Veg' if i % 2 == 0 else 'Non-veg','label':f'E26-00{i+1}','secret':'abcdef'*2,'transferred':False,'kind':'guest','ticket_no':i+1,'coord_no':None,'location':'x','attendance':'y','game_message':m,'game_prize':prizes.get(n)}
+            'tickets':[{'name':n,'food':'Veg' if i % 2 == 0 else 'Non-veg','label':f'E26-00{i+1}','secret':'abcdef'*2,'transferred':False,'kind':'guest','ticket_no':i+1,'coord_no':None,'location':'x','attendance':'y','game_message':m,'game_prize':prizes.get(n),'game_prize_heading':(heads.get(n, 'You are a winner!') if prizes.get(n) else None)}
                        for i, (n, m) in enumerate(msgs)]}
 def open_view(p, rpc_js, html=None, w=420):
     b = p.chromium.launch(); pg = b.new_page(viewport={'width': w, 'height': 900}); errs = []
@@ -105,7 +105,7 @@ with sync_playwright() as p:
     pg.evaluate("window.__REJ='lookup_tickets'"); view(pg)
     check('5.5 if the fresh lookup fails with a network error (it throws), the ticket still opens', dims(pg) == [[900, 1480]] and not errs, (dims(pg), errs)); b.close()
     b, pg, errs = open_view(p, js(booking([('Asha', None)], prizes={'Asha': '<b>"win"</b> & more'}))); view(pg)
-    check('4.3 the prize line is also kept as plain text in the label (quotes, & and tags do not break it)', 'Prize: <b>"win"</b> & more' in pg.get_attribute('#tc0', 'aria-label') and pg.query_selector('#app b') is None, pg.get_attribute('#tc0', 'aria-label')); b.close()
+    check('4.3 the prize line is also kept as plain text in the label (quotes, & and tags do not break it)', 'You are a winner!: <b>"win"</b> & more' in pg.get_attribute('#tc0', 'aria-label') and pg.query_selector('#app b') is None, pg.get_attribute('#tc0', 'aria-label')); b.close()
     # 5b. the prize line: separate panel, only when it exists
     names = ['Neither', 'TeamOnly', 'PrizeOnly', 'Both']
     bk = booking([('Neither', None), ('TeamOnly', 'You are in team LION 🦁'), ('PrizeOnly', None), ('Both', 'You are in team TIGER 🐯')], prizes={'PrizeOnly': 'You won extra food! 🍛', 'Both': 'Free dessert for you'})
@@ -117,9 +117,26 @@ with sync_playwright() as p:
     tx = pg.evaluate('window.__text')
     check('5b.2 labels: "Your secret message" is drawn twice (two tickets), "You are a winner!" twice (two tickets)', tx.count('Your secret message') == 2 and tx.count('You are a winner!') == 2, [x for x in tx if 'ecret' in x or 'winner' in x])
     check('5b.3 the prize text is drawn exactly as written', 'You won extra food! 🍛' in tx and 'Free dessert for you' in tx)
-    check('5b.4 screen-reader labels: prize named, nothing about a prize for tickets without one', 'Prize: You won extra food' in pg.get_attribute('#tc2', 'aria-label') and 'Prize' not in pg.get_attribute('#tc1', 'aria-label') and 'Secret message' in pg.get_attribute('#tc3', 'aria-label') and 'Prize: Free dessert' in pg.get_attribute('#tc3', 'aria-label'))
+    check('5b.4 screen-reader labels: prize named, nothing about a prize for tickets without one', 'You are a winner!: You won extra food' in pg.get_attribute('#tc2', 'aria-label') and 'winner' not in pg.get_attribute('#tc1', 'aria-label') and 'Secret message' in pg.get_attribute('#tc3', 'aria-label') and 'You are a winner!: Free dessert' in pg.get_attribute('#tc3', 'aria-label'))
     for i, n in enumerate(names): shot(pg, 'p_' + n, i)
     check('5b.5 no page errors', not errs, errs); b.close()
+    # 5c. the editable heading
+    hk = booking([('Custom', None), ('Blank', None), ('Missing', None), ('Long', None)], prizes={'Custom': 'Go to the bar', 'Blank': 'Line B', 'Missing': 'Line M', 'Long': 'Line L'}, heads={'Custom': '  Secret mission 🎯 ', 'Blank': '   ', 'Long': 'H' * 60})
+    for t_ in hk['tickets']:
+        if t_['name'] == 'Missing': t_['game_prize_heading'] = None
+    b, pg, errs = open_view(p, js(hk)); pg.click('[data-view]'); pg.wait_for_selector('canvas.tk', state='attached'); pg.wait_for_function('S.cv&&S.cv[3]', timeout=15000); pg.wait_for_timeout(300)
+    tx = pg.evaluate('window.__text')
+    check('5c.1 a custom heading is drawn instead of "You are a winner!" (trimmed, emoji kept)', 'Secret mission 🎯' in tx and tx.count('You are a winner!') == 2, [x for x in tx if 'ecret mission' in x or 'winner' in x])
+    check('5c.2 a blank or missing heading falls back to "You are a winner!" (the two tickets Blank and Missing)', tx.count('You are a winner!') == 2)
+    check('5c.3 the screen-reader label uses the custom heading', 'Secret mission 🎯: Go to the bar' in pg.get_attribute('#tc0', 'aria-label') and 'winner' not in pg.get_attribute('#tc0', 'aria-label'), pg.get_attribute('#tc0', 'aria-label'))
+    w = pg.evaluate("(()=>{const x=document.createElement('canvas').getContext('2d');return null})()")
+    lw = pg.evaluate("window.__fontw||null")
+    fw = pg.evaluate('window.__w')['H' * 60]
+    check('5c.4 a 60-character heading is drawn in full, its font was shrunk and it is narrower than the panel text area (740 px)', fw[1] <= 740 and '30px' not in fw[0], fw)
+    hk2 = booking([('Mk', None)], prizes={'Mk': 'L'}, heads={'Mk': '<i>"q"</i> & x'})
+    b2, pg2, errs2 = open_view(p, js(hk2)); pg2.click('[data-view]'); pg2.wait_for_selector('canvas.tk', state='attached'); pg2.wait_for_timeout(300)
+    check('5c.4b markup, quotes and & in a heading are kept as plain text in the label', '<i>"q"</i> & x: L' in pg2.get_attribute('#tc0', 'aria-label') and pg2.query_selector('#app i') is None and not errs2, pg2.get_attribute('#tc0', 'aria-label')); b2.close()
+    check('5c.5 no page errors', not errs, errs); b.close()
     # a long prize line and a long team message together
     b, pg, errs = open_view(p, js(booking([('Both', long200)], prizes={'Both': 'W' * 150}))); view(pg)
     d = dims(pg); check('5b.6 two long panels together still produce a sane ticket (under 3200 px tall)', 1480 < d[0][1] < 3200 and not errs, (d, errs)); shot(pg, 'p_long_both'); b.close()

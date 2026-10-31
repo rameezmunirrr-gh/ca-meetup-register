@@ -37,17 +37,30 @@ M = [
  ("the draw is not random (always the first people)", P("return shuf(pool).slice(0,Math.max(0,Math.min(n,pool.length)))", "return pool.slice(0,Math.max(0,Math.min(n,pool.length)))")),
  ("the draw returns one winner too many", P("Math.max(0,Math.min(n,pool.length))", "Math.max(0,Math.min(n+1,pool.length))")),
  ("more winners than eligible people is allowed", P('if(n>pool.length)return toast("Only "', 'if(false)return toast("Only "')),
- ("an empty prize line is allowed", P('if(!l.body.trim())return toast("Type the prize line first"),true;', '')),
- ("Save does not ask before replacing prizes", P('if(!confirm(`Give "${l.body.trim()}" to', 'if(false&&!confirm(`Give "${l.body.trim()}" to')),
- ("Save draws again instead of saving the previewed winners", P('{p_tickets:l.plan,p_body:l.body}', '{p_tickets:drawWinners(lotPool(),l.plan.length).map(p=>p.id),p_body:l.body}')),
+ ("an empty prize line is allowed", P('if(!l.body.trim())return toast("Type the message line first"),true;', '')),
+ ("Save does not ask before replacing prizes", P('if(!confirm(`Give "${l.body.trim()}" (heading', 'if(false&&!confirm(`Give "${l.body.trim()}" (heading')),
+ ("Save draws again instead of saving the previewed winners", P('{p_tickets:l.plan,p_body:l.body,p_heading', '{p_tickets:drawWinners(lotPool(),l.plan.length).map(p=>p.id),p_body:l.body,p_heading')),
  ("Take away on one winner clears every prize", P('{p_tickets:[d.pzdel]}', '{p_tickets:null}')),
  ("the number box redraws the card and swallows the tap on Draw (the first bug I hit)", P('if(t.id==="ln"){l.n=t.value;if(!l.plan)return true}', 'if(t.id==="ln"){l.n=t.value}')),
  ("the lottery card is shown even before r2_14 is run", P("S.pzOk=!r.error;", "S.pzOk=true;")),
- ("no prize tag on People cards", P('${S.pzOk&&S.pz[p.id]?tag("🏆 prize"):""}', '')),
- ("the prize preview does not warn about replaced prizes", P('${S.pz[id]?" · already has a prize, which will be replaced":""}', '')),
+ ("no prize tag on People cards", P('${S.pzOk&&S.pz[p.id]?tag("🎲 picked"):""}', '')),
+ ("the prize preview does not warn about replaced prizes", P('${S.pz[id]?" · already has a message line, which will be replaced":""}', '')),
+ ("heading is never sent", P(',p_heading:l.head.trim()||null}', '}')),
+ ("heading is sent untrimmed", P('p_heading:l.head.trim()||null', 'p_heading:l.head||null')),
+ ("an empty heading is sent as an empty string, not null", P('p_heading:l.head.trim()||null', 'p_heading:l.head.trim()')),
+# (left out on purpose: the draw also reads the heading box, but the "input" listener already stores every keystroke, so removing only the read changes nothing a user can see: an equivalent mutant)
+ ("the heading is lost when the card is redrawn", P('if(e.target.id==="lhead"){S.mf.lot.head=e.target.value;return}', '')),
+ ("the heading box allows more than 60 characters", P('<input id="lhead" maxlength="60"', '<input id="lhead" maxlength="600"')),
+ ("the list of picked people hides the heading", P('<div class="mute" style="font-size:12px">${esc(S.pzh[p.id]||"You are a winner!")}</div>', '')),
+ ("the list shows no default heading for old rows", P('${esc(S.pzh[p.id]||"You are a winner!")}', '${esc(S.pzh[p.id]||"")}')),
+ ("the heading is not read from the database", P('select("ticket_id,body,heading")', 'select("ticket_id,body")')),
+ ("the person sheet leaves the heading out", P('esc((S.pzh[p.id]||"You are a winner!")+": "+S.pz[p.id])', 'esc(S.pz[p.id])')),
+ ("the Save question does not name the heading", P(' (heading: "${l.head.trim()||"You are a winner!"}")', '')),
 ]
 tmp = tempfile.mkdtemp(prefix='mut_msg_'); bad = 0
+ONLY = [int(x) for x in os.environ.get('ONLY', '').split(',') if x]
 for i, (name, fn) in enumerate(M, 1):
+    if ONLY and i not in ONLY: continue
     path = os.path.join(tmp, f'm{i:02d}.html'); open(path, 'w', encoding='utf-8').write(fn(orig))
     r = subprocess.run([sys.executable, os.path.join(HERE, 'run_messages.py')], capture_output=True, text=True, env=dict(os.environ, ADMIN_HTML=path), cwd=HERE, timeout=900)
     out = r.stdout + r.stderr; m = re.search(r'(\d+) passed, (\d+) failed', out)
